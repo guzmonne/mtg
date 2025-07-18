@@ -57,6 +57,14 @@ mtg sets list --page-size 5
 mtg types list
 ```
 
+### 5. Set Up Shell Completions
+```bash
+# Generate completions for your shell
+mtg completions generate bash > ~/.local/share/bash-completion/completions/mtg
+mtg completions generate zsh > ~/.zsh/completions/_mtg
+mtg completions generate fish > ~/.config/fish/completions/mtg.fish
+```
+
 ## Configuration
 
 ### Environment Variables
@@ -184,6 +192,7 @@ If the MTG API is unavailable:
 - [Card Commands](cards.md) - Learn advanced card search techniques
 - [Set Commands](sets.md) - Explore set browsing and booster generation
 - [Type Commands](types.md) - Master type and format queries
+- [Shell Completions](completions.md) - Set up shell completions for better CLI experience
 - [MCP Server](../mcp/overview.md) - Set up AI integration
 
 ---

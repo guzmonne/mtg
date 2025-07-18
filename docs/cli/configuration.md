@@ -246,7 +246,7 @@ mtg cards search "Artifact" --page 1 --page-size 50
 mtg cards search "Artifact" --page 2 --page-size 50
 ```
 
-## Security Considerations
+## Advanced Usage
 
 ### API Keys
 
@@ -263,83 +263,7 @@ chmod 600 ~/.mtg-secrets
 source ~/.mtg-secrets
 ```
 
-### Network Security
-
-For secure environments:
-
-```bash
-# Force HTTPS
-export MTG_API_BASE_URL="https://api.magicthegathering.io/v1"
-
-# Verify SSL certificates (default behavior)
-# To disable SSL verification (not recommended):
-# export MTG_INSECURE_SSL=1
-```
-
-## Configuration Files
-
-### Shell Configuration
-
-Add MTG CLI configuration to your shell's configuration file:
-
-#### Bash (~/.bashrc)
-
-```bash
-# MTG CLI Configuration
-export MTG_API_BASE_URL="https://api.magicthegathering.io/v1"
-export MTG_TIMEOUT=30
-
-# Aliases for common commands
-alias mtg-search='mtg cards search'
-alias mtg-sets='mtg sets list'
-alias mtg-types='mtg types list'
-```
-
-#### Zsh (~/.zshrc)
-
-```zsh
-# MTG CLI Configuration
-export MTG_API_BASE_URL="https://api.magicthegathering.io/v1"
-export MTG_TIMEOUT=30
-export MTG_VERBOSE=0
-
-# Completion (if available)
-# autoload -U compinit && compinit
-```
-
-### Project-Specific Configuration
-
-For project-specific settings, create a `.env` file:
-
-```bash
-# .env
-MTG_API_BASE_URL=https://api.magicthegathering.io/v1
-MTG_TIMEOUT=60
-MTG_VERBOSE=1
-
-# Load with: source .env
-```
-
-## Aliases and Shortcuts
-
-### Useful Aliases
-
-```bash
-# Search shortcuts
-alias mtg-bolt='mtg cards search "Lightning Bolt" --exact'
-alias mtg-dragons='mtg cards list --type "Creature" --subtype "Dragon"'
-alias mtg-recent='mtg sets list --page-size 10'
-
-# Quick booster generation
-alias mtg-booster-ktk='mtg sets booster "KTK"'
-alias mtg-booster-zen='mtg sets booster "ZEN"'
-
-# Format checking
-alias mtg-modern='mtg cards list --format "Modern"'
-alias mtg-standard='mtg cards list --format "Standard"'
-```
-
-### Functions
+### Useful Functions
 
 ```bash
 # Search and get detailed info

@@ -346,4 +346,4 @@ mtg cards list --format "Pauper" --rarity "Common"
 
 ---
 
-Next: [Configuration](configuration.md) | Back: [Set Commands](sets.md)
+Next: [Shell Completions](completions.md) | Back: [Set Commands](sets.md)

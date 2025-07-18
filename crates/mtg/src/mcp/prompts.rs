@@ -7,9 +7,15 @@ pub async fn analyze_card_prompt(
     arguments: Option<Value>,
 ) -> Result<GetPromptResult, Box<dyn std::error::Error + Send + Sync>> {
     let args = arguments.unwrap_or_default();
-    let card_name = args.get("card_name").and_then(|v| v.as_str()).unwrap_or("Lightning Bolt");
-    let format = args.get("format").and_then(|v| v.as_str()).unwrap_or("Modern");
-    
+    let card_name = args
+        .get("card_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Lightning Bolt");
+    let format = args
+        .get("format")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Modern");
+
     // Fetch card data
     let url = format!("{}/cards", base_url);
     let response = client
@@ -18,7 +24,7 @@ pub async fn analyze_card_prompt(
         .query(&[("pageSize", "1")])
         .send()
         .await?;
-    
+
     let json: Value = response.json().await?;
     let card_data = if let Some(cards) = json.get("cards").and_then(|c| c.as_array()) {
         if let Some(card) = cards.first() {
@@ -29,7 +35,7 @@ pub async fn analyze_card_prompt(
     } else {
         format!("No data found for card '{}'", card_name)
     };
-    
+
     let prompt_text = format!(
         r#"Please analyze the Magic: The Gathering card "{}" for competitive play in the {} format.
 
@@ -63,14 +69,12 @@ Please provide a comprehensive analysis covering:
 Please be specific and provide concrete examples where possible."#,
         card_name, format, card_data, format, format
     );
-    
+
     Ok(GetPromptResult {
         description: Some(format!("Analysis of {} for {} format", card_name, format)),
         messages: vec![PromptMessage {
             role: PromptMessageRole::User,
-            content: PromptMessageContent::Text {
-                text: prompt_text,
-            },
+            content: PromptMessageContent::Text { text: prompt_text },
         }],
     })
 }
@@ -81,10 +85,19 @@ pub async fn build_deck_prompt(
     arguments: Option<Value>,
 ) -> Result<GetPromptResult, Box<dyn std::error::Error + Send + Sync>> {
     let args = arguments.unwrap_or_default();
-    let theme = args.get("theme").and_then(|v| v.as_str()).unwrap_or("Aggro");
-    let format = args.get("format").and_then(|v| v.as_str()).unwrap_or("Standard");
-    let budget = args.get("budget").and_then(|v| v.as_str()).unwrap_or("No specific budget");
-    
+    let theme = args
+        .get("theme")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Aggro");
+    let format = args
+        .get("format")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Standard");
+    let budget = args
+        .get("budget")
+        .and_then(|v| v.as_str())
+        .unwrap_or("No specific budget");
+
     // Fetch some relevant cards based on theme
     let search_term = match theme.to_lowercase().as_str() {
         s if s.contains("aggro") => "haste",
@@ -93,7 +106,7 @@ pub async fn build_deck_prompt(
         s if s.contains("midrange") => "creature",
         _ => theme,
     };
-    
+
     let url = format!("{}/cards", base_url);
     let response = client
         .get(&url)
@@ -101,14 +114,18 @@ pub async fn build_deck_prompt(
         .query(&[("pageSize", "10")])
         .send()
         .await?;
-    
+
     let json: Value = response.json().await?;
     let sample_cards = if let Some(cards) = json.get("cards").and_then(|c| c.as_array()) {
-        cards.iter()
+        cards
+            .iter()
             .take(5)
             .filter_map(|card| {
                 let name = card.get("name").and_then(|n| n.as_str())?;
-                let mana_cost = card.get("manaCost").and_then(|m| m.as_str()).unwrap_or("N/A");
+                let mana_cost = card
+                    .get("manaCost")
+                    .and_then(|m| m.as_str())
+                    .unwrap_or("N/A");
                 let card_type = card.get("type").and_then(|t| t.as_str()).unwrap_or("N/A");
                 Some(format!("- {} ({}) - {}", name, mana_cost, card_type))
             })
@@ -117,7 +134,7 @@ pub async fn build_deck_prompt(
     } else {
         "No sample cards found".to_string()
     };
-    
+
     let prompt_text = format!(
         r#"Help me build a Magic: The Gathering deck with the following specifications:
 
@@ -164,14 +181,12 @@ Please provide a comprehensive deck building guide including:
 Please tailor the recommendations specifically for the {} format and consider the current meta."#,
         theme, format, budget, sample_cards, format
     );
-    
+
     Ok(GetPromptResult {
         description: Some(format!("Deck building guide for {} {} deck", format, theme)),
         messages: vec![PromptMessage {
             role: PromptMessageRole::User,
-            content: PromptMessageContent::Text {
-                text: prompt_text,
-            },
+            content: PromptMessageContent::Text { text: prompt_text },
         }],
     })
 }
@@ -182,11 +197,17 @@ pub async fn compare_cards_prompt(
     arguments: Option<Value>,
 ) -> Result<GetPromptResult, Box<dyn std::error::Error + Send + Sync>> {
     let args = arguments.unwrap_or_default();
-    let cards_str = args.get("cards").and_then(|v| v.as_str()).unwrap_or("Lightning Bolt,Shock");
-    let criteria = args.get("criteria").and_then(|v| v.as_str()).unwrap_or("overall power level");
-    
+    let cards_str = args
+        .get("cards")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Lightning Bolt,Shock");
+    let criteria = args
+        .get("criteria")
+        .and_then(|v| v.as_str())
+        .unwrap_or("overall power level");
+
     let card_names: Vec<&str> = cards_str.split(',').map(|s| s.trim()).collect();
-    
+
     // Fetch data for each card
     let mut card_data = Vec::new();
     for card_name in &card_names {
@@ -197,7 +218,7 @@ pub async fn compare_cards_prompt(
             .query(&[("pageSize", "1")])
             .send()
             .await?;
-        
+
         let json: Value = response.json().await?;
         if let Some(cards) = json.get("cards").and_then(|c| c.as_array()) {
             if let Some(card) = cards.first() {
@@ -207,13 +228,13 @@ pub async fn compare_cards_prompt(
             }
         }
     }
-    
+
     let cards_data_text = card_data
         .iter()
         .map(|(name, data)| format!("**{}:**\n```json\n{}\n```", name, data))
         .collect::<Vec<_>>()
         .join("\n\n");
-    
+
     let prompt_text = format!(
         r#"Please compare the following Magic: The Gathering cards based on {}:
 
@@ -251,14 +272,16 @@ Focus particularly on: {}
 Please provide specific examples and concrete reasoning for your analysis."#,
         criteria, cards_data_text, criteria
     );
-    
+
     Ok(GetPromptResult {
-        description: Some(format!("Comparison of {} cards based on {}", card_names.join(", "), criteria)),
+        description: Some(format!(
+            "Comparison of {} cards based on {}",
+            card_names.join(", "),
+            criteria
+        )),
         messages: vec![PromptMessage {
             role: PromptMessageRole::User,
-            content: PromptMessageContent::Text {
-                text: prompt_text,
-            },
+            content: PromptMessageContent::Text { text: prompt_text },
         }],
     })
 }

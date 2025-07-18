@@ -5,6 +5,7 @@ use crate::prelude::*;
 use clap::Parser;
 
 mod cards;
+mod completions;
 mod error;
 mod mcp;
 mod prelude;
@@ -52,6 +53,9 @@ pub enum SubCommands {
     /// Get card types, subtypes, supertypes, and formats
     Types(crate::types::App),
 
+    /// Generate shell completions
+    Completions(crate::completions::App),
+
     /// Start Model Context Protocol server for AI integration
     Mcp,
 }
@@ -67,6 +71,7 @@ async fn main() -> Result<()> {
         SubCommands::Cards(sub_app) => crate::cards::run(sub_app, app.global).await,
         SubCommands::Sets(sub_app) => crate::sets::run(sub_app, app.global).await,
         SubCommands::Types(sub_app) => crate::types::run(sub_app, app.global).await,
+        SubCommands::Completions(sub_app) => crate::completions::run(sub_app, app.global).await,
         SubCommands::Mcp => crate::mcp::run_mcp_server(app.global).await,
     }
     .map_err(|err: color_eyre::eyre::Report| eyre!(err))

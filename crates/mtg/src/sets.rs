@@ -74,10 +74,11 @@ pub async fn run(app: App, global: crate::Global) -> Result<()> {
 
 async fn list_sets(client: reqwest::Client, base_url: &str, options: ListOptions) -> Result<()> {
     let url = f!("{}/sets", base_url);
-    let mut request = client.get(&url)
+    let mut request = client
+        .get(&url)
         .query(&[("page", &options.page.to_string())])
         .query(&[("pageSize", &options.page_size.to_string())]);
-    
+
     if let Some(name) = &options.name {
         request = request.query(&[("name", name)]);
     }
@@ -86,7 +87,7 @@ async fn list_sets(client: reqwest::Client, base_url: &str, options: ListOptions
     }
 
     let response = request.send().await?;
-    
+
     // Check rate limiting headers
     if let Some(remaining) = response.headers().get("Ratelimit-Remaining") {
         if let Ok(remaining_str) = remaining.to_str() {
@@ -99,21 +100,30 @@ async fn list_sets(client: reqwest::Client, base_url: &str, options: ListOptions
     }
 
     let json: serde_json::Value = response.json().await?;
-    
+
     if let Some(sets) = json.get("sets").and_then(|s| s.as_array()) {
         let mut table = new_table();
-        table.set_titles(prettytable::row!["Code", "Name", "Type", "Block", "Release Date"]);
-        
+        table.set_titles(prettytable::row![
+            "Code",
+            "Name",
+            "Type",
+            "Block",
+            "Release Date"
+        ]);
+
         for set in sets {
             let code = set.get("code").and_then(|c| c.as_str()).unwrap_or("N/A");
             let name = set.get("name").and_then(|n| n.as_str()).unwrap_or("N/A");
             let set_type = set.get("type").and_then(|t| t.as_str()).unwrap_or("N/A");
             let block = set.get("block").and_then(|b| b.as_str()).unwrap_or("N/A");
-            let release_date = set.get("releaseDate").and_then(|r| r.as_str()).unwrap_or("N/A");
-            
+            let release_date = set
+                .get("releaseDate")
+                .and_then(|r| r.as_str())
+                .unwrap_or("N/A");
+
             table.add_row(prettytable::row![code, name, set_type, block, release_date]);
         }
-        
+
         aprintln!("{}", table.to_string());
         aprintln!("Showing {} sets", sets.len());
     } else {
@@ -126,14 +136,14 @@ async fn list_sets(client: reqwest::Client, base_url: &str, options: ListOptions
 async fn get_set(client: reqwest::Client, base_url: &str, options: GetOptions) -> Result<()> {
     let url = f!("{}/sets/{}", base_url, options.code);
     let response = client.get(&url).send().await?;
-    
+
     if response.status() == 404 {
         aprintln!("Set '{}' not found", options.code);
         return Ok(());
     }
-    
+
     let json: serde_json::Value = response.json().await?;
-    
+
     if let Some(set) = json.get("set") {
         display_set_details(set);
     } else {
@@ -143,32 +153,42 @@ async fn get_set(client: reqwest::Client, base_url: &str, options: GetOptions) -
     Ok(())
 }
 
-async fn generate_booster(client: reqwest::Client, base_url: &str, options: BoosterOptions) -> Result<()> {
+async fn generate_booster(
+    client: reqwest::Client,
+    base_url: &str,
+    options: BoosterOptions,
+) -> Result<()> {
     let url = f!("{}/sets/{}/booster", base_url, options.code);
     let response = client.get(&url).send().await?;
-    
+
     if response.status() == 404 {
-        aprintln!("Set '{}' not found or booster generation not available", options.code);
+        aprintln!(
+            "Set '{}' not found or booster generation not available",
+            options.code
+        );
         return Ok(());
     }
-    
+
     let json: serde_json::Value = response.json().await?;
-    
+
     if let Some(cards) = json.get("cards").and_then(|c| c.as_array()) {
         aprintln!("=== Booster Pack for {} ===", options.code.to_uppercase());
         aprintln!();
-        
+
         let mut table = new_table();
         table.set_titles(prettytable::row!["Name", "Type", "Rarity", "Mana Cost"]);
-        
+
         // Group cards by rarity for better display
         let mut rares = Vec::new();
         let mut uncommons = Vec::new();
         let mut commons = Vec::new();
         let mut others = Vec::new();
-        
+
         for card in cards {
-            let rarity = card.get("rarity").and_then(|r| r.as_str()).unwrap_or("Unknown");
+            let rarity = card
+                .get("rarity")
+                .and_then(|r| r.as_str())
+                .unwrap_or("Unknown");
             match rarity {
                 "Mythic Rare" | "Rare" => rares.push(card),
                 "Uncommon" => uncommons.push(card),
@@ -176,22 +196,25 @@ async fn generate_booster(client: reqwest::Client, base_url: &str, options: Boos
                 _ => others.push(card),
             }
         }
-        
+
         // Display in order: Mythic/Rare, Uncommon, Common, Others
         for card_group in [&rares, &uncommons, &commons, &others] {
             for card in card_group {
                 let name = card.get("name").and_then(|n| n.as_str()).unwrap_or("N/A");
                 let card_type = card.get("type").and_then(|t| t.as_str()).unwrap_or("N/A");
                 let rarity = card.get("rarity").and_then(|r| r.as_str()).unwrap_or("N/A");
-                let mana_cost = card.get("manaCost").and_then(|m| m.as_str()).unwrap_or("N/A");
-                
+                let mana_cost = card
+                    .get("manaCost")
+                    .and_then(|m| m.as_str())
+                    .unwrap_or("N/A");
+
                 table.add_row(prettytable::row![name, card_type, rarity, mana_cost]);
             }
         }
-        
+
         aprintln!("{}", table.to_string());
         aprintln!("Generated booster pack with {} cards", cards.len());
-        
+
         // Show rarity breakdown
         if !rares.is_empty() || !uncommons.is_empty() || !commons.is_empty() {
             aprintln!();
@@ -218,45 +241,45 @@ async fn generate_booster(client: reqwest::Client, base_url: &str, options: Boos
 
 fn display_set_details(set: &serde_json::Value) {
     aprintln!("=== Set Details ===");
-    
+
     if let Some(name) = set.get("name").and_then(|n| n.as_str()) {
         aprintln!("Name: {}", name);
     }
-    
+
     if let Some(code) = set.get("code").and_then(|c| c.as_str()) {
         aprintln!("Code: {}", code);
     }
-    
+
     if let Some(set_type) = set.get("type").and_then(|t| t.as_str()) {
         aprintln!("Type: {}", set_type);
     }
-    
+
     if let Some(block) = set.get("block").and_then(|b| b.as_str()) {
         aprintln!("Block: {}", block);
     }
-    
+
     if let Some(release_date) = set.get("releaseDate").and_then(|r| r.as_str()) {
         aprintln!("Release Date: {}", release_date);
     }
-    
+
     if let Some(border) = set.get("border").and_then(|b| b.as_str()) {
         aprintln!("Border: {}", border);
     }
-    
+
     if let Some(gatherer_code) = set.get("gathererCode").and_then(|g| g.as_str()) {
         aprintln!("Gatherer Code: {}", gatherer_code);
     }
-    
+
     if let Some(magic_cards_info_code) = set.get("magicCardsInfoCode").and_then(|m| m.as_str()) {
         aprintln!("MagicCards.info Code: {}", magic_cards_info_code);
     }
-    
+
     if let Some(online_only) = set.get("onlineOnly").and_then(|o| o.as_bool()) {
         if online_only {
             aprintln!("Online Only: Yes");
         }
     }
-    
+
     if let Some(booster) = set.get("booster").and_then(|b| b.as_array()) {
         aprintln!("Booster Contents:");
         for (i, slot) in booster.iter().enumerate() {

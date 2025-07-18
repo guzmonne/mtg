@@ -4,26 +4,35 @@ The MTG CLI provides a powerful command-line interface for interacting with Magi
 
 ## Table of Contents
 
-- [Getting Started](getting-started.md) - Installation and basic usage
-- [Card Commands](cards.md) - Search and retrieve card information
-- [Set Commands](sets.md) - Browse sets and generate booster packs
-- [Type Commands](types.md) - Access card types and format information
-- [Configuration](configuration.md) - Environment variables and settings
+- [Getting Started](./getting-started.md) - Installation and basic usage
+- [Card Commands](./cards.md) - Search and retrieve card information
+- [Set Commands](./sets.md) - Browse sets and generate booster packs
+- [Type Commands](./types.md) - Access card types and format information
+- [Shell Completions](./completions.md) - Generate shell completions for enhanced CLI experience
+- [Configuration](./configuration.md) - Environment variables and settings
 
 ## Overview
 
-The MTG CLI is built around four main command categories:
+The MTG CLI is built around five main command categories:
 
 ### Cards
+
 Search for Magic cards with advanced filtering options including name, colors, type, rarity, set, and mana cost.
 
 ### Sets
+
 Browse Magic sets, view set information, and generate virtual booster packs.
 
 ### Types
+
 Access comprehensive information about card types, subtypes, supertypes, and game formats.
 
+### Completions
+
+Generate shell completion scripts for enhanced command-line experience across multiple shells.
+
 ### MCP
+
 Start the Model Context Protocol server for AI integration.
 
 ## Quick Examples
@@ -37,6 +46,9 @@ mtg sets list --page-size 10
 
 # Get all card types
 mtg types list
+
+# Generate shell completions
+mtg completions generate bash
 
 # Start MCP server
 mtg mcp

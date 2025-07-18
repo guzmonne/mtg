@@ -50,20 +50,20 @@ async fn list_types(client: reqwest::Client, base_url: &str) -> Result<()> {
     let url = f!("{}/types", base_url);
     let response = client.get(&url).send().await?;
     let json: serde_json::Value = response.json().await?;
-    
+
     if let Some(types) = json.get("types").and_then(|t| t.as_array()) {
         aprintln!("=== Card Types ===");
         aprintln!();
-        
+
         let mut table = new_table();
         table.set_titles(prettytable::row!["Type"]);
-        
+
         for card_type in types {
             if let Some(type_str) = card_type.as_str() {
                 table.add_row(prettytable::row![type_str]);
             }
         }
-        
+
         aprintln!("{}", table.to_string());
         aprintln!("Total: {} types", types.len());
     } else {
@@ -77,17 +77,14 @@ async fn list_subtypes(client: reqwest::Client, base_url: &str) -> Result<()> {
     let url = f!("{}/subtypes", base_url);
     let response = client.get(&url).send().await?;
     let json: serde_json::Value = response.json().await?;
-    
+
     if let Some(subtypes) = json.get("subtypes").and_then(|s| s.as_array()) {
         aprintln!("=== Card Subtypes ===");
         aprintln!();
-        
+
         // Display in columns for better readability
-        let subtypes_str: Vec<&str> = subtypes
-            .iter()
-            .filter_map(|s| s.as_str())
-            .collect();
-        
+        let subtypes_str: Vec<&str> = subtypes.iter().filter_map(|s| s.as_str()).collect();
+
         display_in_columns(&subtypes_str, 4);
         aprintln!();
         aprintln!("Total: {} subtypes", subtypes.len());
@@ -102,20 +99,20 @@ async fn list_supertypes(client: reqwest::Client, base_url: &str) -> Result<()> 
     let url = f!("{}/supertypes", base_url);
     let response = client.get(&url).send().await?;
     let json: serde_json::Value = response.json().await?;
-    
+
     if let Some(supertypes) = json.get("supertypes").and_then(|s| s.as_array()) {
         aprintln!("=== Card Supertypes ===");
         aprintln!();
-        
+
         let mut table = new_table();
         table.set_titles(prettytable::row!["Supertype"]);
-        
+
         for supertype in supertypes {
             if let Some(supertype_str) = supertype.as_str() {
                 table.add_row(prettytable::row![supertype_str]);
             }
         }
-        
+
         aprintln!("{}", table.to_string());
         aprintln!("Total: {} supertypes", supertypes.len());
     } else {
@@ -129,22 +126,31 @@ async fn list_formats(client: reqwest::Client, base_url: &str) -> Result<()> {
     let url = f!("{}/formats", base_url);
     let response = client.get(&url).send().await?;
     let json: serde_json::Value = response.json().await?;
-    
+
     if let Some(formats) = json.get("formats").and_then(|f| f.as_array()) {
         aprintln!("=== Game Formats ===");
         aprintln!();
-        
+
         // Group formats by category for better organization
         let mut constructed = Vec::new();
         let mut limited = Vec::new();
         let mut blocks = Vec::new();
         let mut other = Vec::new();
-        
+
         for format in formats {
             if let Some(format_str) = format.as_str() {
                 if format_str.contains("Block") {
                     blocks.push(format_str);
-                } else if ["Standard", "Modern", "Legacy", "Vintage", "Commander", "Extended"].contains(&format_str) {
+                } else if [
+                    "Standard",
+                    "Modern",
+                    "Legacy",
+                    "Vintage",
+                    "Commander",
+                    "Extended",
+                ]
+                .contains(&format_str)
+                {
                     constructed.push(format_str);
                 } else if ["Limited", "Draft", "Sealed"].contains(&format_str) {
                     limited.push(format_str);
@@ -153,7 +159,7 @@ async fn list_formats(client: reqwest::Client, base_url: &str) -> Result<()> {
                 }
             }
         }
-        
+
         if !constructed.is_empty() {
             aprintln!("Constructed Formats:");
             for format in &constructed {
@@ -161,7 +167,7 @@ async fn list_formats(client: reqwest::Client, base_url: &str) -> Result<()> {
             }
             aprintln!();
         }
-        
+
         if !limited.is_empty() {
             aprintln!("Limited Formats:");
             for format in &limited {
@@ -169,7 +175,7 @@ async fn list_formats(client: reqwest::Client, base_url: &str) -> Result<()> {
             }
             aprintln!();
         }
-        
+
         if !blocks.is_empty() {
             aprintln!("Block Formats:");
             for format in &blocks {
@@ -177,7 +183,7 @@ async fn list_formats(client: reqwest::Client, base_url: &str) -> Result<()> {
             }
             aprintln!();
         }
-        
+
         if !other.is_empty() {
             aprintln!("Other Formats:");
             for format in &other {
@@ -185,7 +191,7 @@ async fn list_formats(client: reqwest::Client, base_url: &str) -> Result<()> {
             }
             aprintln!();
         }
-        
+
         aprintln!("Total: {} formats", formats.len());
     } else {
         aprintln!("No formats found");
@@ -195,8 +201,8 @@ async fn list_formats(client: reqwest::Client, base_url: &str) -> Result<()> {
 }
 
 fn display_in_columns(items: &[&str], columns: usize) {
-    let rows = (items.len() + columns - 1) / columns;
-    
+    let rows = items.len().div_ceil(columns);
+
     for row in 0..rows {
         let mut line = String::new();
         for col in 0..columns {
