@@ -1,11 +1,13 @@
+#![allow(clippy::large_enum_variant)]
 #![allow(unused)]
 
 use crate::prelude::*;
 use clap::Parser;
 
-mod error;
-mod prelude;
 mod cards;
+mod error;
+mod mcp;
+mod prelude;
 mod sets;
 mod types;
 
@@ -22,7 +24,12 @@ pub struct App {
 #[derive(Debug, clap::Args)]
 pub struct Global {
     /// MTG API Base URL
-    #[clap(long, env = "MTG_API_BASE_URL", global = true, default_value = "https://api.magicthegathering.io/v1")]
+    #[clap(
+        long,
+        env = "MTG_API_BASE_URL",
+        global = true,
+        default_value = "https://api.magicthegathering.io/v1"
+    )]
     api_base_url: String,
 
     /// Request timeout in seconds
@@ -44,6 +51,9 @@ pub enum SubCommands {
 
     /// Get card types, subtypes, supertypes, and formats
     Types(crate::types::App),
+
+    /// Start Model Context Protocol server for AI integration
+    Mcp,
 }
 
 #[tokio::main]
@@ -57,6 +67,7 @@ async fn main() -> Result<()> {
         SubCommands::Cards(sub_app) => crate::cards::run(sub_app, app.global).await,
         SubCommands::Sets(sub_app) => crate::sets::run(sub_app, app.global).await,
         SubCommands::Types(sub_app) => crate::types::run(sub_app, app.global).await,
+        SubCommands::Mcp => crate::mcp::run_mcp_server(app.global).await,
     }
     .map_err(|err: color_eyre::eyre::Report| eyre!(err))
 }
