@@ -13,7 +13,6 @@ Complete guide to using the MTG CLI for card searches, set browsing, and more.
 - [Set Commands](./cli/sets.md)
 - [Type Commands](./cli/types.md)
 - [Shell Completions](./cli/completions.md)
-- [Configuration](./cli/configuration.md)
 
 ### MCP Server
 
@@ -25,48 +24,32 @@ Detailed documentation for the Model Context Protocol server integration.
 - [Tools](./mcp/tools.md)
 - [Prompts](./mcp/prompts.md)
 
-### Examples & Testing
-
-Practical examples and testing scenarios.
-
-- [CLI Examples](examples/cli-examples.md)
-- [MCP Testing](examples/mcp-testing.md)
-- [Integration Examples](examples/integration-examples.md)
-
-### API Reference
-
-Technical reference for developers.
-
-- [CLI Commands](api/cli-reference.md)
-- [MCP Protocol](api/mcp-reference.md)
-- [Data Structures](api/data-structures.md)
-
-### Troubleshooting
-
-Common issues and solutions.
-
-- [Installation Issues](troubleshooting/installation.md)
-- [Runtime Errors](troubleshooting/runtime.md)
-- [MCP Connection Issues](troubleshooting/mcp.md)
-
 ## Quick Start
 
 ### CLI Usage
 
 ```bash
-# Install and run
-cargo build --release
+# Install and run with cargo
+cargo build --bin mtg --release
+
+# Run it from the `./target/release` directory
 ./target/release/mtg cards search "Lightning Bolt"
+
+# Use `xtask` to install it to `~/.local/bin`
+cargo xtask install -p ~/.local/bin --name mtg
+
+# Run it from your $PATH
+mtg cards search "Lightning Bolt"
 ```
 
 ### MCP Server
 
 ```bash
 # Start MCP server
-./target/release/mtg mcp
+mtg mcp
 
 # Or with custom configuration
-./target/release/mtg --api-base-url https://api.magicthegathering.io/v1 mcp
+mtg --api-base-url https://api.magicthegathering.io/v1 mcp
 ```
 
 ## Key Features
@@ -84,7 +67,3 @@ cargo build --release
 - [Magic: The Gathering API](https://magicthegathering.io/)
 - [Model Context Protocol Specification](https://spec.modelcontextprotocol.io/)
 - [Rust Documentation](https://doc.rust-lang.org/)
-
----
-
-For questions or issues, check the [troubleshooting guide](troubleshooting/) or open an issue on GitHub.

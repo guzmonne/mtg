@@ -45,7 +45,7 @@ Static data sources that AI assistants can read:
 
 ```
 mtg://cards   - Complete card database
-mtg://sets    - All Magic sets information  
+mtg://sets    - All Magic sets information
 mtg://types   - Type system and formats
 ```
 
@@ -114,7 +114,7 @@ compare_cards   - Card comparison and evaluation
 {
   "result": {
     "content": [{
-      "type": "text", 
+      "type": "text",
       "text": "Found 25 cards matching 'Lightning Bolt':\n\n**Lightning Bolt** (2ED)\n- Type: Instant\n- Rarity: Common\n- Mana Cost: {R}\n..."
     }],
     "isError": false
@@ -124,7 +124,7 @@ compare_cards   - Card comparison and evaluation
 
 ### Prompt Usage
 
-```json
+````json
 // AI Request
 {
   "method": "prompts/get",
@@ -150,21 +150,24 @@ compare_cards   - Card comparison and evaluation
     }]
   }
 }
-```
+````
 
 ## Security Model
 
 ### Sandboxing
+
 - Server runs in isolated environment
 - No file system access beyond configuration
 - Network access limited to MTG API
 
 ### Authentication
+
 - No authentication required for public MTG data
 - Rate limiting prevents abuse
 - Timeout controls prevent hanging
 
 ### Data Privacy
+
 - No user data stored
 - All requests are stateless
 - No logging of sensitive information
@@ -202,16 +205,19 @@ The MTG MCP server advertises these capabilities:
 ## Performance Characteristics
 
 ### Response Times
+
 - **Resource reads**: 100-500ms (cached)
 - **Tool calls**: 200-1000ms (API dependent)
 - **Prompt generation**: 50-200ms
 
 ### Throughput
+
 - **Concurrent requests**: Up to 10
 - **Rate limiting**: 100 requests/minute
 - **Timeout**: 30 seconds default
 
 ### Caching
+
 - **Resource caching**: 15 minutes
 - **Tool result caching**: None (dynamic data)
 - **Prompt caching**: Indefinite (static templates)
@@ -221,11 +227,13 @@ The MTG MCP server advertises these capabilities:
 ### Verbose Mode
 
 Enable detailed logging:
+
 ```bash
 mtg --verbose mcp
 ```
 
 Provides:
+
 - Request/response logging
 - Timing information
 - Error details
@@ -234,6 +242,7 @@ Provides:
 ### Health Checks
 
 The server provides health information:
+
 - Connection status
 - API availability
 - Response times
@@ -244,6 +253,7 @@ The server provides health information:
 ### Dynamic Resources
 
 Resources update automatically:
+
 - New cards added to database
 - Set information updates
 - Format legality changes
@@ -251,6 +261,7 @@ Resources update automatically:
 ### Extensible Tools
 
 Tool system supports:
+
 - Parameter validation
 - Error handling
 - Result formatting
@@ -259,6 +270,7 @@ Tool system supports:
 ### Smart Prompts
 
 Prompts include:
+
 - Context-aware templates
 - Dynamic data injection
 - Format-specific guidance
@@ -267,6 +279,7 @@ Prompts include:
 ## Integration Patterns
 
 ### Direct Integration
+
 ```bash
 # Start server
 mtg mcp
@@ -274,21 +287,6 @@ mtg mcp
 # Connect AI assistant via stdio
 ```
 
-### Proxy Integration
-```bash
-# Use with MCP proxy
-mcp-proxy --server "mtg mcp" --port 8080
-```
-
-### Container Integration
-```dockerfile
-FROM rust:1.70
-COPY . /app
-WORKDIR /app
-RUN cargo build --release
-CMD ["./target/release/mtg", "mcp"]
-```
-
 ---
 
-Next: [Setup & Installation](setup.md) | Back: [MCP Documentation](README.md)
+Next: [Setup & Installation](./setup.md) | Back: [MCP Documentation](./README.md)

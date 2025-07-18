@@ -6,13 +6,13 @@ Tools provide AI assistants with interactive functions to search, analyze, and m
 
 The MTG MCP server provides five powerful tools:
 
-| Tool | Purpose | Parameters |
-|------|---------|------------|
-| **search_cards** | Advanced card search | name, colors, type, rarity, set, cmc, limit |
-| **get_card** | Detailed card information | id |
-| **list_sets** | Set browsing and filtering | name, block, limit |
-| **generate_booster** | Virtual booster pack creation | set_code |
-| **get_card_types** | Type system queries | category |
+| Tool                 | Purpose                       | Parameters                                  |
+| -------------------- | ----------------------------- | ------------------------------------------- |
+| **search_cards**     | Advanced card search          | name, colors, type, rarity, set, cmc, limit |
+| **get_card**         | Detailed card information     | id                                          |
+| **list_sets**        | Set browsing and filtering    | name, block, limit                          |
+| **generate_booster** | Virtual booster pack creation | set_code                                    |
+| **get_card_types**   | Type system queries           | category                                    |
 
 ## search_cards
 
@@ -22,19 +22,20 @@ Advanced card search with multiple filtering options.
 
 ```json
 {
-  "name": "Lightning",           // Card name (partial matching)
-  "colors": "Red,Blue",          // Colors (comma=AND, pipe=OR)
-  "type": "Creature",            // Card type
-  "rarity": "Rare",              // Card rarity
-  "set": "KTK",                  // Set code
-  "cmc": 3,                      // Converted mana cost
-  "limit": 20                    // Maximum results (default: 20)
+  "name": "Lightning", // Card name (partial matching)
+  "colors": "Red,Blue", // Colors (comma=AND, pipe=OR)
+  "type": "Creature", // Card type
+  "rarity": "Rare", // Card rarity
+  "set": "KTK", // Set code
+  "cmc": 3, // Converted mana cost
+  "limit": 20 // Maximum results (default: 20)
 }
 ```
 
 ### Examples
 
 #### Basic Name Search
+
 ```json
 {
   "method": "tools/call",
@@ -48,6 +49,7 @@ Advanced card search with multiple filtering options.
 ```
 
 Response:
+
 ```
 Found 25 cards matching 'Lightning Bolt':
 
@@ -67,6 +69,7 @@ Found 25 cards matching 'Lightning Bolt':
 ```
 
 #### Advanced Filtering
+
 ```json
 {
   "method": "tools/call",
@@ -83,6 +86,7 @@ Found 25 cards matching 'Lightning Bolt':
 ```
 
 #### Color Logic
+
 ```json
 // Cards that are both Red AND Blue
 {
@@ -115,7 +119,7 @@ Retrieve detailed information about a specific card.
 
 ```json
 {
-  "id": "409574"                 // Card ID or multiverse ID
+  "id": "409574" // Card ID or multiverse ID
 }
 ```
 
@@ -134,6 +138,7 @@ Retrieve detailed information about a specific card.
 ```
 
 Response:
+
 ```
 === Lightning Bolt ===
 
@@ -147,7 +152,7 @@ Artist: Christopher Rush
 
 Text: Lightning Bolt deals 3 damage to any target.
 
-Flavor: The sparkmage shrieked, calling on the rage of the storms of his youth. 
+Flavor: The sparkmage shrieked, calling on the rage of the storms of his youth.
 To his surprise, the sky responded with a fierce energy he'd never tasted before.
 
 Legality:
@@ -178,15 +183,16 @@ Browse and filter Magic: The Gathering sets.
 
 ```json
 {
-  "name": "Zendikar",            // Set name filter (partial matching)
-  "block": "Innistrad",          // Block name filter
-  "limit": 20                    // Maximum results (default: 20)
+  "name": "Zendikar", // Set name filter (partial matching)
+  "block": "Innistrad", // Block name filter
+  "limit": 20 // Maximum results (default: 20)
 }
 ```
 
 ### Examples
 
 #### List Recent Sets
+
 ```json
 {
   "method": "tools/call",
@@ -200,6 +206,7 @@ Browse and filter Magic: The Gathering sets.
 ```
 
 #### Filter by Name
+
 ```json
 {
   "method": "tools/call",
@@ -214,6 +221,7 @@ Browse and filter Magic: The Gathering sets.
 ```
 
 Response:
+
 ```
 Found 5 sets matching 'Ravnica':
 
@@ -244,6 +252,7 @@ Found 5 sets matching 'Ravnica':
 ```
 
 #### Filter by Block
+
 ```json
 {
   "method": "tools/call",
@@ -271,7 +280,7 @@ Generate virtual booster packs from specific sets.
 
 ```json
 {
-  "set_code": "KTK"              // Three-letter set code
+  "set_code": "KTK" // Three-letter set code
 }
 ```
 
@@ -290,6 +299,7 @@ Generate virtual booster packs from specific sets.
 ```
 
 Response:
+
 ```
 **Booster Pack for KTK**
 
@@ -343,13 +353,14 @@ Query the Magic type system for types, subtypes, supertypes, and formats.
 
 ```json
 {
-  "category": "types"            // "types", "subtypes", "supertypes", or "formats"
+  "category": "types" // "types", "subtypes", "supertypes", or "formats"
 }
 ```
 
 ### Examples
 
 #### Get All Card Types
+
 ```json
 {
   "method": "tools/call",
@@ -363,6 +374,7 @@ Query the Magic type system for types, subtypes, supertypes, and formats.
 ```
 
 Response:
+
 ```
 === Card Types ===
 
@@ -381,6 +393,7 @@ Total: 9 types
 ```
 
 #### Get Subtypes
+
 ```json
 {
   "method": "tools/call",
@@ -394,6 +407,7 @@ Total: 9 types
 ```
 
 #### Get Formats
+
 ```json
 {
   "method": "tools/call",
@@ -407,6 +421,7 @@ Total: 9 types
 ```
 
 Response:
+
 ```
 === Game Formats ===
 
@@ -464,10 +479,12 @@ Tools return structured error information:
 
 ```json
 {
-  "content": [{
-    "type": "text",
-    "text": "Card with ID '999999' not found."
-  }],
+  "content": [
+    {
+      "type": "text",
+      "text": "Card with ID '999999' not found."
+    }
+  ],
   "isError": true
 }
 ```
@@ -481,13 +498,13 @@ Tools return structured error information:
 
 ## Tool Comparison
 
-| Tool | Response Time | Cache | Use Case |
-|------|---------------|-------|----------|
-| search_cards | 200-800ms | No | Interactive search |
-| get_card | 100-400ms | No | Detailed analysis |
-| list_sets | 200-600ms | No | Set browsing |
-| generate_booster | 300-1000ms | No | Pack simulation |
-| get_card_types | 50-200ms | Yes | Reference data |
+| Tool             | Response Time | Cache | Use Case           |
+| ---------------- | ------------- | ----- | ------------------ |
+| search_cards     | 200-800ms     | No    | Interactive search |
+| get_card         | 100-400ms     | No    | Detailed analysis  |
+| list_sets        | 200-600ms     | No    | Set browsing       |
+| generate_booster | 300-1000ms    | No    | Pack simulation    |
+| get_card_types   | 50-200ms      | Yes   | Reference data     |
 
 ## Advanced Usage
 
@@ -544,16 +561,16 @@ def suggest_cards_for_deck(deck_theme, format):
         "name": deck_theme,
         "limit": 20
     })
-    
+
     # Filter by format legality
     legal_cards = filter_by_format(cards, format)
-    
+
     # Get detailed info for top suggestions
     suggestions = []
     for card in legal_cards[:5]:
         details = call_tool("get_card", {"id": card["id"]})
         suggestions.append(details)
-    
+
     return suggestions
 ```
 
@@ -566,14 +583,14 @@ def analyze_set_mechanics(set_code):
     for i in range(10):
         booster = call_tool("generate_booster", {"set_code": set_code})
         boosters.append(booster)
-    
+
     # Analyze rarity distribution
     rarity_stats = calculate_rarity_distribution(boosters)
-    
+
     # Get set information
     sets = call_tool("list_sets", {"name": set_code})
     set_info = find_set_by_code(sets, set_code)
-    
+
     return {
         "set_info": set_info,
         "rarity_stats": rarity_stats,
@@ -586,23 +603,23 @@ def analyze_set_mechanics(set_code):
 ```python
 def compare_cards(card_names):
     comparisons = []
-    
+
     for name in card_names:
         # Search for card
         search_result = call_tool("search_cards", {
             "name": name,
             "limit": 1
         })
-        
+
         if search_result:
             # Get detailed info
             card_id = extract_card_id(search_result)
             details = call_tool("get_card", {"id": card_id})
             comparisons.append(details)
-    
+
     return analyze_card_comparison(comparisons)
 ```
 
 ---
 
-Next: [Prompts](prompts.md) | Back: [Resources](resources.md)
+Next: [Prompts](./prompts.md) | Back: [Resources](./resources.md)

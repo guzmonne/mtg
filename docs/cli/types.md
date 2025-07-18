@@ -6,7 +6,7 @@ The `mtg types` command provides access to Magic: The Gathering type system info
 
 - `list` - List all card types
 - `subtypes` - List all subtypes
-- `supertypes` - List all supertypes  
+- `supertypes` - List all supertypes
 - `formats` - List all game formats
 
 ## Card Types
@@ -19,6 +19,7 @@ mtg types list
 ```
 
 This returns all primary card types including:
+
 - **Artifact** - Non-creature permanents with various effects
 - **Battle** - New card type from March of the Machine
 - **Creature** - Permanents that can attack and block
@@ -29,20 +30,21 @@ This returns all primary card types including:
 - **Sorcery** - Spells cast at sorcery speed
 
 ### Example Output
+
 ```
 === Card Types ===
 
- Type 
- Artifact 
- Battle 
- Conspiracy 
- Creature 
- Enchantment 
- Instant 
- Land 
- Planeswalker 
- Sorcery 
- Tribal 
+ Type
+ Artifact
+ Battle
+ Conspiracy
+ Creature
+ Enchantment
+ Instant
+ Land
+ Planeswalker
+ Sorcery
+ Tribal
 
 Total: 10 types
 ```
@@ -59,34 +61,39 @@ mtg types subtypes
 Subtypes are more specific classifications within each card type:
 
 #### Creature Subtypes (Races and Classes)
+
 - **Races**: Human, Elf, Goblin, Dragon, Angel, Demon, etc.
 - **Classes**: Warrior, Wizard, Cleric, Rogue, Knight, etc.
 
 #### Land Subtypes
+
 - **Basic Types**: Plains, Island, Swamp, Mountain, Forest
 - **Nonbasic Types**: Desert, Gate, Lair, etc.
 
 #### Artifact Subtypes
+
 - Equipment, Vehicle, Treasure, Food, etc.
 
 #### Planeswalker Subtypes
+
 - Jace, Chandra, Liliana, Gideon, Nissa, etc.
 
 ### Example Output
+
 ```
 === Subtypes ===
 
- Subtype 
- Advisor 
- Aetherborn 
- Angel 
- Antelope 
- Ape 
- Archer 
- Archon 
- Artificer 
- Assassin 
- Assembly-Worker 
+ Subtype
+ Advisor
+ Aetherborn
+ Angel
+ Antelope
+ Ape
+ Archer
+ Archon
+ Artificer
+ Assassin
+ Assembly-Worker
  ...
 
 Total: 347 subtypes
@@ -109,14 +116,15 @@ Supertypes are special designations that modify how cards work:
 - **World** - Old supertype for unique enchantments
 
 ### Example Output
+
 ```
 === Supertypes ===
 
- Supertype 
- Basic 
- Legendary 
- Snow 
- World 
+ Supertype
+ Basic
+ Legendary
+ Snow
+ World
 
 Total: 4 supertypes
 ```
@@ -133,6 +141,7 @@ mtg types formats
 This returns all official Magic formats where cards can be legal:
 
 #### Constructed Formats
+
 - **Standard** - Most recent sets
 - **Pioneer** - Sets from Return to Ravnica forward
 - **Modern** - Sets from Eighth Edition forward
@@ -140,31 +149,34 @@ This returns all official Magic formats where cards can be legal:
 - **Vintage** - All sets with power restrictions
 
 #### Limited Formats
+
 - **Draft** - Booster draft format
 - **Sealed** - Sealed deck format
 
 #### Casual Formats
+
 - **Commander** - 100-card singleton multiplayer
 - **Brawl** - Standard-legal Commander variant
 - **Pauper** - Commons only
 - **Penny Dreadful** - Budget format
 
 ### Example Output
+
 ```
 === Game Formats ===
 
- Format 
- Standard 
- Pioneer 
- Modern 
- Legacy 
- Vintage 
- Commander 
- Brawl 
- Pauper 
- Penny Dreadful 
- Draft 
- Sealed 
+ Format
+ Standard
+ Pioneer
+ Modern
+ Legacy
+ Vintage
+ Commander
+ Brawl
+ Pauper
+ Penny Dreadful
+ Draft
+ Sealed
 
 Total: 11 formats
 ```
@@ -174,7 +186,9 @@ Total: 11 formats
 ### Understanding Card Types
 
 #### Primary Types
+
 Each card has exactly one primary type:
+
 ```bash
 # Find creatures
 mtg cards list --type "Creature"
@@ -187,7 +201,9 @@ mtg cards list --type "Artifact"
 ```
 
 #### Multiple Types
+
 Some cards have multiple types:
+
 - **Artifact Creature** - Both artifact and creature
 - **Legendary Creature** - Legendary supertype + creature type
 - **Tribal Instant** - Tribal type + instant type
@@ -195,6 +211,7 @@ Some cards have multiple types:
 ### Subtype Usage
 
 #### Creature Subtypes
+
 ```bash
 # Find all Dragons
 mtg cards list --subtype "Dragon"
@@ -207,6 +224,7 @@ mtg cards list --subtype "Human,Warrior"
 ```
 
 #### Land Subtypes
+
 ```bash
 # Find all Islands
 mtg cards list --subtype "Island"
@@ -218,6 +236,7 @@ mtg cards list --supertype "Basic"
 ### Format Legality
 
 When viewing individual cards, you'll see format legality:
+
 ```
 Legality:
   Standard: Not Legal
@@ -232,6 +251,7 @@ Legality:
 ## Command Options
 
 ### Global Options
+
 - `--api-base-url <URL>` - Custom API endpoint
 - `--timeout <SECONDS>` - Request timeout
 - `--verbose` - Detailed output
@@ -281,17 +301,20 @@ mtg types subtypes | grep -i "plains\|island\|swamp\|mountain\|forest"
 ## Type System Rules
 
 ### Supertypes
+
 - Can have multiple supertypes (e.g., "Legendary Snow Creature")
 - Modify how the card functions
 - "Basic" only applies to lands
 - "Legendary" follows the legend rule
 
-### Types  
+### Types
+
 - Each card has exactly one or more types
 - Determine when and how the card can be played
 - Affect what zones the card can exist in
 
 ### Subtypes
+
 - Provide additional classification
 - Enable tribal synergies
 - Can have multiple subtypes
@@ -328,22 +351,24 @@ mtg cards list --format "Pauper" --rarity "Common"
 ## Reference Tables
 
 ### Common Creature Types
-| Race | Class | Hybrid |
-|------|-------|---------|
-| Human | Warrior | Zombie Warrior |
-| Elf | Wizard | Angel Warrior |
-| Goblin | Rogue | Dragon Wizard |
-| Dragon | Knight | Vampire Noble |
+
+| Race   | Class   | Hybrid         |
+| ------ | ------- | -------------- |
+| Human  | Warrior | Zombie Warrior |
+| Elf    | Wizard  | Angel Warrior  |
+| Goblin | Rogue   | Dragon Wizard  |
+| Dragon | Knight  | Vampire Noble  |
 
 ### Land Types
-| Basic | Nonbasic |
-|-------|----------|
-| Plains | Gate |
-| Island | Desert |
-| Swamp | Lair |
-| Mountain | Locus |
-| Forest | Mine |
+
+| Basic    | Nonbasic |
+| -------- | -------- |
+| Plains   | Gate     |
+| Island   | Desert   |
+| Swamp    | Lair     |
+| Mountain | Locus    |
+| Forest   | Mine     |
 
 ---
 
-Next: [Shell Completions](completions.md) | Back: [Set Commands](sets.md)
+Next: [README.md](./README.md) | Back: [Set Commands](sets.md)

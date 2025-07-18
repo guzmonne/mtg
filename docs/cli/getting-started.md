@@ -12,12 +12,14 @@ This guide will help you install and start using the MTG CLI.
 ### Building from Source
 
 1. **Clone the repository:**
+
    ```bash
    git clone <repository-url>
    cd mtg
    ```
 
 2. **Build the project:**
+
    ```bash
    cargo build --release
    ```
@@ -30,6 +32,7 @@ This guide will help you install and start using the MTG CLI.
 ### Development Build
 
 For development and testing:
+
 ```bash
 cargo build
 ./target/debug/mtg --help
@@ -38,26 +41,31 @@ cargo build
 ## First Steps
 
 ### 1. Check Help
+
 ```bash
 mtg --help
 ```
 
 ### 2. Search for a Card
+
 ```bash
 mtg cards search "Black Lotus"
 ```
 
 ### 3. Browse Sets
+
 ```bash
 mtg sets list --page-size 5
 ```
 
 ### 4. Get Card Types
+
 ```bash
 mtg types list
 ```
 
 ### 5. Set Up Shell Completions
+
 ```bash
 # Generate completions for your shell
 mtg completions generate bash > ~/.local/share/bash-completion/completions/mtg
@@ -159,10 +167,10 @@ The CLI provides formatted output:
 ### Example Output
 
 ```
- Name            Set  Type     Rarity  Mana Cost 
- Lightning Bolt  2ED  Instant  Common  {R} 
- Lightning Bolt  3ED  Instant  Common  {R} 
- Lightning Bolt  4ED  Instant  Common  {R} 
+ Name            Set  Type     Rarity  Mana Cost
+ Lightning Bolt  2ED  Instant  Common  {R}
+ Lightning Bolt  3ED  Instant  Common  {R}
+ Lightning Bolt  4ED  Instant  Common  {R}
 
 Found 25 cards matching 'Lightning Bolt'
 ```
@@ -170,31 +178,29 @@ Found 25 cards matching 'Lightning Bolt'
 ## Common Issues
 
 ### Network Timeouts
+
 If you experience timeouts, increase the timeout value:
+
 ```bash
 mtg --timeout 120 cards search "Expensive Query"
 ```
 
 ### Rate Limiting
+
 The CLI includes built-in rate limiting, but if you hit API limits:
+
 - Wait a few seconds between requests
 - Use smaller page sizes
 - Consider caching results locally
 
 ### API Errors
+
 If the MTG API is unavailable:
+
 - Check your internet connection
 - Verify the API URL is correct
 - Try again later
 
-## Next Steps
-
-- [Card Commands](cards.md) - Learn advanced card search techniques
-- [Set Commands](sets.md) - Explore set browsing and booster generation
-- [Type Commands](types.md) - Master type and format queries
-- [Shell Completions](completions.md) - Set up shell completions for better CLI experience
-- [MCP Server](../mcp/overview.md) - Set up AI integration
-
 ---
 
-Need help? Check the [troubleshooting guide](../troubleshooting/) or open an issue.
+Next: [Cards](./cards.md) | Back: [Sets](./sets.md)

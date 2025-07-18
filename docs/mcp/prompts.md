@@ -6,11 +6,11 @@ Prompts provide AI assistants with pre-built templates for common Magic: The Gat
 
 The MTG MCP server provides three specialized prompts:
 
-| Prompt | Purpose | Arguments |
-|--------|---------|-----------|
-| **analyze_card** | Card power level and competitive analysis | card_name, format |
-| **build_deck** | Deck construction guidance | theme, format, budget |
-| **compare_cards** | Multi-card comparison and evaluation | cards, criteria |
+| Prompt            | Purpose                                   | Arguments             |
+| ----------------- | ----------------------------------------- | --------------------- |
+| **analyze_card**  | Card power level and competitive analysis | card_name, format     |
+| **build_deck**    | Deck construction guidance                | theme, format, budget |
+| **compare_cards** | Multi-card comparison and evaluation      | cards, criteria       |
 
 ## analyze_card
 
@@ -20,8 +20,8 @@ Comprehensive card analysis for competitive play evaluation.
 
 ```json
 {
-  "card_name": "Lightning Bolt",     // Required: Card name to analyze
-  "format": "Modern"                 // Optional: Format context (default: "Modern")
+  "card_name": "Lightning Bolt", // Required: Card name to analyze
+  "format": "Modern" // Optional: Format context (default: "Modern")
 }
 ```
 
@@ -44,7 +44,7 @@ Comprehensive card analysis for competitive play evaluation.
 
 The prompt generates a comprehensive analysis request including:
 
-```
+````
 Please analyze the Magic: The Gathering card "Lightning Bolt" for competitive play in the Modern format.
 
 Card Data:
@@ -64,26 +64,30 @@ Card Data:
     {"format": "Vintage", "legality": "Legal"}
   ]
 }
-```
+````
 
 Please provide a comprehensive analysis covering:
 
 1. **Power Level Assessment**
+
    - Rate the card's overall power level (1-10)
    - Compare to similar cards in the format
    - Identify key strengths and weaknesses
 
 2. **Competitive Viability**
+
    - Current meta relevance in Modern
    - Deck archetypes that would play this card
    - Matchup considerations
 
 3. **Synergies and Combos**
+
    - Cards that work well with Lightning Bolt
    - Potential combo interactions
    - Build-around strategies
 
 4. **Meta Considerations**
+
    - How the current meta affects this card's value
    - Sideboard considerations
    - Future meta predictions
@@ -92,7 +96,8 @@ Please provide a comprehensive analysis covering:
    - Card's impact on Magic history
    - Previous meta positions
    - Design significance
-```
+
+````
 
 ### Use Cases
 
@@ -124,7 +129,7 @@ Comprehensive deck building guidance and strategy development.
   "format": "Modern",                // Required: Target format
   "budget": "Budget"                 // Optional: Budget constraints
 }
-```
+````
 
 ### Example Usage
 
@@ -216,8 +221,8 @@ Multi-card comparison and evaluation for deck building decisions.
 
 ```json
 {
-  "cards": "Lightning Bolt,Shock,Lava Spike",  // Required: Comma-separated card names
-  "criteria": "mana efficiency"                // Optional: Specific comparison criteria
+  "cards": "Lightning Bolt,Shock,Lava Spike", // Required: Comma-separated card names
+  "criteria": "mana efficiency" // Optional: Specific comparison criteria
 }
 ```
 
@@ -238,7 +243,7 @@ Multi-card comparison and evaluation for deck building decisions.
 
 ### Generated Prompt
 
-```
+````
 Please compare the following Magic: The Gathering cards for burn deck inclusion:
 
 **Cards to Compare**: Lightning Bolt, Shock, Lava Spike
@@ -255,9 +260,10 @@ Lightning Bolt:
   "text": "Lightning Bolt deals 3 damage to any target.",
   "rarity": "Common"
 }
-```
+````
 
 Shock:
+
 ```json
 {
   "name": "Shock",
@@ -270,6 +276,7 @@ Shock:
 ```
 
 Lava Spike:
+
 ```json
 {
   "name": "Lava Spike",
@@ -284,16 +291,19 @@ Lava Spike:
 Please provide a detailed comparison focusing on burn deck inclusion:
 
 1. **Direct Comparison**
+
    - Damage per mana efficiency
    - Targeting flexibility
    - Speed and timing considerations
 
 2. **Deck Building Implications**
+
    - Which cards fit best in aggressive strategies
    - Situational advantages of each option
    - Meta considerations
 
 3. **Ranking and Recommendations**
+
    - Rank the cards for the specified criteria
    - Explain the reasoning behind rankings
    - Suggest optimal combinations
@@ -302,7 +312,8 @@ Please provide a detailed comparison focusing on burn deck inclusion:
    - Similar cards worth considering
    - Format-specific implications
    - Budget considerations
-```
+
+````
 
 ### Comparison Criteria
 
@@ -345,7 +356,7 @@ comparison = get_prompt("compare_cards", {
     "cards": "Lightning Bolt,Lava Spike,Rift Bolt",
     "criteria": "burn deck efficiency"
 })
-```
+````
 
 ### Dynamic Data Integration
 
@@ -358,7 +369,7 @@ def analyze_with_current_data(card_name, format):
         "card_name": card_name,
         "format": format
     })
-    
+
     # Data includes current legality, errata, etc.
     return prompt
 ```
@@ -443,14 +454,14 @@ def comprehensive_card_evaluation(card_name):
         "card_name": card_name,
         "format": "Modern"
     })
-    
+
     # Step 2: Find similar cards for comparison
     similar_cards = find_similar_cards(card_name)
     comparison = get_prompt("compare_cards", {
         "cards": f"{card_name},{','.join(similar_cards)}",
         "criteria": "competitive viability"
     })
-    
+
     return {
         "analysis": analysis,
         "comparison": comparison
@@ -467,18 +478,18 @@ def build_deck_with_analysis(theme, format, budget):
         "format": format,
         "budget": budget
     })
-    
+
     # Step 2: Analyze key cards mentioned
     key_cards = extract_key_cards(deck_guide)
     card_analyses = []
-    
+
     for card in key_cards:
         analysis = get_prompt("analyze_card", {
             "card_name": card,
             "format": format
         })
         card_analyses.append(analysis)
-    
+
     return {
         "deck_guide": deck_guide,
         "card_analyses": card_analyses
@@ -491,7 +502,7 @@ def build_deck_with_analysis(theme, format, budget):
 def analyze_format_meta(format_name):
     # Get top cards in format
     top_cards = get_format_staples(format_name)
-    
+
     # Analyze each card
     analyses = []
     for card in top_cards:
@@ -500,18 +511,18 @@ def analyze_format_meta(format_name):
             "format": format_name
         })
         analyses.append(analysis)
-    
+
     # Compare similar cards
     comparisons = []
     card_groups = group_similar_cards(top_cards)
-    
+
     for group in card_groups:
         comparison = get_prompt("compare_cards", {
             "cards": ",".join(group),
             "criteria": f"{format_name} meta positioning"
         })
         comparisons.append(comparison)
-    
+
     return {
         "format": format_name,
         "card_analyses": analyses,
@@ -542,4 +553,4 @@ def analyze_format_meta(format_name):
 
 ---
 
-Next: [Integration Guide](integration.md) | Back: [Tools](tools.md)
+Next: [README](./README.md) | Back: [Tools](./tools.md)

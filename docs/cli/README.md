@@ -74,4 +74,4 @@ Configure the CLI using environment variables:
 
 ---
 
-Continue to [Getting Started](getting-started.md) for installation instructions.
+Continue to [Getting Started](./getting-started.md) for installation instructions.

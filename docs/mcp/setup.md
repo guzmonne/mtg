@@ -32,17 +32,17 @@ git clone <repository-url>
 cd mtg
 
 # Build release version
-cargo build --release
+cargo build --bin mtg --release
 
 # Verify installation
-./target/release/mtg --version
+mtg --version
 ```
 
 ### 2. Development Build
 
 ```bash
 # Build debug version (faster compilation)
-cargo build
+cargo build --bin mtg
 
 # Run with debug binary
 ./target/debug/mtg mcp
@@ -64,10 +64,11 @@ mtg --version
 
 ```bash
 # Start MCP server (stdio mode)
-./target/release/mtg mcp
+mtg mcp
 ```
 
 The server:
+
 - Initializes MCP protocol
 - Connects to MTG API
 - Waits for JSON-RPC messages on stdin
@@ -77,16 +78,16 @@ The server:
 
 ```bash
 # Custom API URL
-./target/release/mtg --api-base-url "https://api.magicthegathering.io/v1" mcp
+mtg --api-base-url "https://api.magicthegathering.io/v1" mcp
 
 # Custom timeout
-./target/release/mtg --timeout 60 mcp
+mtg --timeout 60 mcp
 
 # Verbose logging
-./target/release/mtg --verbose mcp
+mtg --verbose mcp
 
 # Combined options
-./target/release/mtg --api-base-url "https://api.magicthegathering.io/v1" --timeout 60 --verbose mcp
+mtg --api-base-url "https://api.magicthegathering.io/v1" --timeout 60 --verbose mcp
 ```
 
 ### Environment Variables
@@ -98,7 +99,7 @@ export MTG_TIMEOUT=30
 export MTG_VERBOSE=1
 
 # Start server
-./target/release/mtg mcp
+mtg mcp
 ```
 
 ## AI Assistant Integration
@@ -106,10 +107,12 @@ export MTG_VERBOSE=1
 ### Claude Desktop
 
 1. **Locate Configuration File**:
+
    - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
    - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
 2. **Add MTG Server**:
+
    ```json
    {
      "mcpServers": {
@@ -151,9 +154,10 @@ For assistants supporting MCP:
 ### 1. Manual Testing
 
 Test server startup:
+
 ```bash
 # Start server with verbose output
-./target/release/mtg --verbose mcp
+mtg --verbose mcp
 
 # Should show:
 # Initializing MTG MCP Server
@@ -163,14 +167,16 @@ Test server startup:
 ### 2. JSON-RPC Testing
 
 Create a test script:
+
 ```bash
 #!/bin/bash
 # test-mcp.sh
 
-echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}}' | ./target/release/mtg mcp
+echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}}' | mtg mcp
 ```
 
 Expected response:
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -178,9 +184,9 @@ Expected response:
   "result": {
     "protocolVersion": "2025-03-26",
     "capabilities": {
-      "resources": {"subscribe": true, "listChanged": true},
-      "tools": {"listChanged": true},
-      "prompts": {"listChanged": true},
+      "resources": { "subscribe": true, "listChanged": true },
+      "tools": { "listChanged": true },
+      "prompts": { "listChanged": true },
       "logging": {}
     },
     "serverInfo": {
@@ -194,20 +200,22 @@ Expected response:
 ### 3. Resource Testing
 
 Test resource access:
+
 ```bash
 #!/bin/bash
 # test-resources.sh
 
 # Initialize
-echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}}' | ./target/release/mtg mcp
+echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}}' | mtg mcp
 
 # List resources
-echo '{"jsonrpc": "2.0", "id": 2, "method": "resources/list"}' | ./target/release/mtg mcp
+echo '{"jsonrpc": "2.0", "id": 2, "method": "resources/list"}' | mtg mcp
 ```
 
 ### 4. Tool Testing
 
 Test tool execution:
+
 ```bash
 #!/bin/bash
 # test-tools.sh
@@ -216,71 +224,7 @@ Test tool execution:
 {
   echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}}'
   echo '{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "search_cards", "arguments": {"name": "Lightning Bolt", "limit": 1}}}'
-} | ./target/release/mtg mcp
-```
-
-## Docker Setup
-
-### Dockerfile
-
-```dockerfile
-FROM rust:1.70-slim as builder
-
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    pkg-config \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy source
-WORKDIR /app
-COPY . .
-
-# Build release
-RUN cargo build --release
-
-# Runtime image
-FROM debian:bookworm-slim
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy binary
-COPY --from=builder /app/target/release/mtg /usr/local/bin/mtg
-
-# Set entrypoint
-ENTRYPOINT ["mtg", "mcp"]
-```
-
-### Build and Run
-
-```bash
-# Build image
-docker build -t mtg-mcp .
-
-# Run server
-docker run -i mtg-mcp
-
-# With environment variables
-docker run -e MTG_TIMEOUT=60 -e MTG_VERBOSE=1 -i mtg-mcp
-```
-
-### Docker Compose
-
-```yaml
-# docker-compose.yml
-version: '3.8'
-
-services:
-  mtg-mcp:
-    build: .
-    environment:
-      - MTG_TIMEOUT=60
-      - MTG_VERBOSE=1
-    stdin_open: true
-    tty: true
+} | mtg mcp
 ```
 
 ## Configuration Options
@@ -300,15 +244,16 @@ OPTIONS:
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MTG_API_BASE_URL` | MTG API endpoint | `https://api.magicthegathering.io/v1` |
-| `MTG_TIMEOUT` | Request timeout (seconds) | `30` |
-| `MTG_VERBOSE` | Enable verbose logging | `false` |
+| Variable           | Description               | Default                               |
+| ------------------ | ------------------------- | ------------------------------------- |
+| `MTG_API_BASE_URL` | MTG API endpoint          | `https://api.magicthegathering.io/v1` |
+| `MTG_TIMEOUT`      | Request timeout (seconds) | `30`                                  |
+| `MTG_VERBOSE`      | Enable verbose logging    | `false`                               |
 
 ### Configuration File
 
 Create `~/.mtg-config`:
+
 ```bash
 # MTG CLI Configuration
 export MTG_API_BASE_URL="https://api.magicthegathering.io/v1"
@@ -317,9 +262,10 @@ export MTG_VERBOSE=1
 ```
 
 Load with:
+
 ```bash
 source ~/.mtg-config
-./target/release/mtg mcp
+mtg mcp
 ```
 
 ## Troubleshooting
@@ -327,6 +273,7 @@ source ~/.mtg-config
 ### Common Issues
 
 #### Server Won't Start
+
 ```bash
 # Check binary exists
 ls -la ./target/release/mtg
@@ -339,6 +286,7 @@ chmod +x ./target/release/mtg
 ```
 
 #### Connection Timeouts
+
 ```bash
 # Increase timeout
 ./target/release/mtg --timeout 120 mcp
@@ -348,6 +296,7 @@ curl -s "https://api.magicthegathering.io/v1/cards?pageSize=1"
 ```
 
 #### JSON-RPC Errors
+
 ```bash
 # Enable verbose logging
 ./target/release/mtg --verbose mcp
@@ -357,6 +306,7 @@ echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}' | jq .
 ```
 
 #### Claude Desktop Integration
+
 ```bash
 # Check configuration file location
 ls -la ~/Library/Application\ Support/Claude/claude_desktop_config.json
@@ -371,6 +321,7 @@ which mtg
 ### Debug Mode
 
 Enable maximum debugging:
+
 ```bash
 # Set environment
 export RUST_LOG=debug
@@ -383,6 +334,7 @@ export MTG_VERBOSE=1
 ### Network Issues
 
 Test network connectivity:
+
 ```bash
 # Test MTG API
 curl -v "https://api.magicthegathering.io/v1/cards?pageSize=1"
@@ -398,6 +350,7 @@ export HTTPS_PROXY="http://proxy.company.com:8080"
 ### Memory Usage
 
 Monitor memory usage:
+
 ```bash
 # Linux/macOS
 ps aux | grep mtg
@@ -409,6 +362,7 @@ cat /proc/$(pgrep mtg)/status | grep -E "(VmRSS|VmSize)"
 ### Response Times
 
 Optimize for performance:
+
 ```bash
 # Shorter timeout for faster failures
 export MTG_TIMEOUT=15
@@ -438,6 +392,7 @@ cargo build --release
 ### Health Monitoring
 
 Create a health check script:
+
 ```bash
 #!/bin/bash
 # health-check.sh
@@ -455,4 +410,4 @@ fi
 
 ---
 
-Next: [Resources](resources.md) | Back: [Overview](overview.md)
+Next: [Resources](./resources.md) | Back: [Overview](./overview.md)

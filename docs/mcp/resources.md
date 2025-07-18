@@ -6,10 +6,10 @@ Resources provide AI assistants with read-only access to Magic: The Gathering da
 
 The MTG MCP server provides three main resources:
 
-| Resource | URI | Description |
-|----------|-----|-------------|
-| **Cards** | `mtg://cards` | Complete card database with 20,000+ cards |
-| **Sets** | `mtg://sets` | All Magic sets from Alpha to present |
+| Resource  | URI           | Description                                   |
+| --------- | ------------- | --------------------------------------------- |
+| **Cards** | `mtg://cards` | Complete card database with 20,000+ cards     |
+| **Sets**  | `mtg://sets`  | All Magic sets from Alpha to present          |
 | **Types** | `mtg://types` | Card types, subtypes, supertypes, and formats |
 
 ## Cards Resource
@@ -115,6 +115,7 @@ Provides access to the complete Magic: The Gathering card database.
 ### Usage Examples
 
 AI assistants can access this resource to:
+
 - Get comprehensive card information
 - Analyze card databases
 - Research Magic history
@@ -189,6 +190,7 @@ Provides information about all Magic: The Gathering sets.
 ### Usage Examples
 
 AI assistants can use this resource to:
+
 - Browse Magic sets chronologically
 - Understand set mechanics and themes
 - Generate booster pack simulations
@@ -237,12 +239,7 @@ Provides comprehensive information about the Magic type system.
     "Warrior",
     "Wizard"
   ],
-  "supertypes": [
-    "Basic",
-    "Legendary",
-    "Snow",
-    "World"
-  ],
+  "supertypes": ["Basic", "Legendary", "Snow", "World"],
   "formats": [
     "Standard",
     "Pioneer",
@@ -260,7 +257,9 @@ Provides comprehensive information about the Magic type system.
 ### Categories
 
 #### Types
+
 Primary card types that determine when and how cards can be played:
+
 - **Artifact**: Non-creature permanents
 - **Creature**: Permanents that can attack and block
 - **Enchantment**: Permanent magical effects
@@ -270,21 +269,27 @@ Primary card types that determine when and how cards can be played:
 - **Sorcery**: Main-phase-only spells
 
 #### Subtypes
+
 More specific classifications within each type:
+
 - **Creature Subtypes**: Races (Human, Elf) and Classes (Warrior, Wizard)
 - **Land Subtypes**: Basic types (Plains, Island) and special types (Gate, Desert)
 - **Artifact Subtypes**: Equipment, Vehicle, Treasure
 - **Planeswalker Subtypes**: Character names (Jace, Chandra)
 
 #### Supertypes
+
 Special designations that modify card behavior:
+
 - **Basic**: Basic lands
 - **Legendary**: Unique permanents (legend rule applies)
 - **Snow**: Snow permanents
 - **World**: Old supertype for unique enchantments
 
 #### Formats
+
 Official Magic formats where cards can be legal:
+
 - **Standard**: Most recent sets
 - **Modern**: Sets from Eighth Edition forward
 - **Legacy**: All sets with restricted list
@@ -293,6 +298,7 @@ Official Magic formats where cards can be legal:
 ### Usage Examples
 
 AI assistants can use this resource to:
+
 - Explain Magic's type system
 - Help with deck building constraints
 - Understand format legality
@@ -322,6 +328,7 @@ AI assistants access resources using the MCP protocol:
 ### Data Freshness
 
 Resources are updated based on:
+
 - **Cards**: New card releases and errata
 - **Sets**: New set announcements
 - **Types**: Rules updates and new mechanics
@@ -331,10 +338,10 @@ Resources are updated based on:
 ### Response Sizes
 
 | Resource | Typical Size | Max Size |
-|----------|--------------|----------|
-| Cards | 50-100 MB | 200 MB |
-| Sets | 10-20 MB | 50 MB |
-| Types | 1-5 KB | 10 KB |
+| -------- | ------------ | -------- |
+| Cards    | 50-100 MB    | 200 MB   |
+| Sets     | 10-20 MB     | 50 MB    |
+| Types    | 1-5 KB       | 10 KB    |
 
 ### Response Times
 
@@ -359,26 +366,28 @@ import json
 
 def process_cards_resource(resource_data):
     cards = json.loads(resource_data)["cards"]
-    
+
     # Filter for specific criteria
     red_creatures = [
-        card for card in cards 
-        if "Red" in card.get("colors", []) 
+        card for card in cards
+        if "Red" in card.get("colors", [])
         and "Creature" in card.get("types", [])
     ]
-    
+
     return red_creatures
 ```
 
 ### Error Scenarios
 
 Resources may fail due to:
+
 - **Network Issues**: MTG API unavailable
 - **Rate Limiting**: Too many requests
 - **Data Corruption**: Invalid JSON response
 - **Timeout**: Request takes too long
 
 Handle gracefully:
+
 ```json
 {
   "error": {
@@ -397,15 +406,15 @@ Handle gracefully:
 def analyze_card_power_level(card_name):
     # Read cards resource
     cards_data = read_resource("mtg://cards")
-    
+
     # Find specific card
     card = find_card_by_name(cards_data, card_name)
-    
+
     # Analyze power level based on:
     # - Mana cost efficiency
     # - Format legality
     # - Historical context
-    
+
     return analysis
 ```
 
@@ -416,10 +425,10 @@ def analyze_card_power_level(card_name):
 def research_set_mechanics(set_code):
     # Read sets resource
     sets_data = read_resource("mtg://sets")
-    
+
     # Find specific set
     set_info = find_set_by_code(sets_data, set_code)
-    
+
     # Analyze mechanics and themes
     return set_analysis
 ```
@@ -431,14 +440,14 @@ def research_set_mechanics(set_code):
 def explain_format_legality():
     # Read types resource
     types_data = read_resource("mtg://types")
-    
+
     # Extract format information
     formats = types_data["formats"]
-    
+
     # Provide format explanations
     return format_guide
 ```
 
 ---
 
-Next: [Tools](tools.md) | Back: [Setup & Installation](setup.md)
+Next: [Tools](./tools.md) | Back: [Setup & Installation](./setup.md)
