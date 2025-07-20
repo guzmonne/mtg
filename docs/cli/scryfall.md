@@ -1,141 +1,277 @@
 # Scryfall Commands
 
-The `mtg scryfall` command provides access to Scryfall's powerful search engine and comprehensive Magic: The Gathering card database.
+The `mtg scryfall` command provides comprehensive access to Scryfall's powerful search engine and Magic: The Gathering card database with multiple lookup methods and advanced search capabilities.
 
 ## Available Commands
 
+### Card Lookup Methods
+- `named <NAME>` - Get specific card by exact name
+- `id <UUID>` - Get card by Scryfall UUID
+- `collector <SET> <NUMBER>` - Get card by set code and collector number
+- `arena <ID>` - Get card by Arena ID
+- `mtgo <ID>` - Get card by MTGO ID
+- `multiverse <ID>` - Get card by Multiverse ID
+- `tcgplayer <ID>` - Get card by TCGPlayer ID
+- `cardmarket <ID>` - Get card by Cardmarket ID
+- `random` - Get a random card (optionally filtered)
+
+### Search Methods
 - `search <QUERY>` - Search cards using Scryfall syntax
 - `advanced` - Advanced search with individual filter options
-- `card <NAME>` - Get specific card by exact name
+- `autocomplete <QUERY>` - Get card name suggestions
 
-## Basic Search
+## Card Lookup Methods
 
-### Simple Search
+### Get Card by Name
+
+Retrieve detailed information about a specific card by its exact name:
+
+```bash
+# Get card by exact name
+mtg scryfall named "Lightning Bolt" --pretty
+
+# Get specific printing from a set
+mtg scryfall named "Lightning Bolt" --set "lea" --pretty
+
+# Get latest printing
+mtg scryfall named "Jace, the Mind Sculptor" --pretty
+```
+
+### Get Card by ID
+
+Lookup cards using various ID systems:
+
+```bash
+# Scryfall UUID
+mtg scryfall id "56ebc372-aabd-4174-a943-c7bf59e5028d" --pretty
+
+# Arena ID
+mtg scryfall arena 67330 --pretty
+
+# MTGO ID
+mtg scryfall mtgo 12345 --pretty
+
+# Multiverse ID
+mtg scryfall multiverse 456789 --pretty
+
+# TCGPlayer ID
+mtg scryfall tcgplayer 98765 --pretty
+
+# Cardmarket ID
+mtg scryfall cardmarket 54321 --pretty
+```
+
+### Get Card by Set and Collector Number
+
+Retrieve specific printings using set code and collector number:
+
+```bash
+# Basic lookup
+mtg scryfall collector ktk 96 --pretty
+
+# With language specification
+mtg scryfall collector dom 1 --lang ja --pretty
+
+# Special collector numbers (with symbols)
+mtg scryfall collector war "★1" --pretty
+```
+
+### Get Random Card
+
+Retrieve random cards with optional filtering:
+
+```bash
+# Completely random card
+mtg scryfall random --pretty
+
+# Random card matching criteria
+mtg scryfall random --query "c:red t:creature" --pretty
+
+# Random legendary creature
+mtg scryfall random --query "t:legendary t:creature" --pretty
+```
+
+### Autocomplete
+
+Get card name suggestions for partial queries:
+
+```bash
+# Get suggestions for "lightning"
+mtg scryfall autocomplete "lightning"
+
+# Include extra cards in suggestions
+mtg scryfall autocomplete "token" --include-extras
+```
+
+## Search Methods
+
+### Basic Search
 
 Search for cards using Scryfall's powerful query syntax:
 
 ```bash
 # Find all Lightning Bolt cards
-mtg scryfall search "Lightning Bolt"
+mtg scryfall search "Lightning Bolt" --pretty
 
 # Find red creatures
-mtg scryfall search "c:red t:creature"
+mtg scryfall search "c:red t:creature" --pretty
 
 # Find cards with "draw" in their text
-mtg scryfall search "o:draw"
+mtg scryfall search "o:draw" --pretty
 ```
 
-### Search Options
+### Enhanced Search Options
 
 ```bash
 # Pretty table output
 mtg scryfall search "c:blue t:instant" --pretty
 
 # Pagination
-mtg scryfall search "t:creature" --page 2
+mtg scryfall search "t:creature" --page 2 --pretty
 
-# Sort by different criteria
-mtg scryfall search "t:planeswalker" --order cmc
-mtg scryfall search "c:red" --order power --dir desc
+# Enhanced sort options
+mtg scryfall search "t:planeswalker" --order cmc --pretty
+mtg scryfall search "c:red" --order power --dir desc --pretty
+mtg scryfall search "t:creature" --order edhrec --pretty
+mtg scryfall search "r:rare" --order usd --pretty
 
 # Include extra cards (tokens, emblems, etc.)
-mtg scryfall search "t:token" --include-extras
+mtg scryfall search "t:token" --include-extras --pretty
+
+# Include multilingual cards
+mtg scryfall search "Lightning Bolt" --include-multilingual --pretty
 
 # Show different printings
-mtg scryfall search "Lightning Bolt" --unique prints
+mtg scryfall search "Lightning Bolt" --unique prints --pretty
+
+# Export as CSV
+mtg scryfall search "c:blue t:instant" --csv > blue_instants.csv
 ```
 
-## Advanced Search
+### Advanced Search
 
-Use individual filter options for more precise searches:
+Use individual filter options for more precise searches with enhanced control:
 
-### Basic Filters
+#### Basic Filters
 
 ```bash
 # Search by name (partial matching)
-mtg scryfall advanced --name "Lightning"
+mtg scryfall advanced --name "Lightning" --pretty
 
 # Search by oracle text
-mtg scryfall advanced --oracle "draw a card"
+mtg scryfall advanced --oracle "draw a card" --pretty
 
 # Search by type
-mtg scryfall advanced --card-type "creature"
+mtg scryfall advanced --card-type "creature" --pretty
 ```
 
-### Color Filters
+#### Color Filters
 
 ```bash
 # Single color
-mtg scryfall advanced --colors "r"
+mtg scryfall advanced --colors "r" --pretty
 
 # Multiple colors (exact)
-mtg scryfall advanced --colors "wu"
+mtg scryfall advanced --colors "wu" --pretty
 
 # Color identity for commander
-mtg scryfall advanced --identity "bant"
+mtg scryfall advanced --identity "bant" --pretty
 ```
 
-### Mana and Stats
+#### Mana and Stats
 
 ```bash
 # Mana cost
-mtg scryfall advanced --mana "{2}{U}"
+mtg scryfall advanced --mana "{2}{U}" --pretty
 
 # Mana value/CMC
-mtg scryfall advanced --mv "3"
-mtg scryfall advanced --mv ">=4"
+mtg scryfall advanced --mv "3" --pretty
+mtg scryfall advanced --mv ">=4" --pretty
 
 # Power and toughness
-mtg scryfall advanced --power ">=3"
-mtg scryfall advanced --toughness "2"
+mtg scryfall advanced --power ">=3" --pretty
+mtg scryfall advanced --toughness "2" --pretty
 
 # Loyalty
-mtg scryfall advanced --loyalty "4"
+mtg scryfall advanced --loyalty "4" --pretty
 ```
 
-### Set and Rarity
+#### Set and Rarity
 
 ```bash
 # Specific set
-mtg scryfall advanced --set "ktk"
+mtg scryfall advanced --set "ktk" --pretty
 
 # Rarity
-mtg scryfall advanced --rarity "mythic"
+mtg scryfall advanced --rarity "mythic" --pretty
 
 # Combine filters
-mtg scryfall advanced --set "war" --rarity "rare" --colors "u"
+mtg scryfall advanced --set "war" --rarity "rare" --colors "u" --pretty
 ```
 
-### Other Filters
+#### Other Filters
 
 ```bash
 # Artist
-mtg scryfall advanced --artist "Rebecca Guay"
+mtg scryfall advanced --artist "Rebecca Guay" --pretty
 
 # Flavor text
-mtg scryfall advanced --flavor "Jace"
+mtg scryfall advanced --flavor "Jace" --pretty
 
 # Format legality
-mtg scryfall advanced --format "standard"
+mtg scryfall advanced --format "standard" --pretty
 
 # Language
-mtg scryfall advanced --language "ja"
+mtg scryfall advanced --language "ja" --pretty
 ```
 
-## Get Specific Card
-
-Retrieve detailed information about a specific card:
+#### Enhanced Advanced Search Options
 
 ```bash
-# Get card by exact name
-mtg scryfall card "Lightning Bolt"
+# All search enhancement options available
+mtg scryfall advanced --name "Dragon" --colors "r" \
+  --order cmc --dir asc --include-extras \
+  --unique prints --pretty
 
-# Get specific printing from a set
-mtg scryfall card "Lightning Bolt" --set "lea"
-
-# Pretty table output
-mtg scryfall card "Jace, the Mind Sculptor" --pretty
+# Pagination with advanced search
+mtg scryfall advanced --card-type "planeswalker" \
+  --page 2 --order released --pretty
 ```
+
+## ID-Based Lookup Examples
+
+### Real-World Examples
+
+```bash
+# Look up a specific card from Khans of Tarkir
+mtg scryfall collector ktk 96 --pretty
+# Returns: Ainok Tracker
+
+# Get the latest Lightning Bolt printing
+mtg scryfall named "Lightning Bolt" --pretty
+
+# Look up a card by its Scryfall ID (from API responses)
+mtg scryfall id "56ebc372-aabd-4174-a943-c7bf59e5028d" --pretty
+# Returns: Phantom Nishoba
+
+# Find a card by Arena ID (useful for Arena players)
+mtg scryfall arena 67330 --pretty
+
+# Get Japanese version of a card
+mtg scryfall collector dom 1 --lang ja --pretty
+```
+
+### When to Use Each Method
+
+- **`named`** - When you know the exact card name
+- **`id`** - When you have a Scryfall UUID from API responses
+- **`collector`** - When you want a specific printing from a set
+- **`arena`** - When working with Arena deck lists or IDs
+- **`mtgo`** - When working with MTGO collection data
+- **`multiverse`** - When working with Gatherer or older systems
+- **`tcgplayer`** - When integrating with TCGPlayer data
+- **`cardmarket`** - When integrating with Cardmarket data
+- **`random`** - For discovery or testing purposes
 
 ## Scryfall Search Syntax
 
@@ -271,52 +407,91 @@ mtg scryfall search "c:blue -t:creature -t:land"
 
 ## Output Examples
 
-### Search Results
+### Search Results (Pretty Format)
 
 ```
- Name                    Cost      Type                Set           Rarity     P/T/L
- Lightning Bolt          {R}       Instant             Masters 25    Uncommon   -
- Lightning Bolt          {R}       Instant             Player Rew    Special    -
- Lightning Bolt          {R}       Instant             Beatdown      Common     -
- Lightning Bolt          {R}       Instant             Fourth Ed     Common     -
- Lightning Bolt          {R}       Instant             Revised       Common     -
+ Name                          Cost          Type                                Set                                          Rarity    P/T/L 
+ Arc Lightning                 {2}{R}        Sorcery                             Khans of Tarkir                              uncommon  - 
+ Ball Lightning                {R}{R}{R}     Creature — Elemental                Foundations                                  rare      6/1 
+ Burst Lightning               {R}           Instant                             Foundations                                  common    - 
+ Chain Lightning               {R}           Sorcery                             Dominaria Remastered                         common    - 
+ Lightning Bolt                {R}           Instant                             Ravnica: Clue Edition                        uncommon  - 
 
-Found 87 cards (showing 5 on page 1)
+Found 58 cards (showing 5 on page 1)
 
-Next page: mtg scryfall search "Lightning Bolt" --page 2
+Next page: mtg scryfall search "Lightning" --page 2
+Jump to page: mtg scryfall search "Lightning" --page <PAGE_NUMBER>
 ```
 
-### Detailed Card View
+### Detailed Card View (Pretty Format)
 
 ```
-Name             Lightning Bolt
-Mana Cost        {R}
-Mana Value       1
-Type             Instant
-Oracle Text      Lightning Bolt deals 3 damage to any target.
-Set              Masters 25 (A25)
-Rarity           uncommon
-Artist           Christopher Rush
-Collector Number 141
-Legal In         legacy, vintage, commander, modern, pauper
+ Name              Lightning Bolt 
+ Mana Cost         {R} 
+ Mana Value        1 
+ Type              Instant 
+ Oracle Text       Lightning Bolt deals 3 damage to any target. 
+ Set               Ravnica: Clue Edition (CLU) 
+ Rarity            uncommon 
+ Artist            Christopher Moeller 
+ Flavor Text       The sparkmage shrieked, calling on the rage of the storms of his youth. To his surprise, the sky responded with a fierce energy he'd never thought to see again. 
+ Collector Number  141 
+ Legal In          modern, legacy, vintage, commander 
 ```
 
-## Command Options
+### Autocomplete Results
 
-### Search Options
+```bash
+$ mtg scryfall autocomplete "lightning"
+Lightning Axe
+Lightning Bolt
+Lightning Mare
+Lightning Blow
+Lightning Dart
+Lightning Wolf
+Lightning Rift
+Lightning Spear
+Lightning Cloud
+Lightning Storm
+Lightning Coils
+Lightning Surge
+Lightning Angel
+Lightning Helix
+Lightning Blast
+Lightning Runner
+Lightning Dragon
+Lightning Diadem
+Lightning Reaver
+Lightning Hounds
+```
+
+### CSV Export Example
+
+```bash
+$ mtg scryfall search "c:blue t:instant" --csv
+"Name","Mana Cost","Type Line","Set","Rarity","Power","Toughness"
+"Counterspell","{U}{U}","Instant","Foundations","Common","",""
+"Negate","{1}{U}","Instant","Foundations","Common","",""
+"Opt","{U}","Instant","Foundations","Common","",""
+```
+
+## Command Options Reference
+
+### Search Command Options
 
 - `--pretty` - Display results in formatted table
 - `--page <NUM>` - Page number (default: 1)
-- `--order <ORDER>` - Sort order (name, cmc, power, toughness, artist, set, released, rarity, usd, tix, eur)
-- `--dir <DIR>` - Sort direction (auto, asc, desc)
+- `--order <ORDER>` - Sort order: `name`, `set`, `released`, `rarity`, `color`, `usd`, `tix`, `eur`, `cmc`, `power`, `toughness`, `edhrec`, `penny`, `artist`, `review`
+- `--dir <DIR>` - Sort direction: `auto`, `asc`, `desc`
 - `--include-extras` - Include tokens, emblems, etc.
 - `--include-multilingual` - Include non-English cards
-- `--include-variations` - Include different printings
-- `--unique <MODE>` - Unique mode (cards, prints, art)
+- `--include-variations` - Include different printings/variants
+- `--unique <MODE>` - Unique mode: `cards`, `prints`, `art`
+- `--csv` - Export results in CSV format
 
 ### Advanced Search Options
 
-All the individual filter options plus:
+All search options plus individual filter options:
 - `--name <NAME>` - Card name (partial matching)
 - `--oracle <TEXT>` - Oracle text search
 - `--card-type <TYPE>` - Card type
@@ -334,16 +509,30 @@ All the individual filter options plus:
 - `--format <FORMAT>` - Format legality
 - `--language <LANG>` - Language code
 
-### Card Options
+### Card Lookup Options
 
+#### Named Command
 - `--pretty` - Display in formatted table
 - `--set <CODE>` - Get specific printing from set
 
+#### ID Commands (id, arena, mtgo, etc.)
+- `--pretty` - Display in formatted table
+
+#### Collector Command
+- `--lang <LANG>` - Language code (e.g., "en", "ja", "de")
+- `--pretty` - Display in formatted table
+
+#### Random Command
+- `--query <QUERY>` - Filter random results with Scryfall query
+- `--pretty` - Display in formatted table
+
+#### Autocomplete Command
+- `--include-extras` - Include extra cards in suggestions
+
 ### Global Options
 
-- `--api-base-url <URL>` - Custom API endpoint (not applicable to Scryfall)
-- `--timeout <SECONDS>` - Request timeout
-- `--verbose` - Detailed output
+- `--timeout <SECONDS>` - Request timeout (default: 30)
+- `--verbose` - Detailed output including cache information
 
 ## Color Codes
 
@@ -428,10 +617,22 @@ mtg scryfall search "r:common f:pauper"
 
 ### Performance Tips
 
-- Use specific filters to narrow results
-- Cache is automatically used for repeated searches
-- Use `--pretty` for readable output
-- Combine filters efficiently to reduce API calls
+- **Automatic Caching**: All commands (except `random`) use intelligent caching for faster repeated queries
+- **Efficient Filtering**: Use specific filters to narrow results and reduce API calls
+- **Batch Operations**: Use `--csv` export for large datasets
+- **Smart Pagination**: Use pagination for large result sets instead of fetching everything
+- **ID Lookups**: Use specific ID lookups when you know the exact card you want
+
+### Cache Behavior
+
+The MTG CLI automatically caches all Scryfall API responses to improve performance:
+
+- **Search results** are cached based on query parameters
+- **Card lookups** are cached by ID/name/collector number
+- **Autocomplete** suggestions are cached
+- **Random cards** are NOT cached (intentionally random each time)
+- Cache respects TTL and automatically expires old entries
+- Use `--verbose` to see cache hit/miss information
 
 ## Error Handling
 
@@ -449,6 +650,153 @@ For invalid syntax:
 ```
 Invalid search syntax: <error details>
 ```
+
+## Complete Examples Workflow
+
+### Building a Commander Deck
+
+```bash
+# Find a commander
+mtg scryfall search "t:legendary t:creature id:bant" --pretty
+
+# Get specific commander details
+mtg scryfall named "Rafiq of the Many" --pretty
+
+# Find cards for the deck
+mtg scryfall advanced --identity "bant" --format "commander" \
+  --card-type "creature" --mv "<=4" --pretty
+
+# Look up specific cards by collector number
+mtg scryfall collector ala 185 --pretty  # Rafiq of the Many
+
+# Get random cards for inspiration
+mtg scryfall random --query "id:bant f:commander" --pretty
+```
+
+### Standard Deck Research
+
+```bash
+# Find current Standard legal cards
+mtg scryfall search "f:standard" --order released --pretty
+
+# Look for specific archetypes
+mtg scryfall advanced --format "standard" --colors "r" \
+  --card-type "creature" --mv "<=3" --pretty
+
+# Check card prices
+mtg scryfall search "f:standard c:red t:creature" --order usd --pretty
+
+# Export deck list to CSV
+mtg scryfall search "f:standard c:red" --csv > standard_red.csv
+```
+
+### Collection Management
+
+```bash
+# Look up cards by various IDs from different sources
+mtg scryfall arena 67330 --pretty        # From Arena export
+mtg scryfall mtgo 12345 --pretty         # From MTGO collection
+mtg scryfall tcgplayer 98765 --pretty    # From TCGPlayer order
+
+# Find all printings of a card
+mtg scryfall search "!\"Lightning Bolt\"" --unique prints --pretty
+
+# Get specific language versions
+mtg scryfall collector ktk 96 --lang ja --pretty
+```
+
+### Market Research
+
+```bash
+# Find expensive cards
+mtg scryfall search "usd>=100" --order usd --dir desc --pretty
+
+# Check EDHREC popularity
+mtg scryfall search "t:creature" --order edhrec --pretty
+
+# Find budget alternatives
+mtg scryfall search "o:\"draw a card\" usd<=5" --order usd --pretty
+```
+
+### API Integration Examples
+
+```bash
+# Get card data in JSON for scripts
+mtg scryfall named "Lightning Bolt" > lightning_bolt.json
+
+# Export search results for analysis
+mtg scryfall search "f:standard" --csv > standard_cards.csv
+
+# Get autocomplete data for applications
+mtg scryfall autocomplete "light" > suggestions.txt
+```
+
+## Integration with Other Tools
+
+### Using with jq for JSON Processing
+
+```bash
+# Extract just the card names
+mtg scryfall search "c:red t:creature" | jq '.data[].name'
+
+# Get mana costs
+mtg scryfall named "Lightning Bolt" | jq '.mana_cost'
+
+# Filter by specific criteria
+mtg scryfall search "t:creature" | jq '.data[] | select(.cmc <= 3)'
+```
+
+### Scripting Examples
+
+```bash
+#!/bin/bash
+# Get all cards from a set
+SET_CODE="ktk"
+mtg scryfall search "s:${SET_CODE}" --csv > "${SET_CODE}_cards.csv"
+
+# Look up multiple cards by collector number
+for i in {1..10}; do
+    mtg scryfall collector "${SET_CODE}" "$i" --pretty
+done
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**Card not found by name:**
+```bash
+# Try exact name matching
+mtg scryfall search "!\"Exact Card Name\""
+
+# Or use partial matching
+mtg scryfall advanced --name "partial name"
+```
+
+**No results for search:**
+```bash
+# Check if filters are too restrictive
+mtg scryfall search "c:red t:creature mv<=2 f:standard" --verbose
+
+# Try broader search first
+mtg scryfall search "c:red t:creature"
+```
+
+**Slow performance:**
+```bash
+# Use --verbose to see cache information
+mtg scryfall search "t:creature" --verbose
+
+# Use specific ID lookups when possible
+mtg scryfall id "uuid-here" --pretty
+```
+
+### Error Messages
+
+- **"No card found"** - Card name doesn't exist or is misspelled
+- **"Invalid search syntax"** - Check Scryfall query syntax
+- **"Rate limited"** - Wait a moment and try again (rare with caching)
+- **"Network error"** - Check internet connection
 
 ---
 

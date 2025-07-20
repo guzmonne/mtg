@@ -1,27 +1,27 @@
 use crate::prelude::*;
-use std::path::{Path, PathBuf};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::fs;
-use serde::{Serialize, Deserialize};
-use sha2::{Sha256, Digest};
+use std::path::{Path, PathBuf};
 
 /// Cache-related errors
 #[derive(thiserror::Error, Debug)]
 pub enum CacheError {
     #[error("Cache directory error: {0}")]
     Directory(String),
-    
+
     #[error("Cache corruption: {0}")]
     Corruption(String),
-    
+
     #[error("Cache size limit exceeded: {current} > {limit}")]
     SizeLimit { current: u64, limit: u64 },
-    
+
     #[error("Cache key error: {0}")]
     Key(String),
-    
+
     #[error("Cache serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
-    
+
     #[error("Cache IO error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -49,15 +49,12 @@ impl CacheManager {
     }
 
     fn get_cache_dir() -> Result<PathBuf> {
-        let home = dirs::home_dir()
-            .ok_or_else(|| crate::error::Error::Generic("Could not find home directory".to_string()))?;
-        
-        let cache_dir = home
-            .join(".local")
-            .join("share")
-            .join("mtg")
-            .join("cache");
-        
+        let home = dirs::home_dir().ok_or_else(|| {
+            crate::error::Error::Generic("Could not find home directory".to_string())
+        })?;
+
+        let cache_dir = home.join(".local").join("share").join("mtg").join("cache");
+
         Self::ensure_cache_dir(&cache_dir)?;
         Ok(cache_dir)
     }
@@ -82,26 +79,24 @@ impl CacheManager {
         headers: &[(String, String)],
     ) -> String {
         let mut hasher = Sha256::new();
-        
+
         // Hash the URL
         hasher.update(url.as_bytes());
-        
+
         // Hash the payload
         hasher.update(payload.to_string().as_bytes());
-        
+
         // Hash relevant headers (excluding dynamic ones like timestamps)
         let relevant_headers: Vec<_> = headers
             .iter()
-            .filter(|(k, _)| {
-                !matches!(k.as_str(), "date" | "x-request-id" | "x-trace-id")
-            })
+            .filter(|(k, _)| !matches!(k.as_str(), "date" | "x-request-id" | "x-trace-id"))
             .collect();
-        
+
         for (key, value) in relevant_headers {
             hasher.update(key.as_bytes());
             hasher.update(value.as_bytes());
         }
-        
+
         format!("{:x}", hasher.finalize())
     }
 
@@ -111,20 +106,20 @@ impl CacheManager {
 
     pub async fn get(&self, hash: &str) -> Result<Option<CachedResponse>> {
         let cache_path = self.get_cache_path(hash);
-        
+
         if !cache_path.exists() {
             return Ok(None);
         }
 
         let contents = tokio::fs::read_to_string(&cache_path).await?;
         let cached: CachedResponse = serde_json::from_str(&contents)?;
-        
+
         Ok(Some(cached))
     }
 
     pub async fn set(&self, hash: &str, data: serde_json::Value) -> Result<()> {
         let cache_path = self.get_cache_path(hash);
-        
+
         let cached = CachedResponse {
             data,
             timestamp: std::time::SystemTime::now()
@@ -132,30 +127,30 @@ impl CacheManager {
                 .unwrap()
                 .as_secs(),
         };
-        
+
         let contents = serde_json::to_string_pretty(&cached)?;
         tokio::fs::write(&cache_path, contents).await?;
-        
+
         Ok(())
     }
 
     pub async fn clear(&self) -> Result<()> {
         let entries = fs::read_dir(&self.cache_dir)?;
-        
+
         for entry in entries {
             let entry = entry?;
             if entry.path().extension().and_then(|s| s.to_str()) == Some("json") {
                 tokio::fs::remove_file(entry.path()).await?;
             }
         }
-        
+
         Ok(())
     }
 
     pub fn list_cached_files(&self) -> Result<Vec<String>> {
         let mut files = Vec::new();
         let entries = fs::read_dir(&self.cache_dir)?;
-        
+
         for entry in entries {
             let entry = entry?;
             if let Some(name) = entry.file_name().to_str() {
@@ -164,7 +159,7 @@ impl CacheManager {
                 }
             }
         }
-        
+
         Ok(files)
     }
 }
@@ -178,32 +173,33 @@ mod tests {
     async fn test_cache_manager() -> Result<()> {
         let temp_dir = TempDir::new()?;
         let cache = CacheManager::with_dir(temp_dir.path().to_path_buf())?;
-        
+
         let test_data = serde_json::json!({
             "test": "data",
             "number": 42
         });
-        
+
         let hash = "test_hash";
-        
+
         // Test set
         cache.set(hash, test_data.clone()).await?;
-        
+
         // Test get
         let retrieved = cache.get(hash).await?;
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().data, test_data);
-        
+
         // Test list
         let files = cache.list_cached_files()?;
         assert_eq!(files.len(), 1);
         assert!(files[0].contains("test_hash"));
-        
+
         // Test clear
         cache.clear().await?;
         let files = cache.list_cached_files()?;
         assert_eq!(files.len(), 0);
-        
+
         Ok(())
     }
 }
+

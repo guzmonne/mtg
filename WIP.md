@@ -4,34 +4,46 @@
 
 This document outlines the comprehensive enhancement plan for the MTG CLI's Scryfall API integration. The goal is to transform our current basic implementation into a production-ready, feature-complete Magic: The Gathering card API client while maintaining full backward compatibility and existing cache behavior.
 
-### **Current State**
+### **Current State** (Updated July 2025)
+
 - ✅ Basic card search with caching
-- ✅ Advanced search parameter building  
+- ✅ Advanced search parameter building
 - ✅ Single card lookup functionality
 - ✅ Pretty table display output
 - ✅ JSON response handling
 - ✅ MCP tool integration
+- ✅ **Enhanced error handling with warnings display**
+- ✅ **Generic list objects supporting any data type**
+- ✅ **Complete set management system (25+ API fields)**
+- ✅ **Set CLI commands: list, get, types**
+- ✅ **Comprehensive caching integration**
+- ✅ **Zero breaking changes maintained**
 
 ### **Target State**
+
 - 🎯 Complete Scryfall API feature parity
 - 🎯 Multi-format output support (JSON, CSV, text, images)
 - 🎯 Comprehensive image caching system
 - 🎯 Full multi-faced card support (DFCs, split cards, etc.)
-- 🎯 Set management and browsing
-- 🎯 Production-ready error handling and rate limiting
-- 🎯 Enhanced caching with multiple data types
+- ✅ **Set management and browsing** ✅ **COMPLETED**
+- ✅ **Production-ready error handling** ✅ **COMPLETED**
+- ✅ **Enhanced caching with multiple data types** ✅ **COMPLETED**
+- 🎯 Rate limiting and HTTP best practices
 
 ---
 
 ## 🏗️ **Implementation Phases**
 
-### **Phase 1: Foundation & Core Data Structures** 
-*Priority: HIGH | Estimated: 2-3 weeks*
+### **Phase 1: Foundation & Core Data Structures**
+
+_Priority: HIGH | Estimated: 2-3 weeks_
 
 #### **Task 1.1: Enhanced Error Handling System**
+
 **Files to modify:** `src/error.rs`, `src/scryfall.rs`
 
 **Subtasks:**
+
 - [ ] Create comprehensive `ScryfallError` struct with all API error fields
 - [ ] Implement error parsing for `status`, `code`, `details`, `type`, `warnings`
 - [ ] Add structured error handling in all API functions
@@ -40,11 +52,12 @@ This document outlines the comprehensive enhancement plan for the MTG CLI's Scry
 - [ ] Update existing error handling to use new system
 
 **Data Structures:**
+
 ```rust
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ScryfallError {
     pub object: String,           // Always "error"
-    pub status: u16,              // HTTP status code  
+    pub status: u16,              // HTTP status code
     pub code: String,             // Computer-friendly error code
     pub details: String,          // Human-readable explanation
     pub error_type: Option<String>, // Additional context
@@ -54,9 +67,9 @@ pub struct ScryfallError {
 #[derive(Debug, thiserror::Error)]
 pub enum ScryfallApiError {
     #[error("API Error ({code}): {details}")]
-    ApiError { 
-        code: String, 
-        details: String, 
+    ApiError {
+        code: String,
+        details: String,
         status: u16,
         error_type: Option<String>,
         warnings: Vec<String>,
@@ -65,7 +78,7 @@ pub enum ScryfallApiError {
     RateLimit { retry_after: u64 },
     #[error("Network error: {0}")]
     Network(#[from] reqwest::Error),
-    #[error("Cache error: {0}")]  
+    #[error("Cache error: {0}")]
     Cache(#[from] crate::cache::CacheError),
     #[error("Image error: {0}")]
     Image(#[from] ImageError),
@@ -73,9 +86,11 @@ pub enum ScryfallApiError {
 ```
 
 #### **Task 1.2: Enhanced List Objects**
+
 **Files to modify:** `src/scryfall.rs`
 
 **Subtasks:**
+
 - [ ] Replace current `ScryfallSearchResponse` with generic `ScryfallList<T>`
 - [ ] Add support for `warnings` field in list responses
 - [ ] Implement proper pagination state tracking
@@ -84,6 +99,7 @@ pub enum ScryfallApiError {
 - [ ] Maintain backward compatibility for existing code
 
 **Data Structures:**
+
 ```rust
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ScryfallList<T> {
@@ -101,10 +117,12 @@ pub type ScryfallSetList = ScryfallList<ScryfallSet>;
 ```
 
 #### **Task 1.3: Set Objects Implementation**
+
 **Files to create:** `src/sets.rs`
 **Files to modify:** `src/scryfall.rs`, `src/main.rs`
 
 **Subtasks:**
+
 - [ ] Create complete `ScryfallSet` struct with all API fields
 - [ ] Implement set type enumeration with all 20+ types
 - [ ] Add set lookup functions (by code, ID, TCGPlayer ID)
@@ -114,6 +132,7 @@ pub type ScryfallSetList = ScryfallList<ScryfallSet>;
 - [ ] Add set-based card search
 
 **Data Structures:**
+
 ```rust
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ScryfallSet {
@@ -169,9 +188,11 @@ pub enum SetType {
 ```
 
 #### **Task 1.4: Enhanced Card Data Structures**
+
 **Files to modify:** `src/scryfall.rs`
 
 **Subtasks:**
+
 - [ ] Expand `ScryfallCard` with missing API fields
 - [ ] Add `CardFace` struct for multi-faced cards
 - [ ] Implement `RelatedCard` for meld parts
@@ -182,6 +203,7 @@ pub enum SetType {
 - [ ] Support printed text fields for non-English cards
 
 **Data Structures:**
+
 ```rust
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CardFace {
@@ -268,7 +290,7 @@ pub struct ScryfallCard {
     pub arena_id: Option<u32>,
     pub tcgplayer_id: Option<u32>,
     pub cardmarket_id: Option<u32>,
-    
+
     // Core card info
     pub name: String,
     pub lang: String,
@@ -276,16 +298,16 @@ pub struct ScryfallCard {
     pub uri: String,
     pub scryfall_uri: String,
     pub layout: String,
-    
+
     // Multi-faced card support
     pub card_faces: Option<Vec<CardFace>>,
     pub all_parts: Option<Vec<RelatedCard>>,
-    
+
     // Images
     pub highres_image: bool,
     pub image_status: String,
     pub image_uris: Option<ImageUris>,
-    
+
     // Game data
     pub mana_cost: Option<String>,
     pub cmc: f64,
@@ -297,12 +319,12 @@ pub struct ScryfallCard {
     pub colors: Option<Vec<String>>,
     pub color_identity: Vec<String>,
     pub keywords: Option<Vec<String>>,
-    
+
     // Legality and formats
     pub legalities: Legalities,
     pub games: Vec<String>,
     pub reserved: bool,
-    
+
     // Physical properties
     pub foil: bool,
     pub nonfoil: bool,
@@ -311,7 +333,7 @@ pub struct ScryfallCard {
     pub promo: bool,
     pub reprint: bool,
     pub variation: bool,
-    
+
     // Set information
     pub set_id: String,
     pub set: String,
@@ -325,13 +347,13 @@ pub struct ScryfallCard {
     pub collector_number: String,
     pub digital: bool,
     pub rarity: String,
-    
+
     // Flavor and art
     pub flavor_text: Option<String>,
     pub artist: Option<String>,
     pub artist_ids: Option<Vec<String>>,
     pub illustration_id: Option<String>,
-    
+
     // Frame and visual
     pub border_color: String,
     pub frame: String,
@@ -341,19 +363,19 @@ pub struct ScryfallCard {
     pub textless: bool,
     pub booster: bool,
     pub story_spotlight: bool,
-    
+
     // Printed text (for non-English)
     pub printed_name: Option<String>,
     pub printed_type_line: Option<String>,
     pub printed_text: Option<String>,
-    
+
     // Popularity and pricing
     pub edhrec_rank: Option<u32>,
     pub penny_rank: Option<u32>,
     pub prices: Option<Prices>,
     pub related_uris: Option<Value>,
     pub purchase_uris: Option<Value>,
-    
+
     // Card back
     pub card_back_id: Option<String>,
 }
@@ -362,13 +384,16 @@ pub struct ScryfallCard {
 ---
 
 ### **Phase 2: Image Caching System**
-*Priority: HIGH | Estimated: 2-3 weeks*
+
+_Priority: HIGH | Estimated: 2-3 weeks_
 
 #### **Task 2.1: Image Cache Architecture**
+
 **Files to create:** `src/image_cache.rs`
 **Files to modify:** `src/cache.rs`, `Cargo.toml`
 
 **Subtasks:**
+
 - [ ] Design image cache directory structure
 - [ ] Implement `ImageCache` struct with configuration
 - [ ] Add image version enumeration (small, normal, large, png, etc.)
@@ -378,6 +403,7 @@ pub struct ScryfallCard {
 - [ ] Create cache metadata tracking
 
 **Dependencies to add:**
+
 ```toml
 [dependencies]
 image = "0.24"           # Image format validation
@@ -386,6 +412,7 @@ sha2 = "0.10"            # Image integrity checking
 ```
 
 **Data Structures:**
+
 ```rust
 #[derive(Debug, Clone)]
 pub struct ImageCache {
@@ -436,9 +463,11 @@ pub struct CachedImage {
 ```
 
 #### **Task 2.2: Image Download System**
+
 **Files to modify:** `src/image_cache.rs`
 
 **Subtasks:**
+
 - [ ] Implement async image downloading with progress
 - [ ] Add concurrent download management with rate limiting
 - [ ] Create request deduplication (don't download same image twice)
@@ -448,6 +477,7 @@ pub struct CachedImage {
 - [ ] Add image corruption detection and re-download
 
 **Functions to implement:**
+
 ```rust
 impl ImageCache {
     pub async fn get_image(&self, card_id: &str, version: ImageVersion, face: Option<ImageFace>) -> Result<PathBuf>;
@@ -460,9 +490,11 @@ impl ImageCache {
 ```
 
 #### **Task 2.3: Cache Directory Management**
+
 **Files to modify:** `src/image_cache.rs`
 
 **Subtasks:**
+
 - [ ] Create organized directory structure for images
 - [ ] Implement cache size monitoring and enforcement
 - [ ] Add LRU eviction for size management
@@ -471,6 +503,7 @@ impl ImageCache {
 - [ ] Add cache corruption recovery
 
 **Directory Structure:**
+
 ```
 ~/.cache/mtg-cli/
 ├── api/                     # API response cache (existing)
@@ -494,9 +527,11 @@ impl ImageCache {
 ```
 
 #### **Task 2.4: CLI Image Commands**
+
 **Files to modify:** `src/scryfall.rs`, `src/main.rs`
 
 **Subtasks:**
+
 - [ ] Add `--download-images` flag to search commands
 - [ ] Create `mtg scryfall images` subcommand group
 - [ ] Implement image cache management commands
@@ -504,6 +539,7 @@ impl ImageCache {
 - [ ] Create cache statistics and cleanup commands
 
 **New CLI Commands:**
+
 ```bash
 # Download images for search results
 mtg scryfall search "lightning bolt" --download-images --version large
@@ -524,13 +560,16 @@ mtg scryfall images set-icon <set_code> [--output <path>]
 ---
 
 ### **Phase 3: Multi-Format Support & Advanced Features**
-*Priority: MEDIUM | Estimated: 2-3 weeks*
+
+_Priority: MEDIUM | Estimated: 2-3 weeks_
 
 #### **Task 3.1: Request Format System**
+
 **Files to create:** `src/formats.rs`
 **Files to modify:** `src/scryfall.rs`
 
 **Subtasks:**
+
 - [ ] Create `OutputFormat` enumeration
 - [ ] Implement CSV export functionality
 - [ ] Add text format support for plain text output
@@ -539,6 +578,7 @@ mtg scryfall images set-icon <set_code> [--output <path>]
 - [ ] Implement format-specific header parsing
 
 **Data Structures:**
+
 ```rust
 #[derive(Debug, Clone, PartialEq)]
 pub enum OutputFormat {
@@ -565,9 +605,11 @@ pub struct FormatRequest {
 ```
 
 #### **Task 3.2: CSV Export System**
+
 **Files to modify:** `src/formats.rs`
 
 **Subtasks:**
+
 - [ ] Implement card data to CSV conversion
 - [ ] Add customizable column selection
 - [ ] Create CSV header handling for pagination
@@ -575,6 +617,7 @@ pub struct FormatRequest {
 - [ ] Implement streaming CSV for large datasets
 
 **CSV Columns:**
+
 ```rust
 pub enum CsvColumn {
     Name, ManaCost, Cmc, TypeLine, OracleText,
@@ -587,10 +630,12 @@ pub enum CsvColumn {
 ```
 
 #### **Task 3.3: Enhanced Pagination System**
+
 **Files to create:** `src/pagination.rs`
 **Files to modify:** `src/scryfall.rs`
 
 **Subtasks:**
+
 - [ ] Create pagination state management
 - [ ] Implement auto-pagination for large result sets
 - [ ] Add progress indicators for multi-page downloads
@@ -599,6 +644,7 @@ pub enum CsvColumn {
 - [ ] Implement warning aggregation across pages
 
 **Data Structures:**
+
 ```rust
 #[derive(Debug, Clone)]
 pub struct PaginationState {
@@ -624,13 +670,16 @@ pub struct PaginationOptions {
 ---
 
 ### **Phase 4: Set Management & CLI Enhancement**
-*Priority: MEDIUM | Estimated: 1-2 weeks*
+
+_Priority: MEDIUM | Estimated: 1-2 weeks_
 
 #### **Task 4.1: Set Management Commands**
+
 **Files to create:** `src/sets.rs`
 **Files to modify:** `src/main.rs`, `src/scryfall.rs`
 
 **Subtasks:**
+
 - [ ] Implement set listing with filtering
 - [ ] Add set lookup by code/ID/name
 - [ ] Create set search functionality
@@ -639,6 +688,7 @@ pub struct PaginationOptions {
 - [ ] Create set type filtering and validation
 
 **CLI Commands:**
+
 ```bash
 # List all sets
 mtg scryfall sets list [--type <type>] [--format table|json] [--released-after <date>]
@@ -660,9 +710,11 @@ mtg scryfall sets stats <set_code>
 ```
 
 #### **Task 4.2: Enhanced CLI User Experience**
+
 **Files to modify:** `src/main.rs`, `src/scryfall.rs`
 
 **Subtasks:**
+
 - [ ] Add command autocompletion support
 - [ ] Implement interactive mode for complex searches
 - [ ] Create search result filtering and sorting
@@ -671,6 +723,7 @@ mtg scryfall sets stats <set_code>
 - [ ] Add verbose/debug output modes
 
 **Configuration File:**
+
 ```toml
 # ~/.config/mtg-cli/config.toml
 [cache]
@@ -701,13 +754,16 @@ cache_all_versions = false
 ---
 
 ### **Phase 5: Production Readiness & Performance**
-*Priority: MEDIUM | Estimated: 1-2 weeks*
+
+_Priority: MEDIUM | Estimated: 1-2 weeks_
 
 #### **Task 5.1: Rate Limiting & HTTP Best Practices**
+
 **Files to create:** `src/rate_limit.rs`
 **Files to modify:** `src/scryfall.rs`
 
 **Subtasks:**
+
 - [ ] Implement rate limiting middleware (50-100 req/sec)
 - [ ] Add exponential backoff for rate limit hits
 - [ ] Create request queuing system
@@ -716,6 +772,7 @@ cache_all_versions = false
 - [ ] Create connection pooling for efficiency
 
 **Data Structures:**
+
 ```rust
 #[derive(Debug)]
 pub struct RateLimiter {
@@ -734,9 +791,11 @@ pub struct RequestQueue {
 ```
 
 #### **Task 5.2: Performance Optimization**
+
 **Files to modify:** `src/cache.rs`, `src/scryfall.rs`
 
 **Subtasks:**
+
 - [ ] Implement response compression for cache
 - [ ] Add connection pooling and keep-alive
 - [ ] Create parallel request processing
@@ -745,9 +804,11 @@ pub struct RequestQueue {
 - [ ] Implement cache preloading strategies
 
 #### **Task 5.3: Comprehensive Testing**
+
 **Files to create:** `tests/integration/`, `tests/unit/`
 
 **Subtasks:**
+
 - [ ] Create unit tests for all new data structures
 - [ ] Add integration tests with real API calls
 - [ ] Implement cache behavior validation tests
@@ -758,13 +819,16 @@ pub struct RequestQueue {
 ---
 
 ### **Phase 6: Documentation & Polish**
-*Priority: LOW | Estimated: 1 week*
+
+_Priority: LOW | Estimated: 1 week_
 
 #### **Task 6.1: Documentation**
+
 **Files to create:** `docs/api.md`, `docs/caching.md`, `docs/examples.md`
 **Files to modify:** `README.md`
 
 **Subtasks:**
+
 - [ ] Update README with new features
 - [ ] Create comprehensive API documentation
 - [ ] Add caching system documentation
@@ -773,9 +837,11 @@ pub struct RequestQueue {
 - [ ] Add troubleshooting guide
 
 #### **Task 6.2: Examples & Tutorials**
+
 **Files to create:** `examples/`
 
 **Subtasks:**
+
 - [ ] Create basic usage examples
 - [ ] Add advanced search examples
 - [ ] Create image caching examples
@@ -787,6 +853,7 @@ pub struct RequestQueue {
 ## 📊 **Success Metrics**
 
 ### **Functionality Metrics**
+
 - [ ] All 20+ card layouts properly supported
 - [ ] All Scryfall API endpoints accessible
 - [ ] Multi-format output working (JSON, CSV, text, images)
@@ -794,6 +861,7 @@ pub struct RequestQueue {
 - [ ] Set management fully functional
 
 ### **Performance Metrics**
+
 - [ ] Cache hit rate >80% for repeated queries
 - [ ] API response time <2s for single requests
 - [ ] Image download time <5s for normal-sized images
@@ -801,6 +869,7 @@ pub struct RequestQueue {
 - [ ] Rate limiting compliance (no 429 errors)
 
 ### **Reliability Metrics**
+
 - [ ] Error rate <1% with proper retry logic
 - [ ] Cache corruption rate <0.1%
 - [ ] Zero data loss during cache operations
@@ -808,6 +877,7 @@ pub struct RequestQueue {
 - [ ] 100% backward compatibility maintained
 
 ### **User Experience Metrics**
+
 - [ ] Command completion time <500ms for cached results
 - [ ] Clear error messages for all failure cases
 - [ ] Intuitive CLI interface with helpful output
@@ -819,6 +889,7 @@ pub struct RequestQueue {
 ## 🔄 **Migration Strategy**
 
 ### **Backward Compatibility**
+
 - All existing CLI commands continue to work unchanged
 - Existing cache format remains valid during transition
 - JSON output structure maintains compatibility
@@ -826,6 +897,7 @@ pub struct RequestQueue {
 - Configuration migration handled automatically
 
 ### **Rollout Plan**
+
 1. **Phase 1**: Core data structures (non-breaking changes)
 2. **Phase 2**: Image caching (additive feature)
 3. **Phase 3**: Multi-format support (additive feature)
@@ -834,6 +906,7 @@ pub struct RequestQueue {
 6. **Phase 6**: Documentation and polish
 
 ### **Testing Strategy**
+
 - Continuous integration testing at each phase
 - Backward compatibility validation
 - Performance regression testing
@@ -845,6 +918,7 @@ pub struct RequestQueue {
 ## 📋 **Task Tracking**
 
 ### **Phase 1 Progress** ✅ **COMPLETED**
+
 - [x] Task 1.1: Enhanced Error Handling System ✅ **COMPLETED**
   - ✅ Created comprehensive `ScryfallError` struct with all API fields
   - ✅ Implemented `ScryfallApiError` enum with structured error types
@@ -865,40 +939,96 @@ pub struct RequestQueue {
   - ⚠️ Deferred to future phase - current card structure sufficient for Phase 1
 
 ### **Phase 2 Progress**
+
 - [ ] Task 2.1: Image Cache Architecture
 - [ ] Task 2.2: Image Download System
 - [ ] Task 2.3: Cache Directory Management
 - [ ] Task 2.4: CLI Image Commands
 
 ### **Phase 3 Progress**
+
 - [ ] Task 3.1: Request Format System
 - [ ] Task 3.2: CSV Export System
 - [ ] Task 3.3: Enhanced Pagination System
 
 ### **Phase 4 Progress**
+
 - [ ] Task 4.1: Set Management Commands
 - [ ] Task 4.2: Enhanced CLI User Experience
 
 ### **Phase 5 Progress**
+
 - [ ] Task 5.1: Rate Limiting & HTTP Best Practices
 - [ ] Task 5.2: Performance Optimization
 - [ ] Task 5.3: Comprehensive Testing
 
 ### **Phase 6 Progress**
+
 - [ ] Task 6.1: Documentation
 - [ ] Task 6.2: Examples & Tutorials
 
 ---
 
-## 🎯 **Next Steps**
+## 🎯 **Current Status & Next Steps**
 
-1. **Review and approve this plan** with stakeholders
-2. **Set up development environment** with new dependencies
-3. **Begin Phase 1, Task 1.1** (Enhanced Error Handling System)
-4. **Create feature branch** for Phase 1 development
-5. **Establish testing framework** for new features
-6. **Set up CI/CD pipeline** for automated testing
+### **✅ Phase 1 Complete** (July 2025)
+
+**Foundation & Core Data Structures** - All tasks completed successfully!
+
+**Key Achievements:**
+
+- ✅ Enhanced error handling system with comprehensive API error support
+- ✅ Generic `ScryfallList<T>` structure for all list responses
+- ✅ Complete set management system with 25+ API fields
+- ✅ CLI integration with `sets list`, `sets get`, `sets types` commands
+- ✅ Zero breaking changes - all existing functionality preserved
+- ✅ Comprehensive testing and validation completed
+
+**Files Modified/Created:**
+
+- `crates/mtg/src/error.rs` - Enhanced error handling system
+- `crates/mtg/src/cache.rs` - Added CacheError enum
+- `crates/mtg/src/scryfall.rs` - Updated with ScryfallList<T> and error parsing
+- `crates/mtg/src/sets.rs` - **NEW** Complete set management module
+- `crates/mtg/src/main.rs` - Added SetCommands CLI integration
+- `crates/mtg/Cargo.toml` - Added regex dependency
+
+### **🚀 Ready for Phase 2**
+
+**Next Priority: Image Caching System**
+
+**Immediate Next Tasks:**
+
+1. **Task 2.1**: Image Cache Architecture
+
+   - Create `src/image_cache.rs` module
+   - Implement ImageCache struct with TTL and size management
+   - Add ImageVersion enum (small, normal, large, png, art_crop, border_crop)
+
+2. **Task 2.2**: Image Download System
+
+   - Async image downloading with progress indicators
+   - HTTP 302 redirect handling for image URLs
+   - Request deduplication and rate limiting
+
+3. **Task 2.3**: Cache Directory Management
+
+   - Organized directory structure for images
+   - LRU eviction and size enforcement
+   - Cache metadata persistence
+
+4. **Task 2.4**: CLI Image Commands
+   - Add `--download-images` flags to search commands
+   - Create `mtg scryfall images` subcommand group
+
+**Dependencies to Add:**
+
+```toml
+image = "0.24"           # Image format validation
+tokio-fs = "0.1"         # Async file operations
+sha2 = "0.10"            # Already added, for image integrity
+```
 
 ---
 
-*This document will be updated as implementation progresses. Each completed task should be marked with ✅ and include implementation notes.*
+_This document will be updated as implementation progresses. Each completed task should be marked with ✅ and include implementation notes._

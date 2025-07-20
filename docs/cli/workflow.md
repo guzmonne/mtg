@@ -105,13 +105,22 @@ mtg gatherer card "Lightning, Army of One" --pretty
 #### Using Scryfall
 ```bash
 # Get detailed information in table format
-mtg scryfall card "Lightning Bolt" --pretty
+mtg scryfall named "Lightning Bolt" --pretty
 
 # Get complete JSON data for programmatic use
-mtg scryfall card "Lightning Bolt"
+mtg scryfall named "Lightning Bolt"
 
 # Get specific printing from a set
-mtg scryfall card "Lightning Bolt" --set "lea" --pretty
+mtg scryfall named "Lightning Bolt" --set "lea" --pretty
+
+# Get card by Scryfall ID
+mtg scryfall id "56ebc372-aabd-4174-a943-c7bf59e5028d" --pretty
+
+# Get card by set and collector number
+mtg scryfall collector ktk 96 --pretty
+
+# Get card by Arena ID
+mtg scryfall arena 67330 --pretty
 ```
 
 ## Choosing the Right Search Engine
@@ -139,13 +148,19 @@ mtg gatherer search --supertype "Legendary,Snow" --card-type "Creature+Artifact"
 ```
 
 ### Scryfall (`mtg scryfall`)
-- **Best for**: Flexible queries, modern search syntax, comprehensive data
-- **Strengths**: Intuitive syntax, fast, excellent for exploration
-- **Use when**: You want flexible search syntax or are familiar with Scryfall's query language
+- **Best for**: Flexible queries, modern search syntax, comprehensive data, multiple lookup methods
+- **Strengths**: Intuitive syntax, fast, excellent for exploration, ID-based lookups, autocomplete
+- **Use when**: You want flexible search syntax, need specific card lookups, or are familiar with Scryfall's query language
 
 ```bash
 # Intuitive query syntax
 mtg scryfall search "c:wu t:creature mv<=3 f:modern" --pretty
+
+# Multiple lookup methods
+mtg scryfall named "Lightning Bolt" --pretty
+mtg scryfall collector ktk 96 --pretty
+mtg scryfall random --query "t:legendary" --pretty
+mtg scryfall autocomplete "lightning"
 ```
 
 ## Advanced Workflows
@@ -181,7 +196,7 @@ mtg scryfall search "t:planeswalker c:blue" --pretty
 mtg scryfall search "t:planeswalker c:blue f:modern" --pretty
 
 # 4. Get details for interesting cards
-mtg scryfall card "Jace, the Mind Sculptor" --pretty
+mtg scryfall named "Jace, the Mind Sculptor" --pretty
 ```
 
 ### Set Exploration
@@ -209,7 +224,7 @@ mtg scryfall search "s:war r:mythic" --pretty
 mtg scryfall search "s:war t:planeswalker" --pretty
 
 # 3. Get details for specific cards
-mtg scryfall card "Nicol Bolas, Dragon-God" --pretty
+mtg scryfall named "Nicol Bolas, Dragon-God" --pretty
 ```
 
 ### Deck Building Research
@@ -237,7 +252,7 @@ mtg scryfall search "c:red t:creature mv<=2 pow>=2" --pretty
 mtg scryfall search "c:wu t:planeswalker f:standard" --pretty
 
 # 3. Research specific cards
-mtg scryfall card "Teferi, Hero of Dominaria" --pretty
+mtg scryfall named "Teferi, Hero of Dominaria" --pretty
 ```
 
 ### Format-Specific Research
@@ -266,7 +281,78 @@ mtg scryfall search "id<=esper f:commander" --pretty
 mtg scryfall search "f:modern (t:instant or t:sorcery) mv<=2" --pretty
 ```
 
-## Scryfall-Specific Workflows
+## Enhanced Scryfall Workflows
+
+Scryfall provides multiple lookup methods and powerful query syntax for comprehensive card research:
+
+### ID-Based Lookup Workflows
+
+#### Collection Management
+```bash
+# Look up cards from different sources by their IDs
+mtg scryfall arena 67330 --pretty        # From Arena deck export
+mtg scryfall mtgo 12345 --pretty         # From MTGO collection
+mtg scryfall tcgplayer 98765 --pretty    # From TCGPlayer order
+mtg scryfall cardmarket 54321 --pretty   # From Cardmarket data
+
+# Get specific printings by set and collector number
+mtg scryfall collector ktk 96 --pretty   # Khans of Tarkir #96
+mtg scryfall collector war "★1" --pretty # War of the Spark special
+mtg scryfall collector dom 1 --lang ja --pretty # Japanese version
+```
+
+#### API Integration Workflow
+```bash
+# Get card by Scryfall UUID (from API responses)
+mtg scryfall id "56ebc372-aabd-4174-a943-c7bf59e5028d" --pretty
+
+# Export card data for applications
+mtg scryfall named "Lightning Bolt" > lightning_bolt.json
+mtg scryfall collector ktk 96 > ainok_tracker.json
+```
+
+#### Discovery and Research
+```bash
+# Get random cards for inspiration
+mtg scryfall random --pretty
+mtg scryfall random --query "t:legendary t:creature" --pretty
+mtg scryfall random --query "c:bant f:commander" --pretty
+
+# Get autocomplete suggestions for deck building
+mtg scryfall autocomplete "lightning"
+mtg scryfall autocomplete "jace" --include-extras
+```
+
+### Enhanced Search Workflows
+
+#### Market Research with Enhanced Sorting
+```bash
+# Find cards by price
+mtg scryfall search "f:standard" --order usd --pretty
+mtg scryfall search "t:creature" --order tix --dir desc --pretty
+
+# Find popular cards
+mtg scryfall search "t:creature" --order edhrec --pretty
+mtg scryfall search "f:modern" --order penny --pretty
+
+# Sort by different criteria
+mtg scryfall search "c:red t:creature" --order power --dir desc --pretty
+mtg scryfall search "t:planeswalker" --order released --pretty
+```
+
+#### Data Export and Analysis
+```bash
+# Export search results as CSV for analysis
+mtg scryfall search "f:standard" --csv > standard_cards.csv
+mtg scryfall search "c:red t:creature mv<=3" --csv > red_aggro.csv
+
+# Include different card types and variations
+mtg scryfall search "Lightning Bolt" --unique prints --pretty
+mtg scryfall search "t:token" --include-extras --pretty
+mtg scryfall search "Lightning Bolt" --include-multilingual --pretty
+```
+
+### Advanced Query Patterns
 
 Scryfall's query syntax enables unique search patterns that aren't easily achievable with other engines:
 
@@ -589,7 +675,7 @@ All Scryfall query syntax is supported. Add --pretty for final card display."
     echo "" 1>&2
 
     # Create a preview command that shows card details
-    local preview_cmd='mtg scryfall card --pretty {}'
+    local preview_cmd='mtg scryfall named --pretty {}'
 
     # Use fzf to select a card
     local selected_card
@@ -612,7 +698,7 @@ All Scryfall query syntax is supported. Add --pretty for final card display."
     echo "----------------------------------------" 1>&2
 
     # Get detailed card information
-    mtg scryfall card "$selected_card" $pretty_flag
+    mtg scryfall named "$selected_card" $pretty_flag
 }
 
 # Shorter alias for convenience
@@ -923,12 +1009,12 @@ mtg_card_search_alt() {
         --height=80% \
         --border \
         --prompt="Select a card: " \
-        --preview="mtg gatherer card '{}' --pretty 2>/dev/null | head -20" \
+        --preview="mtg scryfall named '{}' --pretty 2>/dev/null | head -20" \
         --preview-window=right:60%)
 
     if [[ -n "$selected_card" ]]; then
         echo "Getting details for: $selected_card" 1>&2
-        mtg gatherer card "$selected_card" $pretty_flag
+        mtg scryfall named "$selected_card" $pretty_flag
     fi
 }
 ```

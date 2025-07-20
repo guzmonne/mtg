@@ -31,7 +31,12 @@ Search using Wizards of the Coast's official Gatherer advanced search functional
 
 ### Scryfall
 
-Search using Scryfall's powerful and flexible search engine with advanced syntax support for comprehensive card queries.
+Search using Scryfall's powerful and flexible search engine with:
+- **Multiple lookup methods** - Find cards by name, ID, set/collector number, Arena ID, MTGO ID, and more
+- **Advanced search syntax** - Use Scryfall's comprehensive query language
+- **Enhanced filtering** - Individual filter options for precise searches
+- **Autocomplete** - Get card name suggestions
+- **Random cards** - Discover cards with optional filtering
 
 ### Completions
 
@@ -51,7 +56,19 @@ mtg api cards search "Lightning Bolt"
 mtg gatherer search --name "Lightning Bolt" --rarity "Common"
 
 # Search using Scryfall's powerful syntax
-mtg scryfall search "c:red t:creature mv<=3"
+mtg scryfall search "c:red t:creature mv<=3" --pretty
+
+# Get card by exact name
+mtg scryfall named "Lightning Bolt" --pretty
+
+# Get card by set and collector number
+mtg scryfall collector ktk 96 --pretty
+
+# Get random card
+mtg scryfall random --query "t:legendary" --pretty
+
+# Get autocomplete suggestions
+mtg scryfall autocomplete "lightning"
 
 # List recent sets
 mtg api sets list --page-size 10

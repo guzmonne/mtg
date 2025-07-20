@@ -7,21 +7,329 @@ use mcp_core::{
 };
 use serde_json::json;
 use std::collections::HashMap;
+use prettytable::{Table, Row, Cell, format};
 
 use crate::prelude::*;
+
+// Helper function to format Scryfall search results as pretty table
+fn format_scryfall_search_results(response: &crate::scryfall::ScryfallSearchResponse) -> Result<String> {
+    let mut table = Table::new();
+    table.set_format(*format::consts::FORMAT_CLEAN);
+    table.add_row(Row::new(vec![
+        Cell::new("Name"),
+        Cell::new("Cost"),
+        Cell::new("Type"),
+        Cell::new("Set"),
+        Cell::new("Rarity"),
+        Cell::new("P/T/L"),
+    ]));
+
+    for card in &response.data {
+        let mana_cost = card.mana_cost.as_deref().unwrap_or("");
+        let pt_loyalty = if let Some(loyalty) = &card.loyalty {
+            loyalty.clone()
+        } else if let (Some(power), Some(toughness)) = (&card.power, &card.toughness) {
+            format!("{}/{}", power, toughness)
+        } else {
+            "-".to_string()
+        };
+
+        table.add_row(Row::new(vec![
+            Cell::new(&card.name),
+            Cell::new(mana_cost),
+            Cell::new(&card.type_line),
+            Cell::new(&card.set_name),
+            Cell::new(&card.rarity),
+            Cell::new(&pt_loyalty),
+        ]));
+    }
+
+    let mut buffer = Vec::new();
+    table.print(&mut buffer).map_err(|e| eyre!("Failed to format table: {}", e))?;
+    let mut output = String::from_utf8(buffer).map_err(|e| eyre!("Failed to convert table to string: {}", e))?;
+    
+    // Add summary information
+    let total_cards = response.total_cards.unwrap_or(response.data.len() as u32) as usize;
+    output.push_str(&format!("\nFound {} cards", total_cards));
+    if response.data.len() < total_cards {
+        output.push_str(&format!(" (showing {} on this page)", response.data.len()));
+    }
+    
+    // Display warnings if any
+    if let Some(warnings) = &response.warnings {
+        output.push_str("\n\n⚠️  Warnings:\n");
+        for warning in warnings {
+            output.push_str(&format!("   • {}\n", warning));
+        }
+    }
+    
+    Ok(output)
+}
+
+// Helper function to format single card details as pretty table
+fn format_single_card_details(card: &crate::scryfall::ScryfallCard) -> Result<String> {
+    let mut table = Table::new();
+    table.set_format(*format::consts::FORMAT_CLEAN);
+    
+    // Card name
+    table.add_row(Row::new(vec![Cell::new("Name"), Cell::new(&card.name)]));
+    
+    // Mana cost
+    if let Some(mana_cost) = &card.mana_cost {
+        if !mana_cost.is_empty() {
+            table.add_row(Row::new(vec![Cell::new("Mana Cost"), Cell::new(mana_cost)]));
+        }
+    }
+    
+    // Mana value
+    if card.cmc > 0.0 {
+        table.add_row(Row::new(vec![Cell::new("Mana Value"), Cell::new(&card.cmc.to_string())]));
+    }
+    
+    // Type line
+    table.add_row(Row::new(vec![Cell::new("Type"), Cell::new(&card.type_line)]));
+    
+    // Oracle text
+    if let Some(oracle_text) = &card.oracle_text {
+        if !oracle_text.is_empty() {
+            table.add_row(Row::new(vec![Cell::new("Oracle Text"), Cell::new(oracle_text)]));
+        }
+    }
+    
+    // Power/Toughness
+    if let (Some(power), Some(toughness)) = (&card.power, &card.toughness) {
+        table.add_row(Row::new(vec![Cell::new("Power/Toughness"), Cell::new(&format!("{}/{}", power, toughness))]));
+    }
+    
+    // Loyalty
+    if let Some(loyalty) = &card.loyalty {
+        table.add_row(Row::new(vec![Cell::new("Loyalty"), Cell::new(loyalty)]));
+    }
+    
+    // Set
+    table.add_row(Row::new(vec![Cell::new("Set"), Cell::new(&format!("{} ({})", card.set_name, card.set.to_uppercase()))]));
+    
+    // Rarity
+    table.add_row(Row::new(vec![Cell::new("Rarity"), Cell::new(&card.rarity)]));
+    
+    // Artist
+    if let Some(artist) = &card.artist {
+        table.add_row(Row::new(vec![Cell::new("Artist"), Cell::new(artist)]));
+    }
+    
+    // Flavor text
+    if let Some(flavor_text) = &card.flavor_text {
+        if !flavor_text.is_empty() {
+            table.add_row(Row::new(vec![Cell::new("Flavor Text"), Cell::new(flavor_text)]));
+        }
+    }
+    
+    // Collector number
+    table.add_row(Row::new(vec![Cell::new("Collector Number"), Cell::new(&card.collector_number)]));
+    
+    // Legalities (show a few key formats)
+    if let Some(legalities) = card.legalities.as_object() {
+        let mut legal_formats = Vec::new();
+        let key_formats = ["standard", "pioneer", "modern", "legacy", "vintage", "commander"];
+        
+        for format in &key_formats {
+            if let Some(status) = legalities.get(*format).and_then(|v| v.as_str()) {
+                if status == "legal" {
+                    legal_formats.push(format.to_string());
+                }
+            }
+        }
+        
+        // Add legal formats to table
+        if !legal_formats.is_empty() {
+            table.add_row(Row::new(vec![Cell::new("Legal In"), Cell::new(&legal_formats.join(", "))]));
+        }
+    }
+    
+    // Convert table to string and return
+    let mut buffer = Vec::new();
+    table.print(&mut buffer).map_err(|e| eyre!("Failed to format table: {}", e))?;
+    let output = String::from_utf8(buffer).map_err(|e| eyre!("Failed to convert table to string: {}", e))?;
+    Ok(output)
+}
+
+// Helper function to format Gatherer search results as pretty table
+fn format_gatherer_search_results(response: &serde_json::Value) -> Result<String> {
+    if let Some(items) = response.get("items").and_then(|v| v.as_array()) {
+        let mut table = Table::new();
+        table.set_format(*format::consts::FORMAT_CLEAN);
+        table.add_row(Row::new(vec![
+            Cell::new("Name"),
+            Cell::new("Cost"),
+            Cell::new("Type"),
+            Cell::new("Set"),
+            Cell::new("Rarity"),
+            Cell::new("P/T/L"),
+        ]));
+
+        for item in items {
+            let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let mana_cost = item.get("manaCost").and_then(|v| v.as_str()).unwrap_or("");
+            let type_line = item.get("type").and_then(|v| v.as_str()).unwrap_or("");
+            let set_name = item.get("setName").and_then(|v| v.as_str()).unwrap_or("");
+            let rarity = item.get("rarity").and_then(|v| v.as_str()).unwrap_or("");
+            
+            // Handle power/toughness/loyalty
+            let pt_loyalty = if let Some(loyalty) = item.get("loyalty").and_then(|v| v.as_str()) {
+                loyalty.to_string()
+            } else if let (Some(power), Some(toughness)) = (
+                item.get("power").and_then(|v| v.as_str()),
+                item.get("toughness").and_then(|v| v.as_str())
+            ) {
+                format!("{}/{}", power, toughness)
+            } else {
+                "-".to_string()
+            };
+
+            table.add_row(Row::new(vec![
+                Cell::new(name),
+                Cell::new(mana_cost),
+                Cell::new(type_line),
+                Cell::new(set_name),
+                Cell::new(rarity),
+                Cell::new(&pt_loyalty),
+            ]));
+        }
+
+        let mut buffer = Vec::new();
+        table.print(&mut buffer).map_err(|e| eyre!("Failed to format table: {}", e))?;
+        let mut output = String::from_utf8(buffer).map_err(|e| eyre!("Failed to convert table to string: {}", e))?;
+        
+        // Add summary information
+        let total_items = response.get("totalItems").and_then(|v| v.as_u64()).unwrap_or(items.len() as u64);
+        output.push_str(&format!("\nFound {} cards", total_items));
+        if items.len() < total_items as usize {
+            output.push_str(&format!(" (showing {} on this page)", items.len()));
+        }
+        
+        Ok(output)
+    } else {
+        Ok("No cards found.".to_string())
+    }
+}
+
+// Scryfall named card lookup tool
+pub struct ScryfallNamedTool;
+
+impl ScryfallNamedTool {
+    fn tool() -> Tool {
+        Tool {
+            name: "scryfall_get_card_by_name".to_string(),
+            description: Some("Get a specific Magic: The Gathering card by its exact name using Scryfall API".to_string()),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Exact card name to look up (e.g., 'Lightning Bolt', 'Jace, the Mind Sculptor')"
+                    },
+                    "set": {
+                        "type": "string",
+                        "description": "Optional set code to get specific printing (e.g., 'lea', 'ktk')"
+                    }
+                },
+                "required": ["name"]
+            }),
+            annotations: None,
+        }
+    }
+
+    fn call() -> ToolHandlerFn {
+        |request: CallToolRequest| {
+            Box::pin(async move {
+                let empty_args = HashMap::new();
+                let args = request.arguments.as_ref().unwrap_or(&empty_args);
+                
+                let global = crate::Global {
+                    api_base_url: "https://api.magicthegathering.io/v1".to_string(),
+                    verbose: false,
+                    timeout: 30,
+                };
+
+                if let Some(name) = args.get("name").and_then(|v| v.as_str()) {
+                    if name.trim().is_empty() {
+                        tool_text_response!("Error: Card name cannot be empty.")
+                    } else {
+                        let set_code = args.get("set").and_then(|v| v.as_str());
+                        
+                        // Build URL for named card lookup
+                        let url = if let Some(set) = set_code {
+                            format!("https://api.scryfall.com/cards/named?exact={}&set={}", 
+                                    urlencoding::encode(name), urlencoding::encode(set))
+                        } else {
+                            format!("https://api.scryfall.com/cards/named?exact={}", 
+                                    urlencoding::encode(name))
+                        };
+
+                        let client = reqwest::Client::builder()
+                            .timeout(std::time::Duration::from_secs(global.timeout))
+                            .user_agent("mtg-cli/1.0")
+                            .build()
+                            .unwrap();
+
+                        match client.get(&url).send().await {
+                            Ok(response) => {
+                                match response.text().await {
+                                    Ok(response_text) => {
+                                        // Parse the response
+                                         let json_value: serde_json::Value = match serde_json::from_str(&response_text) {
+                                            Ok(val) => val,
+                                            Err(e) => {
+                                                return tool_text_response!(format!("Failed to parse response: {}", e));
+                                            }
+                                        };                                        
+                                        if let Some(object_type) = json_value.get("object").and_then(|v| v.as_str()) {
+                                            if object_type == "error" {
+                                                let error_msg = json_value.get("details").and_then(|v| v.as_str()).unwrap_or("Unknown error");
+                                                return tool_text_response!(format!("Card not found: {}", error_msg));
+                                            } else {
+                                                // Parse as card response
+                                                match serde_json::from_value::<crate::scryfall::ScryfallCard>(json_value) {
+                                                    Ok(card) => {
+                                                        match format_single_card_details(&card) {
+                                                            Ok(formatted_output) => tool_text_response!(formatted_output),
+                                                            Err(e) => tool_text_response!(format!("Failed to format card details: {}", e))
+                                                        }
+                                                    }
+                                                    Err(e) => tool_text_response!(format!("Failed to parse card data: {}", e))
+                                                }
+                                            }
+                                        } else {
+                                            tool_text_response!("Invalid response format from Scryfall API")
+                                        }
+                                    }
+                                    Err(e) => tool_text_response!(format!("Failed to read response: {}", e))
+                                }
+                            }
+                            Err(e) => tool_text_response!(format!("Request failed: {}", e))
+                        }
+                    }
+                } else {
+                    tool_text_response!("Error: 'name' parameter is required.")
+                }
+            })
+        }
+    }
+}
 
 pub async fn run_mcp_server(global: crate::Global) -> Result<()> {
     log::info!("Starting MTG MCP Server (STDIO)");
 
     let server_protocol = Server::builder(
         "mtg-mcp-server".to_string(),
-        "2.0.0".to_string(),
+        "1.0.0".to_string(),
         mcp_core::types::ProtocolVersion::V2024_11_05,
     )
     .set_capabilities(ServerCapabilities {
         tools: Some(ToolCapabilities::default()),
         ..Default::default()
     })
+    .register_tool(ScryfallNamedTool::tool(), ScryfallNamedTool::call())
     .register_tool(GathererSearchTool::tool(), GathererSearchTool::call())
     .register_tool(ScryfallSearchTool::tool(), ScryfallSearchTool::call())
     .build();
@@ -42,6 +350,7 @@ pub async fn run_sse_server(global: crate::Global, host: String, port: u16) -> R
         tools: Some(ToolCapabilities::default()),
         ..Default::default()
     })
+    .register_tool(ScryfallNamedTool::tool(), ScryfallNamedTool::call())
     .register_tool(GathererSearchTool::tool(), GathererSearchTool::call())
     .register_tool(ScryfallSearchTool::tool(), ScryfallSearchTool::call())
     .build();
@@ -161,7 +470,7 @@ impl GathererSearchTool {
                     colors: args.get("colors").and_then(|v| v.as_str()).map(|s| s.to_string()),
                     format: args.get("format").and_then(|v| v.as_str()).map(|s| s.to_string()),
                     language: args.get("language").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                    pretty: false, // Always return JSON for MCP
+                    pretty: true, // Return pretty formatted output for MCP
                     page: args.get("page").and_then(|v| v.as_u64()).unwrap_or(1) as u32,
                 };
 
@@ -201,10 +510,10 @@ impl GathererSearchTool {
                                 if items.is_empty() {
                                     tool_text_response!("No cards found matching the search criteria.")
                                 } else {
-                                    // Return the JSON data as a formatted string
-                                    match serde_json::to_string_pretty(&card_data) {
-                                        Ok(json_str) => tool_text_response!(json_str),
-                                        Err(e) => tool_text_response!(format!("Failed to serialize card data: {}", e))
+                                    // Return the data as a formatted table
+                                    match format_gatherer_search_results(&card_data) {
+                                        Ok(formatted_output) => tool_text_response!(formatted_output),
+                                        Err(e) => tool_text_response!(format!("Failed to format card data: {}", e))
                                     }
                                 }
                             } else {
@@ -307,7 +616,7 @@ impl ScryfallSearchTool {
                     },
                     "order": {
                         "type": "string",
-                        "description": "Sort order (name, cmc, power, toughness, artist, set, released, rarity, usd, tix, eur)",
+                        "description": "Sort order (name, set, released, rarity, color, usd, tix, eur, cmc, power, toughness, edhrec, penny, artist, review)",
                         "default": "name"
                     }
                 },
@@ -338,7 +647,7 @@ impl ScryfallSearchTool {
                         // Direct query search
                         let search_params = crate::scryfall::SearchParams {
                             query: query.to_string(),
-                            pretty: false,
+                            pretty: true,
                             page: args.get("page").and_then(|v| v.as_u64()).unwrap_or(1) as u32,
                             order: args.get("order").and_then(|v| v.as_str()).unwrap_or("name").to_string(),
                             dir: "auto".to_string(),
@@ -346,6 +655,7 @@ impl ScryfallSearchTool {
                             include_multilingual: false,
                             include_variations: false,
                             unique: "cards".to_string(),
+                            csv: false,
                         };
 
                         match crate::scryfall::search_cards_json(search_params, global).await {
@@ -353,9 +663,9 @@ impl ScryfallSearchTool {
                                 if search_response.data.is_empty() {
                                     tool_text_response!("No cards found matching the search query.")
                                 } else {
-                                    match serde_json::to_string_pretty(&search_response) {
-                                        Ok(json_str) => tool_text_response!(json_str),
-                                        Err(e) => tool_text_response!(format!("Failed to serialize search results: {}", e))
+                                    match format_scryfall_search_results(&search_response) {
+                                        Ok(formatted_output) => tool_text_response!(formatted_output),
+                                        Err(e) => tool_text_response!(format!("Failed to format search results: {}", e))
                                     }
                                 }
                             }
@@ -383,9 +693,14 @@ impl ScryfallSearchTool {
                         flavor: args.get("flavor").and_then(|v| v.as_str()).map(|s| s.to_string()),
                         format: args.get("format").and_then(|v| v.as_str()).map(|s| s.to_string()),
                         language: args.get("language").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                        pretty: false,
+                        pretty: true,
                         page: args.get("page").and_then(|v| v.as_u64()).unwrap_or(1) as u32,
                         order: args.get("order").and_then(|v| v.as_str()).unwrap_or("name").to_string(),
+                        dir: "auto".to_string(),
+                        include_extras: false,
+                        include_multilingual: false,
+                        include_variations: false,
+                        unique: "cards".to_string(),
                     };
 
                     // Check if any advanced parameters were provided
@@ -414,9 +729,9 @@ impl ScryfallSearchTool {
                                 if search_response.data.is_empty() {
                                     tool_text_response!("No cards found matching the search criteria.")
                                 } else {
-                                    match serde_json::to_string_pretty(&search_response) {
-                                        Ok(json_str) => tool_text_response!(json_str),
-                                        Err(e) => tool_text_response!(format!("Failed to serialize search results: {}", e))
+                                    match format_scryfall_search_results(&search_response) {
+                                        Ok(formatted_output) => tool_text_response!(formatted_output),
+                                        Err(e) => tool_text_response!(format!("Failed to format search results: {}", e))
                                     }
                                 }
                             }
