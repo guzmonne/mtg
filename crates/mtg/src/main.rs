@@ -44,6 +44,23 @@ pub struct Global {
 }
 
 #[derive(Debug, clap::Parser)]
+pub enum McpCommands {
+    /// Start MCP server with STDIO transport (default)
+    Stdio,
+    
+    /// Start MCP server with SSE transport (HTTP endpoints)
+    Sse {
+        /// Host to bind to
+        #[clap(long, default_value = "127.0.0.1")]
+        host: String,
+        
+        /// Port to bind to
+        #[clap(long, default_value = "3000")]
+        port: u16,
+    },
+}
+
+#[derive(Debug, clap::Parser)]
 pub enum SubCommands {
     /// Access the MTG API directly
     Api {
@@ -60,8 +77,11 @@ pub enum SubCommands {
     /// Generate shell completions
     Completions(crate::completions::App),
 
-    /// Start Model Context Protocol server for AI integration
-    Mcp,
+    /// Start Model Context Protocol server for AI integration (defaults to STDIO)
+    Mcp {
+        #[command(subcommand)]
+        command: Option<McpCommands>,
+    },
 }
 
 #[tokio::main]
@@ -76,7 +96,10 @@ async fn main() -> Result<()> {
         SubCommands::Gatherer(sub_app) => crate::gatherer::run(sub_app, app.global).await,
         SubCommands::Scryfall(sub_app) => crate::scryfall::run(sub_app, app.global).await,
         SubCommands::Completions(sub_app) => crate::completions::run(sub_app, app.global).await,
-        SubCommands::Mcp => crate::mcp::run_mcp_server(app.global).await,
+        SubCommands::Mcp { command } => match command {
+            Some(McpCommands::Stdio) | None => crate::mcp::run_mcp_server(app.global).await,
+            Some(McpCommands::Sse { host, port }) => crate::mcp::run_sse_server(app.global, host, port).await,
+        },
     }
     .map_err(|err: color_eyre::eyre::Report| eyre!(err))
 }

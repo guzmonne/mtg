@@ -6,6 +6,7 @@ The MTG CLI includes a powerful Model Context Protocol (MCP) server that enables
 
 - [Overview](overview.md) - What is MCP and how it works
 - [Setup & Installation](setup.md) - Getting the MCP server running
+- [Server Details](enhanced.md) - Modern mcp-core implementation with SSE support
 - [Resources](resources.md) - Available data resources
 - [Tools](tools.md) - Interactive tools for AI assistants
 - [Prompts](prompts.md) - Pre-built prompt templates
@@ -23,7 +24,14 @@ The Model Context Protocol (MCP) is a standardized way for AI assistants to acce
 ### Start the Server
 
 ```bash
+# Default: STDIO transport (compatible with existing clients)
 mtg mcp
+
+# Explicit STDIO transport
+mtg mcp stdio
+
+# SSE transport (for web applications)
+mtg mcp sse --host 127.0.0.1 --port 3000
 ```
 
 ### Test with Claude Desktop
@@ -42,6 +50,13 @@ Add to your Claude Desktop configuration:
 ```
 
 ## Key Features
+
+### 🚀 **Modern Architecture**
+
+- Built on modern `mcp-core` library
+- SSE transport for web applications
+- Improved error handling with color-eyre integration
+- Better memory efficiency and scalability
 
 ### Rich Data Access
 
@@ -66,6 +81,11 @@ Add to your Claude Desktop configuration:
 - Structured data for AI consumption
 - Pre-built prompts for common tasks
 - Context-aware responses
+
+### Multiple Transport Options
+
+- **STDIO**: Traditional stdin/stdout (default, compatible with existing clients)
+- **SSE**: HTTP-based Server-Sent Events (for web integration)
 
 ## Architecture
 
