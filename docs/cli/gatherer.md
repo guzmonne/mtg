@@ -6,6 +6,8 @@ The `gatherer` command provides access to the unofficial Gatherer advanced searc
 
 The Gatherer database contains the most authoritative and up-to-date Magic card information directly from Wizards of the Coast. This command interfaces with the official Gatherer advanced search API to provide detailed card data including rules text, format legalities, and official card images.
 
+**Note**: By default, searches return only English language cards. Use the `--language` parameter to search for cards in other languages.
+
 ## Basic Usage
 
 ```bash
@@ -82,7 +84,7 @@ mtg gatherer search --rarity "Uncommon"
 ```
 
 **Card Type** (`--card-type`, `-t`)
-Search by card type such as Creature, Instant, or Sorcery.
+Search by card type such as Creature, Instant, or Sorcery. Supports OR operations with comma (`,`) and AND operations with plus (`+`).
 
 ```bash
 # Find all planeswalkers
@@ -90,23 +92,46 @@ mtg gatherer search --card-type "Planeswalker"
 
 # Search for artifacts
 mtg gatherer search --card-type "Artifact"
+
+# Find cards that are either Creature OR Enchantment
+mtg gatherer search --card-type "Creature,Enchantment"
+
+# Find cards that are both Artifact AND Creature
+mtg gatherer search --card-type "Artifact+Creature"
+```
+
+**Supertype** (`--supertype`)
+Filter by card supertypes like Legendary, Snow, or Host. Supports OR operations with comma (`,`) and AND operations with plus (`+`).
+
+```bash
+# Find all Legendary cards
+mtg gatherer search --supertype "Legendary"
+
+# Find cards that are either Legendary OR Snow
+mtg gatherer search --supertype "Legendary,Snow"
+
+# Find cards that are both Legendary AND Snow
+mtg gatherer search --supertype "Legendary+Snow"
 ```
 
 **Subtype** (`--subtype`, `-s`)
-Filter by creature subtypes or other card subtypes.
+Filter by creature subtypes or other card subtypes. Supports OR operations with comma (`,`) and AND operations with plus (`+`).
 
 ```bash
 # Find all Dragons
 mtg gatherer search --subtype "Dragon"
 
-# Search for Human Wizards
-mtg gatherer search --card-type "Creature" --subtype "Human Wizard"
+# Search for Human Wizards (cards with both subtypes)
+mtg gatherer search --card-type "Creature" --subtype "Human+Wizard"
+
+# Find cards that are either Human OR Wizard
+mtg gatherer search --subtype "Human,Wizard"
 ```
 
 ### Game Mechanics
 
 **Mana Cost** (`--mana-cost`, `-m`)
-Search by specific mana cost patterns.
+Search by specific mana cost patterns. Supports hybrid mana (e.g., `(B/G)`) and Phyrexian mana (e.g., `(W/P)`).
 
 ```bash
 # Find cards with specific mana cost
@@ -114,10 +139,16 @@ mtg gatherer search --mana-cost "{2}{U}"
 
 # Search for expensive spells
 mtg gatherer search --mana-cost "{8}"
+
+# Find cards with hybrid mana
+mtg gatherer search --mana-cost "1W(B/G)"
+
+# Search for cards with Phyrexian mana
+mtg gatherer search --mana-cost "2(W/P)(U/P)"
 ```
 
 **Power and Toughness** (`--power`, `-p`, `--toughness`)
-Search creatures by their power and toughness values.
+Search creatures by their power and toughness values. Supports ranges using hyphen (`-`).
 
 ```bash
 # Find 1/1 creatures
@@ -125,14 +156,23 @@ mtg gatherer search --power "1" --toughness "1"
 
 # Search for high-power creatures
 mtg gatherer search --power "8"
+
+# Find creatures with power between 5 and 10
+mtg gatherer search --power "5-10"
+
+# Search for creatures with toughness between 2 and 5
+mtg gatherer search --toughness "2-5"
 ```
 
 **Loyalty** (`--loyalty`, `-l`)
-Search planeswalkers by starting loyalty.
+Search planeswalkers by starting loyalty. Supports ranges using hyphen (`-`).
 
 ```bash
 # Find planeswalkers with 4 starting loyalty
 mtg gatherer search --loyalty "4" --card-type "Planeswalker"
+
+# Find planeswalkers with loyalty between 3 and 6
+mtg gatherer search --loyalty "3-6" --card-type "Planeswalker"
 ```
 
 ### Text Content
@@ -159,7 +199,7 @@ mtg gatherer search --flavor "darkness"
 ### Additional Filters
 
 **Colors** (`--colors`, `-c`)
-Filter by card colors using standard color abbreviations.
+Filter by card colors using standard color abbreviations (W=White, U=Blue, B=Black, R=Red, G=Green). Use `!` prefix to exclude colors.
 
 ```bash
 # Find blue cards
@@ -167,6 +207,12 @@ mtg gatherer search --colors "U"
 
 # Search for multicolored cards
 mtg gatherer search --colors "WU"
+
+# Find cards that are NOT red, black, or white
+mtg gatherer search --colors "!RBW"
+
+# Alternative syntax for exclusion
+mtg gatherer search --colors "not RBW"
 ```
 
 **Artist** (`--artist`, `-a`)
@@ -178,14 +224,35 @@ mtg gatherer search --artist "Rebecca Guay"
 ```
 
 **Format Legality** (`--format`, `-f`)
-Filter by format legality such as Standard, Modern, or Legacy.
+Filter by format legality. Supports complex legality queries with multiple formats.
 
 ```bash
 # Find Standard-legal cards
-mtg gatherer search --format "Standard"
+mtg gatherer search --format "Legal:Standard"
+
+# Search for cards banned in Modern
+mtg gatherer search --format "Banned:Modern"
+
+# Complex format queries (multiple conditions)
+mtg gatherer search --format "Legal:Alchemy,Banned:Brawl,Not_Legal:Explorer,Restricted:Pioneer"
 
 # Search for Modern-legal artifacts
-mtg gatherer search --format "Modern" --card-type "Artifact"
+mtg gatherer search --format "Legal:Modern" --card-type "Artifact"
+```
+
+**Language** (`--language`, `-l`)
+Filter by card language. Defaults to English if not specified.
+
+```bash
+# Search for cards in Japanese
+mtg gatherer search --name "Lightning" --language "Japanese"
+
+# Search for cards in French
+mtg gatherer search --card-type "Creature" --language "French"
+
+# Supported languages include:
+# English (default), Japanese, French, German, Spanish, Italian, 
+# Portuguese, Russian, Korean, Chinese Simplified, Chinese Traditional
 ```
 
 ### Display and Navigation Options
@@ -223,13 +290,34 @@ Search for specific card combinations by combining multiple parameters:
 
 ```bash
 # Find rare blue instants in Standard (table format)
-mtg gatherer search --card-type "Instant" --colors "U" --rarity "Rare" --format "Standard" --pretty
+mtg gatherer search --card-type "Instant" --colors "U" --rarity "Rare" --format "Legal:Standard" --pretty
 
 # Search for expensive artifacts (JSON format)
 mtg gatherer search --card-type "Artifact" --mana-cost "{6}" --rarity "Mythic"
 
 # Find powerful creatures (table format)
 mtg gatherer search --card-type "Creature" --power "5" --rarity "Rare" --pretty
+
+# Complex query with multiple operators
+mtg gatherer search --supertype "Legendary,Snow" --card-type "Creature,Enchantment" --colors "!RBW" --pretty
+```
+
+### Using Boolean Operators
+
+The search supports AND/OR operations for more precise filtering:
+
+```bash
+# Find cards that are EITHER Legendary OR Snow (OR operation with comma)
+mtg gatherer search --supertype "Legendary,Snow" --pretty
+
+# Find cards that are BOTH Artifact AND Creature (AND operation with plus)
+mtg gatherer search --card-type "Artifact+Creature" --pretty
+
+# Complex subtype search - cards with Human AND Soldier
+mtg gatherer search --subtype "Human+Soldier" --pretty
+
+# Find cards that are either Dragon OR Angel
+mtg gatherer search --subtype "Dragon,Angel" --pretty
 ```
 
 ### Set-Specific Searches

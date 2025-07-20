@@ -9,75 +9,82 @@ pub struct App {
     pub command: SubCommands,
 }
 
-#[derive(Debug, clap::Parser)]
-pub enum SubCommands {
-    /// Search for Magic cards using Gatherer advanced search
-    Search {
-        /// Card name to search for
-        #[clap(long, short)]
-        name: Option<String>,
-
-        /// Rules text to search for
-        #[clap(long)]
-        rules: Option<String>,
-
-        /// Card type (e.g., "Creature", "Instant")
-        #[clap(long, short = 't')]
-        card_type: Option<String>,
-
-        /// Card subtype (e.g., "Human", "Wizard")
-        #[clap(long, short = 's')]
-        subtype: Option<String>,
-
-        /// Mana cost (e.g., "{2}{U}")
-        #[clap(long, short = 'm')]
-        mana_cost: Option<String>,
-
-        /// Set name (e.g., "Magic: The Gathering—FINAL FANTASY")
-        #[clap(long)]
-        set: Option<String>,
-
-        /// Rarity (Common, Uncommon, Rare, Mythic)
-        #[clap(long, short)]
-        rarity: Option<String>,
-
-        /// Artist name
-        #[clap(long, short)]
-        artist: Option<String>,
-
-        /// Power value
-        #[clap(long, short)]
-        power: Option<String>,
-
-        /// Toughness value
-        #[clap(long)]
-        toughness: Option<String>,
-
-        /// Loyalty value (for planeswalkers)
-        #[clap(long, short)]
-        loyalty: Option<String>,
-
-        /// Flavor text to search for
-        #[clap(long)]
-        flavor: Option<String>,
-
-        /// Colors (e.g., "W", "U", "B", "R", "G")
-        #[clap(long, short)]
-        colors: Option<String>,
-
-        /// Format legality (e.g., "Standard", "Modern")
-        #[clap(long, short = 'f')]
-        format: Option<String>,
-
-        /// Display results in a formatted table instead of JSON
-        #[clap(long)]
-        pretty: bool,
-
-        /// Page number for pagination (default: 1)
-        #[clap(long, default_value = "1")]
-        page: u32,
-    },
-    /// Get a specific Magic card by name
+    #[derive(Debug, clap::Parser)]
+    pub enum SubCommands {
+        /// Search for Magic cards using Gatherer advanced search
+        Search {
+            /// Card name to search for
+            #[clap(long, short)]
+            name: Option<String>,
+    
+            /// Rules text to search for
+            #[clap(long)]
+            rules: Option<String>,
+    
+            /// Card type (e.g., "Creature", "Instant", "Creature,Enchantment" for OR, "Creature+Legendary" for AND)
+            #[clap(long, short = 't')]
+            card_type: Option<String>,
+    
+            /// Card subtype (e.g., "Human", "Wizard", "Human,Wizard" for OR, "Human+Soldier" for AND)
+            #[clap(long, short = 's')]
+            subtype: Option<String>,
+    
+            /// Card supertype (e.g., "Legendary", "Snow", "Legendary,Snow" for OR)
+            #[clap(long)]
+            supertype: Option<String>,
+    
+            /// Mana cost (e.g., "{2}{U}", "1W(B/G)(W/P)")
+            #[clap(long, short = 'm')]
+            mana_cost: Option<String>,
+    
+            /// Set name (e.g., "Magic: The Gathering—FINAL FANTASY")
+            #[clap(long)]
+            set: Option<String>,
+    
+            /// Rarity (Common, Uncommon, Rare, Mythic)
+            #[clap(long, short)]
+            rarity: Option<String>,
+    
+            /// Artist name
+            #[clap(long, short)]
+            artist: Option<String>,
+    
+            /// Power value or range (e.g., "5", "5-10")
+            #[clap(long, short)]
+            power: Option<String>,
+    
+            /// Toughness value or range (e.g., "2", "2-5")
+            #[clap(long)]
+            toughness: Option<String>,
+    
+            /// Loyalty value or range (e.g., "3", "3-6")
+            #[clap(long, short)]
+            loyalty: Option<String>,
+    
+            /// Flavor text to search for
+            #[clap(long)]
+            flavor: Option<String>,
+    
+            /// Colors (e.g., "W", "U", "B", "R", "G", "!RBW" for not these colors)
+            #[clap(long, short)]
+            colors: Option<String>,
+    
+            /// Format legality (e.g., "Legal:Standard", "Banned:Modern", "Legal:Standard,Banned:Modern")
+            #[clap(long, short = 'f')]
+            format: Option<String>,
+    
+            /// Language (e.g., "English", "Japanese", "French", "German", "Spanish", "Italian")
+            #[clap(long, short = 'l')]
+            language: Option<String>,
+    
+            /// Display results in a formatted table instead of JSON
+            #[clap(long)]
+            pretty: bool,
+    
+            /// Page number for pagination (default: 1)
+            #[clap(long, default_value = "1")]
+            page: u32,
+        },    /// Get a specific Magic card by name
     Card {
         /// Card name to fetch
         name: String,
@@ -147,7 +154,7 @@ impl Default for SearchRequest {
             toughness: "$undefined".to_string(),
             loyalty: "$undefined".to_string(),
             flavor_text: "$undefined".to_string(),
-            language: "$undefined".to_string(),
+            language: "eq~English~en-us".to_string(),
             card_prints: "$undefined".to_string(),
             extra_cards: "$undefined".to_string(),
             page: "$undefined".to_string(),
@@ -162,6 +169,7 @@ pub async fn run(app: App, global: crate::Global) -> Result<()> {
             rules,
             card_type,
             subtype,
+            supertype,
             mana_cost,
             set,
             rarity,
@@ -172,6 +180,7 @@ pub async fn run(app: App, global: crate::Global) -> Result<()> {
             flavor,
             colors,
             format,
+            language,
             pretty,
             page,
         } => {
@@ -180,6 +189,7 @@ pub async fn run(app: App, global: crate::Global) -> Result<()> {
                 rules,
                 card_type,
                 subtype,
+                supertype,
                 mana_cost,
                 set,
                 rarity,
@@ -190,6 +200,7 @@ pub async fn run(app: App, global: crate::Global) -> Result<()> {
                 flavor,
                 colors,
                 format,
+                language,
                 pretty,
                 page,
             }, global).await
@@ -205,6 +216,7 @@ struct SearchParams {
     rules: Option<String>,
     card_type: Option<String>,
     subtype: Option<String>,
+    supertype: Option<String>,
     mana_cost: Option<String>,
     set: Option<String>,
     rarity: Option<String>,
@@ -215,6 +227,7 @@ struct SearchParams {
     flavor: Option<String>,
     colors: Option<String>,
     format: Option<String>,
+    language: Option<String>,
     pretty: bool,
     page: u32,
 }
@@ -340,6 +353,9 @@ fn display_pretty_results(data: &Value, params: &SearchParams) -> Result<()> {
         if let Some(subtype) = &params.subtype {
             base_cmd.push_str(&format!(" --subtype \"{}\"", subtype));
         }
+        if let Some(supertype) = &params.supertype {
+            base_cmd.push_str(&format!(" --supertype \"{}\"", supertype));
+        }
         if let Some(mana_cost) = &params.mana_cost {
             base_cmd.push_str(&format!(" --mana-cost \"{}\"", mana_cost));
         }
@@ -369,6 +385,9 @@ fn display_pretty_results(data: &Value, params: &SearchParams) -> Result<()> {
         }
         if let Some(format) = &params.format {
             base_cmd.push_str(&format!(" --format \"{}\"", format));
+        }
+        if let Some(language) = &params.language {
+            base_cmd.push_str(&format!(" --language \"{}\"", language));
         }
         if params.pretty {
             base_cmd.push_str(" --pretty");
@@ -407,6 +426,27 @@ fn card_name_to_url_slug(name: &str) -> String {
         .replace("--", "-")
         .trim_matches('-')
         .to_string()
+}
+
+fn format_query_with_operators(query: &str) -> String {
+    // Handle comma-separated values as OR operations
+    // Handle + separated values as AND operations
+    if query.contains(',') || query.contains('+') {
+        let parts: Vec<&str> = if query.contains(',') {
+            query.split(',').collect()
+        } else {
+            query.split('+').collect()
+        };
+        
+        let operator = if query.contains(',') { "~OR~" } else { "~AND~" };
+        
+        parts.iter()
+            .map(|part| format!("eq~{}", part.trim()))
+            .collect::<Vec<String>>()
+            .join(&format!(",{},", operator))
+    } else {
+        format!("eq~{}", query)
+    }
 }
 
 fn display_single_card_pretty(html: &str) -> Result<()> {
@@ -504,6 +544,7 @@ async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()>
         rules: None,
         card_type: None,
         subtype: None,
+        supertype: None,
         mana_cost: None,
         set: None,
         rarity: None,
@@ -514,6 +555,7 @@ async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()>
         flavor: None,
         colors: None,
         format: None,
+        language: None, // Use default (English)
         pretty: false, // Always get JSON first
         page: 1,
     };
@@ -741,17 +783,26 @@ async fn search_cards(params: SearchParams, global: crate::Global) -> Result<()>
     if let Some(ref rules) = params.rules {
         request.rules = rules.clone();
     }
+    if let Some(ref supertype) = params.supertype {
+        // Handle complex queries with AND/OR operators
+        request.instance_super_type = format_query_with_operators(supertype);
+    }
     if let Some(ref card_type) = params.card_type {
-        request.instance_type = card_type.clone();
+        // Handle complex queries with AND/OR operators
+        request.instance_type = format_query_with_operators(card_type);
     }
     if let Some(ref subtype) = params.subtype {
-        request.instance_subtype = subtype.clone();
+        // Handle complex queries with AND/OR operators
+        request.instance_subtype = format_query_with_operators(subtype);
     }
     if let Some(ref mana_cost) = params.mana_cost {
-        request.mana_cost = mana_cost.clone();
+        // Mana cost format: "1W(B/G)(W/P)" -> "1_W_(B/G)_(W/P)"
+        request.mana_cost = mana_cost.replace(" ", "_");
     }
     if let Some(ref set) = params.set {
-        request.set_name = format!("eq~{}~", set);
+        // Format set name with proper escaping for special characters
+        let escaped_set = set.replace(" ", "_").replace(":", "_");
+        request.set_name = format!("eq~{}~{}", escaped_set, set.chars().take(3).collect::<String>().to_uppercase());
     }
     if let Some(ref rarity) = params.rarity {
         let rarity_code = match rarity.to_lowercase().as_str() {
@@ -767,23 +818,52 @@ async fn search_cards(params: SearchParams, global: crate::Global) -> Result<()>
         request.artist_name = artist.clone();
     }
     if let Some(ref power) = params.power {
-        request.power = power.clone();
+        // Power/toughness can be ranges like "5_10"
+        request.power = power.replace("-", "_");
     }
     if let Some(ref toughness) = params.toughness {
-        request.toughness = toughness.clone();
+        // Toughness can be ranges like "2_5"
+        request.toughness = toughness.replace("-", "_");
     }
     if let Some(ref loyalty) = params.loyalty {
-        request.loyalty = loyalty.clone();
+        // Loyalty can be ranges like "3_6"
+        request.loyalty = loyalty.replace("-", "_");
     }
     if let Some(ref flavor) = params.flavor {
         request.flavor_text = flavor.clone();
     }
     if let Some(ref colors) = params.colors {
-        request.colors = colors.clone();
+        // Colors can have neq~ prefix for "not equal"
+        if colors.starts_with("!") || colors.starts_with("not ") {
+            let clean_colors = colors.trim_start_matches('!').trim_start_matches("not ").trim();
+            request.colors = format!("neq~{}", clean_colors.replace(",", "_"));
+        } else {
+            request.colors = colors.replace(",", "_");
+        }
     }
     if let Some(ref format) = params.format {
+        // Format legalities have specific format: "Legal:Alchemy,Banned:Brawl"
         request.format_legalities = format.clone();
     }
+    if let Some(ref language) = params.language {
+        // Language format: "eq~English~en-us" for English, "eq~Japanese~ja-jp" for Japanese, etc.
+        let lang_code = match language.to_lowercase().as_str() {
+            "english" => "en-us",
+            "japanese" => "ja-jp",
+            "french" => "fr-fr",
+            "german" => "de-de",
+            "spanish" => "es-es",
+            "italian" => "it-it",
+            "portuguese" => "pt-br",
+            "russian" => "ru-ru",
+            "korean" => "ko-kr",
+            "chinese simplified" | "simplified chinese" => "zh-cn",
+            "chinese traditional" | "traditional chinese" => "zh-tw",
+            _ => language, // Use as-is if not recognized
+        };
+        request.language = format!("eq~{}~{}", language, lang_code);
+    }
+    // Note: language defaults to "eq~English~en-us" if not specified
 
     // Set page number
     request.page = params.page.to_string();

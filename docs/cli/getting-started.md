@@ -123,6 +123,25 @@ mtg cards search "Dragon" --page 2 --page-size 10
 mtg cards get 409574
 ```
 
+### Gatherer Advanced Search
+
+```bash
+# Search by card name with pretty output
+mtg gatherer search --name "Lightning Bolt" --pretty
+
+# Find all Legendary creatures
+mtg gatherer search --supertype "Legendary" --card-type "Creature" --pretty
+
+# Search for cards that are NOT red, black, or white
+mtg gatherer search --colors "!RBW" --pretty
+
+# Complex search with multiple criteria
+mtg gatherer search --card-type "Creature,Enchantment" --rarity "Rare" --power "5-10" --pretty
+
+# Get specific card details
+mtg gatherer card "Vivi Ornitier" --pretty
+```
+
 ### Set Operations
 
 ```bash

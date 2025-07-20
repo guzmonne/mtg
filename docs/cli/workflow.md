@@ -22,6 +22,18 @@ mtg gatherer search --set "Magic: The Gathering—FINAL FANTASY" --pretty
 
 # Search by game mechanics
 mtg gatherer search --rules "flying" --card-type "Creature" --pretty
+
+# Use boolean operators (OR with comma, AND with plus)
+mtg gatherer search --supertype "Legendary,Snow" --card-type "Creature+Artifact" --pretty
+
+# Exclude colors with ! prefix
+mtg gatherer search --colors "!RBW" --card-type "Creature" --pretty
+
+# Search with power/toughness ranges
+mtg gatherer search --power "5-10" --toughness "2-5" --pretty
+
+# Complex format legality queries
+mtg gatherer search --format "Legal:Modern,Banned:Legacy" --pretty
 ```
 
 ### 2. Copy Card Names from Results
@@ -64,7 +76,7 @@ mtg gatherer search --card-type "Planeswalker" --pretty
 mtg gatherer search --card-type "Planeswalker" --colors "U" --pretty
 
 # 3. Add format restriction
-mtg gatherer search --card-type "Planeswalker" --colors "U" --format "Modern" --pretty
+mtg gatherer search --card-type "Planeswalker" --colors "U" --format "Legal:Modern" --pretty
 
 # 4. Get details for interesting cards
 mtg gatherer card "Jace, the Mind Sculptor" --pretty
@@ -94,7 +106,7 @@ Research cards for specific deck archetypes:
 mtg gatherer search --card-type "Creature" --colors "R" --power "2" --mana-cost "{1}" --pretty
 
 # 2. Look for control win conditions
-mtg gatherer search --card-type "Planeswalker" --colors "UW" --format "Standard" --pretty
+mtg gatherer search --card-type "Planeswalker" --colors "UW" --format "Legal:Standard" --pretty
 
 # 3. Research specific cards
 mtg gatherer card "Teferi, Hero of Dominaria" --pretty
@@ -106,18 +118,20 @@ For users who have `fzf` (fuzzy finder) installed, here's a powerful bash functi
 
 ### Installation
 
-First, install `fzf` if you haven't already:
+First, install the required dependencies:
 
 ```bash
 # macOS with Homebrew
-brew install fzf
+brew install fzf jq
 
 # Ubuntu/Debian
-sudo apt install fzf
+sudo apt install fzf jq
 
 # Arch Linux
-sudo pacman -S fzf
+sudo pacman -S fzf jq
 ```
+
+**Note**: While `fzf` is required, `jq` is highly recommended. The basic `mtg_card_search` function has a fallback for systems without `jq`, but the advanced `mtg_card_browse` function requires it for parsing JSON responses.
 
 ### Bash Function
 
@@ -137,13 +151,13 @@ Examples:
   mtg_card_search --card-type Creature --colors R --pretty
   mtg_card_search --set \"War of the Spark\" --rarity Mythic
 
-All gatherer search options are supported. Add --pretty for table output."
+All gatherer search options are supported. Add --pretty for final card display."
 
-    # Parse arguments
+    # Parse arguments to separate --pretty flag
     while [[ $# -gt 0 ]]; do
         case $1 in
             --help|-h)
-                echo "$help_text"
+                echo "$help_text" 1>&2
                 return 0
                 ;;
             --pretty)
@@ -159,24 +173,24 @@ All gatherer search options are supported. Add --pretty for table output."
 
     # Check if mtg command exists
     if ! command -v mtg &> /dev/null; then
-        echo "Error: 'mtg' command not found. Please install the MTG CLI first."
+        echo "Error: 'mtg' command not found. Please install the MTG CLI first." 1>&2
         return 1
     fi
 
     # Check if fzf exists
     if ! command -v fzf &> /dev/null; then
-        echo "Error: 'fzf' not found. Please install fzf first:"
-        echo "  brew install fzf    # macOS"
-        echo "  sudo apt install fzf    # Ubuntu/Debian"
+        echo "Error: 'fzf' not found. Please install fzf first:" 1>&2
+        echo "  brew install fzf    # macOS" 1>&2
+        echo "  sudo apt install fzf    # Ubuntu/Debian" 1>&2
         return 1
     fi
 
-    echo "Searching for cards..."
+    echo "Searching for cards..." 1>&2
 
-    # Get search results in JSON format
+    # Get search results in JSON format (without --pretty)
     local search_results
     if ! search_results=$(mtg gatherer search "${search_args[@]}" 2>/dev/null); then
-        echo "Error: Search failed. Please check your search parameters."
+        echo "Error: Search failed. Please check your search parameters." 1>&2
         return 1
     fi
 
@@ -190,7 +204,7 @@ All gatherer search options are supported. Add --pretty for table output."
     fi
 
     if [[ -z "$card_names" ]]; then
-        echo "No cards found matching your search criteria."
+        echo "No cards found matching your search criteria." 1>&2
         return 1
     fi
 
@@ -198,29 +212,32 @@ All gatherer search options are supported. Add --pretty for table output."
     local card_count
     card_count=$(echo "$card_names" | wc -l | tr -d ' ')
 
-    echo "Found $card_count cards. Use fzf to select one..."
-    echo "Press Ctrl+C to cancel, Enter to select, or type to filter."
-    echo ""
+    echo "Found $card_count cards. Use fzf to select one..." 1>&2
+    echo "Press Ctrl+C to cancel, Enter to select, or type to filter." 1>&2
+    echo "" 1>&2
+
+    # Create a preview command that shows card details
+    local preview_cmd="mtg gatherer card '{}' --pretty 2>/dev/null | head -20"
 
     # Use fzf to select a card
     local selected_card
     selected_card=$(echo "$card_names" | fzf \
-        --height=60% \
+        --height=80% \
         --border \
         --prompt="Select a card: " \
-        --preview="echo 'Card: {}'" \
-        --preview-window=up:1 \
+        --preview="$preview_cmd" \
+        --preview-window=right:60% \
         --header="Found $card_count cards - Press Enter to select, Ctrl+C to cancel")
 
     # Check if user cancelled
     if [[ -z "$selected_card" ]]; then
-        echo "Selection cancelled."
+        echo "Selection cancelled." 1>&2
         return 0
     fi
 
-    echo ""
-    echo "Getting details for: $selected_card"
-    echo "----------------------------------------"
+    echo "" 1>&2
+    echo "Getting details for: $selected_card" 1>&2
+    echo "----------------------------------------" 1>&2
 
     # Get detailed card information
     mtg gatherer card "$selected_card" $pretty_flag
@@ -228,11 +245,171 @@ All gatherer search options are supported. Add --pretty for table output."
 
 # Shorter alias for convenience
 alias mtgf='mtg_card_search'
+
+# Advanced version with pagination support
+mtg_card_browse() {
+    local search_args=()
+    local pretty_flag=""
+    local page=1
+    local help_text="Usage: mtg_card_browse [search_options] [--pretty] [--page N]
+
+Browse MTG cards interactively with pagination support.
+
+Examples:
+  mtg_card_browse --name Lightning
+  mtg_card_browse --card-type Creature --colors R --pretty
+  mtg_card_browse --set \"War of the Spark\" --rarity Mythic --page 2
+
+Features:
+  - Automatic pagination handling
+  - Live preview of card details
+  - Support for all gatherer search options"
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --help|-h)
+                echo "$help_text" 1>&2
+                return 0
+                ;;
+            --pretty)
+                pretty_flag="--pretty"
+                shift
+                ;;
+            --page)
+                page="$2"
+                shift 2
+                ;;
+            *)
+                search_args+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    # Check dependencies
+    if ! command -v mtg &> /dev/null; then
+        echo "Error: 'mtg' command not found. Please install the MTG CLI first." 1>&2
+        return 1
+    fi
+
+    if ! command -v fzf &> /dev/null; then
+        echo "Error: 'fzf' not found. Please install fzf first." 1>&2
+        return 1
+    fi
+
+    local continue_browsing=true
+    
+    while $continue_browsing; do
+        echo "Searching for cards (page $page)..." 1>&2
+
+        # Get search results for current page
+        local search_results
+        if ! search_results=$(mtg gatherer search "${search_args[@]}" --page "$page" 2>&1); then
+            echo "Error: Search failed. Please check your search parameters." 1>&2
+            return 1
+        fi
+
+        # Check if we got JSON or an error
+        if ! echo "$search_results" | jq empty 2>/dev/null; then
+            echo "Error: Invalid response from search." 1>&2
+            echo "$search_results" 1>&2
+            return 1
+        fi
+
+        # Extract pagination info
+        local total_pages=$(echo "$search_results" | jq -r '.totalPages // 1')
+        local total_items=$(echo "$search_results" | jq -r '.totalItems // 0')
+        local current_items=$(echo "$search_results" | jq -r '.currentItemCount // 0')
+
+        # Extract card names with metadata
+        local card_list
+        if command -v jq &> /dev/null; then
+            card_list=$(echo "$search_results" | jq -r '.items[]? | "\(.instanceName)\t\(.instanceTypeLine // "")\t\(.setName // "")\t\(.rarityName // "")"' 2>/dev/null)
+        else
+            echo "Error: jq is required for this function. Please install jq." 1>&2
+            return 1
+        fi
+
+        if [[ -z "$card_list" ]]; then
+            echo "No cards found on page $page." 1>&2
+            if [[ $page -gt 1 ]]; then
+                echo "Try page 1 or adjust your search criteria." 1>&2
+            fi
+            return 1
+        fi
+
+        # Add navigation options if there are multiple pages
+        local fzf_options=()
+        if [[ $total_pages -gt 1 ]]; then
+            if [[ $page -gt 1 ]]; then
+                card_list="[Previous Page]"$'\n'"$card_list"
+            fi
+            if [[ $page -lt $total_pages ]]; then
+                card_list="$card_list"$'\n'"[Next Page]"
+            fi
+            fzf_options+=(--header="Page $page of $total_pages | Total: $total_items cards | Use ↑↓ to navigate, Enter to select")
+        else
+            fzf_options+=(--header="Found $total_items cards | Use ↑↓ to navigate, Enter to select")
+        fi
+
+        # Create preview command
+        local preview_cmd='
+            if [[ "{}" == "[Previous Page]" ]] || [[ "{}" == "[Next Page]" ]]; then
+                echo "Navigation: {}"
+            else
+                card_name=$(echo {} | cut -f1)
+                mtg gatherer card "$card_name" --pretty 2>/dev/null | head -25
+            fi
+        '
+
+        # Use fzf to select a card
+        local selected
+        selected=$(echo "$card_list" | fzf \
+            --height=90% \
+            --border \
+            --prompt="Select a card: " \
+            --preview="$preview_cmd" \
+            --preview-window=right:60% \
+            --delimiter=$'\t' \
+            --with-nth=1 \
+            --info=inline \
+            "${fzf_options[@]}")
+
+        # Handle selection
+        case "$selected" in
+            "[Previous Page]")
+                ((page--))
+                ;;
+            "[Next Page]")
+                ((page++))
+                ;;
+            "")
+                echo "Selection cancelled." 1>&2
+                continue_browsing=false
+                ;;
+            *)
+                # Extract just the card name
+                local card_name=$(echo "$selected" | cut -f1)
+                echo "" 1>&2
+                echo "Getting full details for: $card_name" 1>&2
+                echo "========================================" 1>&2
+                mtg gatherer card "$card_name" $pretty_flag
+                continue_browsing=false
+                ;;
+        esac
+    done
+}
+
+# Alias for the advanced browser
+alias mtgb='mtg_card_browse'
 ```
 
 ### Usage Examples
 
-After adding the function to your shell configuration and reloading it (`source ~/.bashrc` or restart your terminal), you can use:
+After adding the functions to your shell configuration and reloading it (`source ~/.bashrc` or restart your terminal), you can use:
+
+#### Basic Interactive Search (mtg_card_search / mtgf)
 
 ```bash
 # Basic search with interactive selection
@@ -244,6 +421,9 @@ mtg_card_search --card-type "Creature" --colors "R" --pretty
 # Search specific set
 mtg_card_search --set "War of the Spark" --rarity "Mythic"
 
+# Use boolean operators
+mtg_card_search --supertype "Legendary,Snow" --card-type "Creature+Artifact"
+
 # Use the shorter alias
 mtgf --card-type "Planeswalker" --colors "U" --pretty
 
@@ -251,20 +431,50 @@ mtgf --card-type "Planeswalker" --colors "U" --pretty
 mtg_card_search --help
 ```
 
-### How the Interactive Function Works
+#### Advanced Browse with Pagination (mtg_card_browse / mtgb)
 
-1. **Search**: Runs your search query using `mtg gatherer search`
+```bash
+# Browse all creatures with pagination
+mtg_card_browse --card-type "Creature"
+
+# Start from a specific page
+mtg_card_browse --rarity "Mythic" --page 3
+
+# Browse with complex queries
+mtg_card_browse --colors "!RBW" --power "5-10" --pretty
+
+# Use the shorter alias
+mtgb --format "Legal:Modern,Banned:Legacy" --pretty
+
+# Get help
+mtg_card_browse --help
+```
+
+### How the Interactive Functions Work
+
+#### mtg_card_search (Simple Version)
+1. **Search**: Runs your search query using `mtg gatherer search` (JSON format)
 2. **Extract**: Extracts card names from the JSON results
-3. **Select**: Uses `fzf` to present an interactive, searchable list
-4. **Details**: Automatically runs `mtg gatherer card` on your selection
+3. **Preview**: Shows card details in the preview pane while browsing
+4. **Select**: Uses `fzf` to present an interactive, searchable list
+5. **Details**: Automatically runs `mtg gatherer card` on your selection
+
+#### mtg_card_browse (Advanced Version)
+1. **Paginated Search**: Handles multi-page results with navigation
+2. **Rich Display**: Shows card type, set, and rarity in the list
+3. **Navigation**: Allows moving between pages within fzf
+4. **Live Preview**: Shows card details while browsing
+5. **Smart Selection**: Handles both navigation and card selection
 
 ### Benefits of the Interactive Workflow
 
 - **Fast filtering**: Type to instantly filter the card list
-- **Visual selection**: See all matching cards at once
+- **Visual selection**: See all matching cards at once with live preview
 - **No copy-paste**: Automatically handles card name extraction
-- **Flexible**: Supports all search parameters
-- **Efficient**: Combines search and selection in one command
+- **Pagination support**: Browse through large result sets easily
+- **Rich information**: See card details before selecting
+- **Flexible**: Supports all search parameters and boolean operators
+- **Efficient**: Combines search, browse, and selection in one command
 
 ## Tips and Best Practices
 
