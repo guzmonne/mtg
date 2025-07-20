@@ -6,9 +6,10 @@ The MTG CLI includes a powerful Model Context Protocol (MCP) server that enables
 
 - [Overview](overview.md) - What is MCP and how it works
 - [Setup & Installation](setup.md) - Getting the MCP server running
-- [Server Details](enhanced.md) - Modern mcp-core implementation with SSE support
+- [Server Details](./enhanced.md) - Modern mcp-core implementation with SSE support
+- [Tools](tools.md) - Interactive card search tools for AI assistants
+- [Usage Examples](examples.md) - Comprehensive examples and integration patterns
 - [Resources](resources.md) - Available data resources
-- [Tools](tools.md) - Interactive tools for AI assistants
 - [Prompts](prompts.md) - Pre-built prompt templates
 
 ## What is MCP?
@@ -66,15 +67,18 @@ Add to your Claude Desktop configuration:
 
 ### Advanced Search
 
-- Multi-parameter card filtering
+- **Gatherer Integration**: Official Wizards database with advanced filtering
+- **Scryfall Integration**: Comprehensive third-party API with flexible query syntax
+- Multi-parameter card filtering (name, type, colors, mana cost, etc.)
 - Fuzzy and exact name matching
-- Color, type, rarity, and set filtering
+- Complex queries with AND/OR operators
 
 ### Interactive Tools
 
-- Booster pack generation
-- Card analysis and comparison
-- Deck building assistance
+- **Card Search**: Find cards using Gatherer or Scryfall APIs
+- **Advanced Filtering**: Power, toughness, loyalty, artist, flavor text
+- **Format Legality**: Search by tournament format legality
+- **Pagination Support**: Handle large result sets efficiently
 
 ### AI-Optimized
 

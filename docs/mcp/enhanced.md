@@ -17,7 +17,12 @@ The MTG MCP Server uses the modern `mcp-core` library to provide excellent perfo
 ### 🌐 **Multiple Transport Options**
 - **STDIO**: Traditional stdin/stdout transport (compatible with existing clients)
 - **SSE**: HTTP-based Server-Sent Events transport for web integration
-- **Legacy**: Fallback to original `rmcp`-based implementation
+
+### 🔍 **Advanced Card Search Tools**
+- **Gatherer Integration**: Official Wizards database with comprehensive filtering
+- **Scryfall Integration**: Third-party API with flexible query syntax
+- **Multi-parameter Search**: Complex filtering by type, color, mana cost, format, etc.
+- **Pagination Support**: Handle large result sets efficiently
 
 ## Usage
 

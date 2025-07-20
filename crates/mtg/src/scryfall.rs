@@ -145,12 +145,12 @@ pub enum SubCommands {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ScryfallSearchResponse {
+pub struct ScryfallSearchResponse {
     object: String,
     total_cards: u32,
     has_more: bool,
     next_page: Option<String>,
-    data: Vec<ScryfallCard>,
+    pub data: Vec<ScryfallCard>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -162,7 +162,7 @@ struct ScryfallErrorResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ScryfallCard {
+pub struct ScryfallCard {
     object: String,
     id: String,
     oracle_id: Option<String>,
@@ -305,16 +305,16 @@ pub async fn run(app: App, global: crate::Global) -> Result<()> {
     }
 }
 
-struct SearchParams {
-    query: String,
-    pretty: bool,
-    page: u32,
-    order: String,
-    dir: String,
-    include_extras: bool,
-    include_multilingual: bool,
-    include_variations: bool,
-    unique: String,
+pub struct SearchParams {
+    pub query: String,
+    pub pretty: bool,
+    pub page: u32,
+    pub order: String,
+    pub dir: String,
+    pub include_extras: bool,
+    pub include_multilingual: bool,
+    pub include_variations: bool,
+    pub unique: String,
 }
 
 fn parse_scryfall_response(response_text: &str) -> Result<ScryfallSearchResponse> {
@@ -359,29 +359,29 @@ fn parse_scryfall_card_response(response_text: &str) -> Result<ScryfallCard> {
     Ok(card)
 }
 
-struct AdvancedSearchParams {
-    name: Option<String>,
-    oracle: Option<String>,
-    card_type: Option<String>,
-    colors: Option<String>,
-    identity: Option<String>,
-    mana: Option<String>,
-    mv: Option<String>,
-    power: Option<String>,
-    toughness: Option<String>,
-    loyalty: Option<String>,
-    set: Option<String>,
-    rarity: Option<String>,
-    artist: Option<String>,
-    flavor: Option<String>,
-    format: Option<String>,
-    language: Option<String>,
-    pretty: bool,
-    page: u32,
-    order: String,
+pub struct AdvancedSearchParams {
+    pub name: Option<String>,
+    pub oracle: Option<String>,
+    pub card_type: Option<String>,
+    pub colors: Option<String>,
+    pub identity: Option<String>,
+    pub mana: Option<String>,
+    pub mv: Option<String>,
+    pub power: Option<String>,
+    pub toughness: Option<String>,
+    pub loyalty: Option<String>,
+    pub set: Option<String>,
+    pub rarity: Option<String>,
+    pub artist: Option<String>,
+    pub flavor: Option<String>,
+    pub format: Option<String>,
+    pub language: Option<String>,
+    pub pretty: bool,
+    pub page: u32,
+    pub order: String,
 }
 
-fn build_advanced_query(params: &AdvancedSearchParams) -> String {
+pub fn build_advanced_query(params: &AdvancedSearchParams) -> String {
     let mut query_parts = Vec::new();
 
     if let Some(name) = &params.name {
@@ -639,7 +639,90 @@ fn display_single_card_details(card: &ScryfallCard) -> Result<()> {
     Ok(())
 }
 
-async fn search_cards(params: SearchParams, global: crate::Global) -> Result<()> {
+pub async fn search_cards_json(params: SearchParams, global: crate::Global) -> Result<ScryfallSearchResponse> {
+    let cache_manager = CacheManager::new()?;
+    
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(global.timeout))
+        .user_agent("mtg-cli/1.0")
+        .build()?;
+
+    // Build URL with query parameters
+    let mut url = "https://api.scryfall.com/cards/search".to_string();
+    let mut query_params = vec![
+        ("q", params.query.clone()),
+        ("page", params.page.to_string()),
+        ("order", params.order.clone()),
+        ("dir", params.dir.clone()),
+        ("unique", params.unique.clone()),
+    ];
+
+    if params.include_extras {
+        query_params.push(("include_extras", "true".to_string()));
+    }
+    if params.include_multilingual {
+        query_params.push(("include_multilingual", "true".to_string()));
+    }
+    if params.include_variations {
+        query_params.push(("include_variations", "true".to_string()));
+    }
+
+    // Generate cache key
+    let cache_key = CacheManager::hash_request(&(&url, &query_params));
+
+    // Check cache first
+    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
+        let response: ScryfallSearchResponse = serde_json::from_value(cached_response.data)?;
+        return Ok(response);
+    }
+
+    // Build the full URL with query parameters
+    let query_string = query_params
+        .iter()
+        .map(|(k, v)| format!("{}={}", urlencoding::encode(k), urlencoding::encode(v)))
+        .collect::<Vec<_>>()
+        .join("&");
+    let full_url = format!("{}?{}", url, query_string);
+
+    let response = client
+        .get(&full_url)
+        .send()
+        .await?;
+
+    let response_text = response.text().await?;
+    
+    // Parse the response
+    let search_response = parse_scryfall_response(&response_text)?;
+    
+    // Cache the successful response
+    cache_manager.set(&cache_key, serde_json::to_value(&search_response)?).await?;
+    
+    Ok(search_response)
+}
+
+pub async fn advanced_search_json(params: AdvancedSearchParams, global: crate::Global) -> Result<ScryfallSearchResponse> {
+    let query = build_advanced_query(&params);
+    
+    if query.is_empty() {
+        return Err(crate::error::Error::Generic("No search parameters provided".to_string()).into());
+    }
+
+    let search_params = SearchParams {
+        query,
+        pretty: false,
+        page: params.page,
+        order: params.order.clone(),
+        dir: "auto".to_string(),
+        include_extras: false,
+        include_multilingual: false,
+        include_variations: false,
+        unique: "cards".to_string(),
+    };
+
+    search_cards_json(search_params, global).await
+}
+
+pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result<()> {
     let cache_manager = CacheManager::new()?;
     
     let client = reqwest::Client::builder()

@@ -131,7 +131,8 @@ mtg mcp
 
 4. **Verify Connection**:
    - Look for MTG server in Claude's MCP panel
-   - Try asking: "Search for Lightning Bolt cards"
+   - Try asking: "Search for Lightning Bolt cards using Gatherer"
+   - Or: "Find red creatures using Scryfall"
 
 ### Other AI Assistants
 
@@ -214,16 +215,22 @@ echo '{"jsonrpc": "2.0", "id": 2, "method": "resources/list"}' | mtg mcp
 
 ### 4. Tool Testing
 
-Test tool execution:
+Test the new card search tools:
 
 ```bash
 #!/bin/bash
 # test-tools.sh
 
-# Initialize and call tool
+# Test Gatherer search tool
 {
-  echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}}'
-  echo '{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "search_cards", "arguments": {"name": "Lightning Bolt", "limit": 1}}}'
+  echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}}'
+  echo '{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "gatherer_search_cards", "arguments": {"name": "Lightning Bolt"}}}'
+} | mtg mcp
+
+# Test Scryfall search tool
+{
+  echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}}'
+  echo '{"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "scryfall_search_cards", "arguments": {"query": "c:red t:creature"}}}'
 } | mtg mcp
 ```
 

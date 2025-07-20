@@ -212,25 +212,25 @@ pub async fn run(app: App, global: crate::Global) -> Result<()> {
     }
 }
 
-struct SearchParams {
-    name: Option<String>,
-    rules: Option<String>,
-    card_type: Option<String>,
-    subtype: Option<String>,
-    supertype: Option<String>,
-    mana_cost: Option<String>,
-    set: Option<String>,
-    rarity: Option<String>,
-    artist: Option<String>,
-    power: Option<String>,
-    toughness: Option<String>,
-    loyalty: Option<String>,
-    flavor: Option<String>,
-    colors: Option<String>,
-    format: Option<String>,
-    language: Option<String>,
-    pretty: bool,
-    page: u32,
+pub struct SearchParams {
+    pub name: Option<String>,
+    pub rules: Option<String>,
+    pub card_type: Option<String>,
+    pub subtype: Option<String>,
+    pub supertype: Option<String>,
+    pub mana_cost: Option<String>,
+    pub set: Option<String>,
+    pub rarity: Option<String>,
+    pub artist: Option<String>,
+    pub power: Option<String>,
+    pub toughness: Option<String>,
+    pub loyalty: Option<String>,
+    pub flavor: Option<String>,
+    pub colors: Option<String>,
+    pub format: Option<String>,
+    pub language: Option<String>,
+    pub pretty: bool,
+    pub page: u32,
 }
 
 fn parse_server_action_response(response: &str) -> Result<Option<Value>> {
@@ -857,7 +857,150 @@ fn extract_card_info_json(html: &str, url: &str) -> serde_json::Value {
     
     serde_json::Value::Object(card_info)
 }
-async fn search_cards(params: SearchParams, global: crate::Global) -> Result<()> {
+pub async fn search_cards_json(params: SearchParams, global: crate::Global) -> Result<serde_json::Value> {
+    let cache_manager = CacheManager::new()?;
+    
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(global.timeout))
+        .build()?;
+
+    let mut request = SearchRequest::default();
+
+    // Map CLI parameters to request fields (same logic as search_cards)
+    if let Some(ref name) = params.name {
+        request.card_name = name.clone();
+    }
+    if let Some(ref rules) = params.rules {
+        request.rules = rules.clone();
+    }
+    if let Some(ref supertype) = params.supertype {
+        request.instance_super_type = format_query_with_operators(supertype);
+    }
+    if let Some(ref card_type) = params.card_type {
+        request.instance_type = format_query_with_operators(card_type);
+    }
+    if let Some(ref subtype) = params.subtype {
+        request.instance_subtype = format_query_with_operators(subtype);
+    }
+    if let Some(ref mana_cost) = params.mana_cost {
+        request.mana_cost = mana_cost.replace(" ", "_");
+    }
+    if let Some(ref set) = params.set {
+        let escaped_set = set.replace(" ", "_").replace(":", "_");
+        request.set_name = format!("eq~{}~{}", escaped_set, set.chars().take(3).collect::<String>().to_uppercase());
+    }
+    if let Some(ref rarity) = params.rarity {
+        let rarity_code = match rarity.to_lowercase().as_str() {
+            "common" => "C",
+            "uncommon" => "U", 
+            "rare" => "R",
+            "mythic" | "mythic rare" => "M",
+            _ => rarity,
+        };
+        request.rarity_name = format!("eq~{}~{}", rarity, rarity_code);
+    }
+    if let Some(ref artist) = params.artist {
+        request.artist_name = artist.clone();
+    }
+    if let Some(ref power) = params.power {
+        request.power = power.replace("-", "_");
+    }
+    if let Some(ref toughness) = params.toughness {
+        request.toughness = toughness.replace("-", "_");
+    }
+    if let Some(ref loyalty) = params.loyalty {
+        request.loyalty = loyalty.replace("-", "_");
+    }
+    if let Some(ref flavor) = params.flavor {
+        request.flavor_text = flavor.clone();
+    }
+    if let Some(ref colors) = params.colors {
+        if colors.starts_with("!") || colors.starts_with("not ") {
+            let clean_colors = colors.trim_start_matches('!').trim_start_matches("not ").trim();
+            request.colors = format!("neq~{}", clean_colors.replace(",", "_"));
+        } else {
+            request.colors = colors.replace(",", "_");
+        }
+    }
+    if let Some(ref format) = params.format {
+        request.format_legalities = format.clone();
+    }
+    if let Some(ref language) = params.language {
+        let lang_code = match language.to_lowercase().as_str() {
+            "english" => "en-us",
+            "japanese" => "ja-jp",
+            "french" => "fr-fr",
+            "german" => "de-de",
+            "spanish" => "es-es",
+            "italian" => "it-it",
+            "portuguese" => "pt-br",
+            "russian" => "ru-ru",
+            "korean" => "ko-kr",
+            "chinese simplified" | "simplified chinese" => "zh-cn",
+            "chinese traditional" | "traditional chinese" => "zh-tw",
+            _ => language,
+        };
+        request.language = format!("eq~{}~{}", language, lang_code);
+    }
+
+    request.page = params.page.to_string();
+
+    let payload = serde_json::json!([
+        "$undefined",
+        request,
+        {},
+        true,
+        params.page
+    ]);
+
+    let url = "https://gatherer.wizards.com/advanced-search";
+    let headers = vec![
+        ("accept".to_string(), "text/x-component".to_string()),
+        ("content-type".to_string(), "text/plain;charset=UTF-8".to_string()),
+    ];
+    let cache_key = CacheManager::hash_gatherer_search_request(url, &payload, &headers);
+
+    // Check cache first
+    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
+        return Ok(cached_response.data);
+    }
+
+    let response = client
+        .post("https://gatherer.wizards.com/advanced-search")
+        .header("accept", "text/x-component")
+        .header("accept-language", "en-US,en;q=0.9")
+        .header("cache-control", "no-cache")
+        .header("content-type", "text/plain;charset=UTF-8")
+        .header("dnt", "1")
+        .header("next-action", "7fdc558e6830828dfb95ae6a9638513cb4727e9b52")
+        .header("next-router-state-tree", "%5B%22%22%2C%7B%22children%22%3A%5B%5B%22lang%22%2C%22en%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%22advanced-search%22%2C%7B%22children%22%3A%5B%22__PAGE__%22%2C%7B%7D%2C%22%2Fadvanced-search%22%2C%22refresh%22%5D%7D%5D%7D%2Cnull%2Cnull%2Ctrue%5D%7D%2Cnull%2Cnull%5D")
+        .header("origin", "https://gatherer.wizards.com")
+        .header("pragma", "no-cache")
+        .header("priority", "u=1, i")
+        .header("referer", "https://gatherer.wizards.com/advanced-search")
+        .header("sec-ch-ua", "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\"")
+        .header("sec-ch-ua-mobile", "?0")
+        .header("sec-ch-ua-platform", "\"macOS\"")
+        .header("sec-fetch-dest", "empty")
+        .header("sec-fetch-mode", "cors")
+        .header("sec-fetch-site", "same-origin")
+        .header("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36")
+        .json(&payload)
+        .send()
+        .await?;
+
+    let response_text = response.text().await?;
+    let parsed_data = parse_server_action_response(&response_text)?;
+    
+    if let Some(card_data) = parsed_data {
+        cache_manager.set(&cache_key, card_data.clone()).await?;
+        Ok(card_data)
+    } else {
+        Err(crate::error::Error::Generic("No card data found in response".to_string()).into())
+    }
+}
+
+pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result<()> {
     let cache_manager = CacheManager::new()?;
     
     let client = reqwest::Client::builder()

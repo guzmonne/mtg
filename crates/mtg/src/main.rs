@@ -23,7 +23,7 @@ pub struct App {
     global: Global,
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, Clone, clap::Args)]
 pub struct Global {
     /// MTG API Base URL
     #[clap(
@@ -32,15 +32,15 @@ pub struct Global {
         global = true,
         default_value = "https://api.magicthegathering.io/v1"
     )]
-    api_base_url: String,
+    pub api_base_url: String,
 
     /// Request timeout in seconds
     #[clap(long, env = "MTG_TIMEOUT", global = true, default_value = "30")]
-    timeout: u64,
+    pub timeout: u64,
 
     /// Whether to display additional information
     #[clap(long, env = "MTG_VERBOSE", global = true, default_value = "false")]
-    verbose: bool,
+    pub verbose: bool,
 }
 
 #[derive(Debug, clap::Parser)]
