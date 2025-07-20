@@ -4,6 +4,28 @@ use std::fs;
 use serde::{Serialize, Deserialize};
 use sha2::{Sha256, Digest};
 
+/// Cache-related errors
+#[derive(thiserror::Error, Debug)]
+pub enum CacheError {
+    #[error("Cache directory error: {0}")]
+    Directory(String),
+    
+    #[error("Cache corruption: {0}")]
+    Corruption(String),
+    
+    #[error("Cache size limit exceeded: {current} > {limit}")]
+    SizeLimit { current: u64, limit: u64 },
+    
+    #[error("Cache key error: {0}")]
+    Key(String),
+    
+    #[error("Cache serialization error: {0}")]
+    Serialization(#[from] serde_json::Error),
+    
+    #[error("Cache IO error: {0}")]
+    Io(#[from] std::io::Error),
+}
+
 #[derive(Debug, Clone)]
 pub struct CacheManager {
     cache_dir: PathBuf,

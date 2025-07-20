@@ -32,3 +32,4 @@ mcp-core = { version = "0.1.50", features = ["sse"] }
 dirs = "5.0"
 sha2 = "0.10"
 urlencoding = "2.1"
+regex = "1.10"

@@ -144,22 +144,34 @@ pub enum SubCommands {
     },
 }
 
+/// Generic list object for Scryfall API responses
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ScryfallSearchResponse {
-    object: String,
-    total_cards: u32,
-    has_more: bool,
-    next_page: Option<String>,
-    pub data: Vec<ScryfallCard>,
+pub struct ScryfallList<T> {
+    /// Always "list"
+    pub object: String,
+    /// Array of requested objects
+    pub data: Vec<T>,
+    /// True if this List is paginated and there is a page beyond the current page
+    pub has_more: bool,
+    /// URI to next page if available
+    pub next_page: Option<String>,
+    /// Total number of cards found across all pages (for card lists)
+    pub total_cards: Option<u32>,
+    /// Non-fatal warnings from the API
+    pub warnings: Option<Vec<String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct ScryfallErrorResponse {
-    object: String,
-    code: String,
-    status: u16,
-    details: String,
-}
+/// Type alias for backward compatibility
+pub type ScryfallSearchResponse = ScryfallList<ScryfallCard>;
+
+// Use the comprehensive error structure from crate::error::ScryfallError instead
+// #[derive(Debug, Serialize, Deserialize)]
+// struct ScryfallErrorResponse {
+//     object: String,
+//     code: String,
+//     status: u16,
+//     details: String,
+// }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ScryfallCard {
@@ -323,13 +335,10 @@ fn parse_scryfall_response(response_text: &str) -> Result<ScryfallSearchResponse
     
     if let Some(object_type) = json_value.get("object").and_then(|v| v.as_str()) {
         if object_type == "error" {
-            // Parse as error response
-            let error_response: ScryfallErrorResponse = serde_json::from_str(response_text)?;
-            return Err(crate::error::Error::Generic(format!(
-                "Scryfall API error ({}): {}", 
-                error_response.code, 
-                error_response.details
-            )).into());
+            // Parse as error response using the new comprehensive error structure
+            let scryfall_error: crate::error::ScryfallError = serde_json::from_str(response_text)?;
+            let api_error = crate::error::ScryfallApiError::from_scryfall_error(scryfall_error);
+            return Err(eyre!("Scryfall API error: {}", api_error));
         }
     }
     
@@ -344,13 +353,10 @@ fn parse_scryfall_card_response(response_text: &str) -> Result<ScryfallCard> {
     
     if let Some(object_type) = json_value.get("object").and_then(|v| v.as_str()) {
         if object_type == "error" {
-            // Parse as error response
-            let error_response: ScryfallErrorResponse = serde_json::from_str(response_text)?;
-            return Err(crate::error::Error::Generic(format!(
-                "Scryfall API error ({}): {}", 
-                error_response.code, 
-                error_response.details
-            )).into());
+            // Parse as error response using the new comprehensive error structure
+            let scryfall_error: crate::error::ScryfallError = serde_json::from_str(response_text)?;
+            let api_error = crate::error::ScryfallApiError::from_scryfall_error(scryfall_error);
+            return Err(eyre!("Scryfall API error: {}", api_error));
         }
     }
     
@@ -492,7 +498,7 @@ fn display_pretty_results(response: &ScryfallSearchResponse, params: &SearchPara
     // Display pagination summary
     eprintln!();
     eprintln!("Found {} cards (showing {} on page {})", 
-             response.total_cards, response.data.len(), params.page);
+             response.total_cards.unwrap_or(response.data.len() as u32), response.data.len(), params.page);
 
     if response.has_more {
         eprintln!();
@@ -547,7 +553,7 @@ fn display_advanced_pretty_results(response: &ScryfallSearchResponse, params: &A
     // Display pagination summary
     eprintln!();
     eprintln!("Found {} cards (showing {} on page {})", 
-             response.total_cards, response.data.len(), params.page);
+             response.total_cards.unwrap_or(response.data.len() as u32), response.data.len(), params.page);
 
     if response.has_more {
         eprintln!();
