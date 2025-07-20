@@ -185,26 +185,35 @@ All gatherer search options are supported. Add --pretty for final card display."
         return 1
     fi
 
-    echo "Searching for cards..." 1>&2
-
-    # Get search results in JSON format (without --pretty)
-    local search_results
-    if ! search_results=$(mtg gatherer search "${search_args[@]}" 2>/dev/null); then
-        echo "Error: Search failed. Please check your search parameters." 1>&2
+    # Check if jq exists
+    if ! command -v jq &> /dev/null; then
+        echo "Error: 'jq' not found. Please install jq first:" 1>&2
+        echo "  brew install jq    # macOS" 1>&2
+        echo "  sudo apt install jq    # Ubuntu/Debian" 1>&2
         return 1
     fi
 
-    # Extract card names using jq (fallback to grep if jq not available)
-    local card_names
-    if command -v jq &> /dev/null; then
-        card_names=$(echo "$search_results" | jq -r '.items[]?.instanceName // empty' 2>/dev/null)
-    else
-        # Fallback: extract names from JSON without jq
-        card_names=$(echo "$search_results" | grep -o '"instanceName": "[^"]*"' | sed 's/"instanceName": "\([^"]*\)"/\1/' | sort -u)
+    echo "Searching for cards..." 1>&2
+
+    # Get search results in JSON format (without --pretty)
+    # Use a temporary file to avoid issues with large outputs
+    local tmpfile=$(mktemp)
+    trap "rm -f $tmpfile" EXIT
+
+    if ! mtg gatherer search "${search_args[@]}" > "$tmpfile" 2>&1; then
+        echo "Error: Search failed. Please check your search parameters." 1>&2
+        cat "$tmpfile" 1>&2
+        return 1
     fi
+
+    # Extract card names using jq
+    local card_names
+    card_names=$(jq -r '.items[]?.instanceName // empty' < "$tmpfile" 2>/dev/null)
 
     if [[ -z "$card_names" ]]; then
         echo "No cards found matching your search criteria." 1>&2
+        echo "Debug info: Check if the search returned valid JSON:" 1>&2
+        jq '.' < "$tmpfile" 2>&1 | head -20 1>&2
         return 1
     fi
 
@@ -217,7 +226,7 @@ All gatherer search options are supported. Add --pretty for final card display."
     echo "" 1>&2
 
     # Create a preview command that shows card details
-    local preview_cmd="mtg gatherer card '{}' --pretty 2>/dev/null | head -20"
+    local preview_cmd='mtg gatherer card --pretty {}'
 
     # Use fzf to select a card
     local selected_card
@@ -245,164 +254,6 @@ All gatherer search options are supported. Add --pretty for final card display."
 
 # Shorter alias for convenience
 alias mtgf='mtg_card_search'
-
-# Advanced version with pagination support
-mtg_card_browse() {
-    local search_args=()
-    local pretty_flag=""
-    local page=1
-    local help_text="Usage: mtg_card_browse [search_options] [--pretty] [--page N]
-
-Browse MTG cards interactively with pagination support.
-
-Examples:
-  mtg_card_browse --name Lightning
-  mtg_card_browse --card-type Creature --colors R --pretty
-  mtg_card_browse --set \"War of the Spark\" --rarity Mythic --page 2
-
-Features:
-  - Automatic pagination handling
-  - Live preview of card details
-  - Support for all gatherer search options"
-
-    # Parse arguments
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --help|-h)
-                echo "$help_text" 1>&2
-                return 0
-                ;;
-            --pretty)
-                pretty_flag="--pretty"
-                shift
-                ;;
-            --page)
-                page="$2"
-                shift 2
-                ;;
-            *)
-                search_args+=("$1")
-                shift
-                ;;
-        esac
-    done
-
-    # Check dependencies
-    if ! command -v mtg &> /dev/null; then
-        echo "Error: 'mtg' command not found. Please install the MTG CLI first." 1>&2
-        return 1
-    fi
-
-    if ! command -v fzf &> /dev/null; then
-        echo "Error: 'fzf' not found. Please install fzf first." 1>&2
-        return 1
-    fi
-
-    local continue_browsing=true
-    
-    while $continue_browsing; do
-        echo "Searching for cards (page $page)..." 1>&2
-
-        # Get search results for current page
-        local search_results
-        if ! search_results=$(mtg gatherer search "${search_args[@]}" --page "$page" 2>&1); then
-            echo "Error: Search failed. Please check your search parameters." 1>&2
-            return 1
-        fi
-
-        # Check if we got JSON or an error
-        if ! echo "$search_results" | jq empty 2>/dev/null; then
-            echo "Error: Invalid response from search." 1>&2
-            echo "$search_results" 1>&2
-            return 1
-        fi
-
-        # Extract pagination info
-        local total_pages=$(echo "$search_results" | jq -r '.totalPages // 1')
-        local total_items=$(echo "$search_results" | jq -r '.totalItems // 0')
-        local current_items=$(echo "$search_results" | jq -r '.currentItemCount // 0')
-
-        # Extract card names with metadata
-        local card_list
-        if command -v jq &> /dev/null; then
-            card_list=$(echo "$search_results" | jq -r '.items[]? | "\(.instanceName)\t\(.instanceTypeLine // "")\t\(.setName // "")\t\(.rarityName // "")"' 2>/dev/null)
-        else
-            echo "Error: jq is required for this function. Please install jq." 1>&2
-            return 1
-        fi
-
-        if [[ -z "$card_list" ]]; then
-            echo "No cards found on page $page." 1>&2
-            if [[ $page -gt 1 ]]; then
-                echo "Try page 1 or adjust your search criteria." 1>&2
-            fi
-            return 1
-        fi
-
-        # Add navigation options if there are multiple pages
-        local fzf_options=()
-        if [[ $total_pages -gt 1 ]]; then
-            if [[ $page -gt 1 ]]; then
-                card_list="[Previous Page]"$'\n'"$card_list"
-            fi
-            if [[ $page -lt $total_pages ]]; then
-                card_list="$card_list"$'\n'"[Next Page]"
-            fi
-            fzf_options+=(--header="Page $page of $total_pages | Total: $total_items cards | Use ↑↓ to navigate, Enter to select")
-        else
-            fzf_options+=(--header="Found $total_items cards | Use ↑↓ to navigate, Enter to select")
-        fi
-
-        # Create preview command
-        local preview_cmd='
-            if [[ "{}" == "[Previous Page]" ]] || [[ "{}" == "[Next Page]" ]]; then
-                echo "Navigation: {}"
-            else
-                card_name=$(echo {} | cut -f1)
-                mtg gatherer card "$card_name" --pretty 2>/dev/null | head -25
-            fi
-        '
-
-        # Use fzf to select a card
-        local selected
-        selected=$(echo "$card_list" | fzf \
-            --height=90% \
-            --border \
-            --prompt="Select a card: " \
-            --preview="$preview_cmd" \
-            --preview-window=right:60% \
-            --delimiter=$'\t' \
-            --with-nth=1 \
-            --info=inline \
-            "${fzf_options[@]}")
-
-        # Handle selection
-        case "$selected" in
-            "[Previous Page]")
-                ((page--))
-                ;;
-            "[Next Page]")
-                ((page++))
-                ;;
-            "")
-                echo "Selection cancelled." 1>&2
-                continue_browsing=false
-                ;;
-            *)
-                # Extract just the card name
-                local card_name=$(echo "$selected" | cut -f1)
-                echo "" 1>&2
-                echo "Getting full details for: $card_name" 1>&2
-                echo "========================================" 1>&2
-                mtg gatherer card "$card_name" $pretty_flag
-                continue_browsing=false
-                ;;
-        esac
-    done
-}
-
-# Alias for the advanced browser
-alias mtgb='mtg_card_browse'
 ```
 
 ### Usage Examples
@@ -453,6 +304,7 @@ mtg_card_browse --help
 ### How the Interactive Functions Work
 
 #### mtg_card_search (Simple Version)
+
 1. **Search**: Runs your search query using `mtg gatherer search` (JSON format)
 2. **Extract**: Extracts card names from the JSON results
 3. **Preview**: Shows card details in the preview pane while browsing
@@ -460,6 +312,7 @@ mtg_card_browse --help
 5. **Details**: Automatically runs `mtg gatherer card` on your selection
 
 #### mtg_card_browse (Advanced Version)
+
 1. **Paginated Search**: Handles multi-page results with navigation
 2. **Rich Display**: Shows card type, set, and rarity in the list
 3. **Navigation**: Allows moving between pages within fzf
@@ -525,3 +378,111 @@ mtg gatherer search --card-type "Creature" | jq '.items | group_by(.rarityName) 
 ```
 
 This workflow documentation provides a comprehensive guide for efficiently using the MTG CLI to research and explore Magic: The Gathering cards.
+
+## Troubleshooting the Interactive Functions
+
+If the `mtg_card_search` or `mtg_card_browse` functions aren't working:
+
+### Common Issues and Solutions
+
+1. **"No cards found" when cards should exist**
+
+   - Make sure the `mtg` command is in your PATH
+   - Check that the search works directly: `mtg gatherer search --name "Vivi"`
+   - Ensure you're not redirecting stderr: the function needs both stdout and stderr
+
+2. **JSON parsing errors**
+
+   - Verify jq is installed: `which jq`
+   - Test the search returns valid JSON: `mtg gatherer search --name "Vivi" | jq .`
+   - Check for error messages in the search output
+
+3. **Function not found**
+   - Ensure you've sourced your shell config: `source ~/.bashrc` or `source ~/.zshrc`
+   - Verify the function is loaded: `type mtg_card_search`
+
+### Debug Mode
+
+Add this debug version to help troubleshoot issues:
+
+```bash
+mtg_card_search_debug() {
+    echo "Debug: Running search with args: $@" 1>&2
+    local results=$(mtg gatherer search "$@" 2>&1)
+    echo "Debug: Exit code: $?" 1>&2
+    echo "Debug: First 500 chars of output:" 1>&2
+    echo "${results:0:500}" 1>&2
+    echo "Debug: Attempting to parse JSON..." 1>&2
+    echo "$results" | jq '.items | length' 1>&2
+    echo "Debug: Card names:" 1>&2
+    echo "$results" | jq -r '.items[]?.instanceName' | head -5 1>&2
+}
+
+# Minimal working version - no error checking, just the basics
+mtg_card_search_simple() {
+    local tmpfile=$(mktemp)
+    mtg gatherer search "$@" > "$tmpfile" 2>/dev/null
+    local names=$(jq -r '.items[]?.instanceName' < "$tmpfile" 2>/dev/null)
+    rm -f "$tmpfile"
+
+    if [[ -z "$names" ]]; then
+        echo "No cards found" 1>&2
+        return 1
+    fi
+
+    local selected=$(echo "$names" | fzf --height=80% --border)
+    if [[ -n "$selected" ]]; then
+        mtg gatherer card "$selected" --pretty
+    fi
+}
+```
+
+### Alternative: Using Process Substitution
+
+If the temporary file approach doesn't work, try this version using process substitution:
+
+```bash
+mtg_card_search_alt() {
+    local search_args=()
+    local pretty_flag=""
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --pretty)
+                pretty_flag="--pretty"
+                shift
+                ;;
+            *)
+                search_args+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    echo "Searching for cards..." 1>&2
+
+    # Use process substitution to avoid variable issues
+    local card_names
+    card_names=$(mtg gatherer search "${search_args[@]}" 2>/dev/null | jq -r '.items[]?.instanceName // empty')
+
+    if [[ -z "$card_names" ]]; then
+        echo "No cards found matching your search criteria." 1>&2
+        return 1
+    fi
+
+    # Use fzf to select
+    local selected_card
+    selected_card=$(echo "$card_names" | fzf \
+        --height=80% \
+        --border \
+        --prompt="Select a card: " \
+        --preview="mtg gatherer card '{}' --pretty 2>/dev/null | head -20" \
+        --preview-window=right:60%)
+
+    if [[ -n "$selected_card" ]]; then
+        echo "Getting details for: $selected_card" 1>&2
+        mtg gatherer card "$selected_card" $pretty_flag
+    fi
+}
+```

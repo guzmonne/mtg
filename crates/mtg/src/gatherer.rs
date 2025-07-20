@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::cache::CacheManager;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use prettytable::{Table, Row, Cell, format};
@@ -58,7 +59,7 @@ pub struct App {
             toughness: Option<String>,
     
             /// Loyalty value or range (e.g., "3", "3-6")
-            #[clap(long, short)]
+            #[clap(long)]
             loyalty: Option<String>,
     
             /// Flavor text to search for
@@ -260,6 +261,23 @@ fn parse_server_action_response(response: &str) -> Result<Option<Value>> {
         Ok(json) => Ok(Some(json)),
         Err(_) => Ok(None),
     }
+}
+
+fn decode_html_entities(text: &str) -> String {
+    text.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&apos;", "'")
+        .replace("&nbsp;", " ")
+        .replace("<i>", "")  // Remove italic tags for terminal display
+        .replace("</i>", "")
+        .replace("<b>", "")  // Remove bold tags
+        .replace("</b>", "")
+        .replace("<br>", "\n")
+        .replace("<br/>", "\n")
+        .replace("<br />", "\n")
 }
 
 fn display_pretty_results(data: &Value, params: &SearchParams) -> Result<()> {
@@ -538,6 +556,8 @@ fn display_single_card_pretty(html: &str) -> Result<()> {
 }
 
 async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()> {
+    let cache_manager = CacheManager::new()?;
+    
     // Use the existing search functionality to find the card
     let search_params = SearchParams {
         name: Some(name.to_string()),
@@ -581,6 +601,58 @@ async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()>
         1
     ]);
 
+    // Generate cache key
+    let url = "https://gatherer.wizards.com/advanced-search";
+    let headers = vec![
+        ("accept".to_string(), "text/x-component".to_string()),
+        ("content-type".to_string(), "text/plain;charset=UTF-8".to_string()),
+    ];
+    let cache_key = CacheManager::hash_gatherer_search_request(url, &payload, &headers);
+    
+    if global.verbose {
+        println!("Cache key: {}", cache_key);
+    }
+
+    // Check cache first
+    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
+        if global.verbose {
+            println!("Using cached response for card '{}'", name);
+        }
+        
+        let card_data = &cached_response.data;
+        if let Some(items) = card_data.get("items").and_then(|v| v.as_array()) {
+            if items.is_empty() {
+                return Err(crate::error::Error::Generic(format!("Card '{}' not found", name)).into());
+            }
+
+            // Get the first matching card (exact name match preferred)
+            let mut best_match = &items[0];
+            
+            // Look for exact name match
+            for item in items {
+                if let Some(card_name) = item.get("instanceName").and_then(|v| v.as_str()) {
+                    if card_name.eq_ignore_ascii_case(name) {
+                        best_match = item;
+                        break;
+                    }
+                }
+            }
+
+            if pretty {
+                display_single_card_details(best_match)?;
+            } else {
+                println!("{}", serde_json::to_string_pretty(best_match)?);
+            }
+        } else {
+            return Err(crate::error::Error::Generic(format!("Card '{}' not found", name)).into());
+        }
+        return Ok(());
+    }
+
+    if global.verbose {
+        println!("Cache miss for card '{}', fetching from API", name);
+    }
+
     let response = client
         .post("https://gatherer.wizards.com/advanced-search")
         .header("accept", "text/x-component")
@@ -615,6 +687,13 @@ async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()>
     let parsed_data = parse_server_action_response(&response_text)?;
     
     if let Some(card_data) = parsed_data {
+        // Cache the successful response
+        cache_manager.set(&cache_key, card_data.clone()).await?;
+        
+        if global.verbose {
+            println!("Response cached for card '{}'", name);
+        }
+        
         if let Some(items) = card_data.get("items").and_then(|v| v.as_array()) {
             if items.is_empty() {
                 return Err(crate::error::Error::Generic(format!("Card '{}' not found", name)).into());
@@ -672,7 +751,8 @@ fn display_single_card_details(card: &serde_json::Value) -> Result<()> {
     // Oracle text
     if let Some(oracle_text) = card.get("instanceText").and_then(|v| v.as_str()) {
         if !oracle_text.is_empty() {
-            table.add_row(Row::new(vec![Cell::new("Oracle Text"), Cell::new(oracle_text)]));
+            let decoded_text = decode_html_entities(oracle_text);
+            table.add_row(Row::new(vec![Cell::new("Oracle Text"), Cell::new(&decoded_text)]));
         }
     }
     
@@ -701,6 +781,14 @@ fn display_single_card_details(card: &serde_json::Value) -> Result<()> {
     // Artist
     if let Some(artist) = card.get("artistName").and_then(|v| v.as_str()) {
         table.add_row(Row::new(vec![Cell::new("Artist"), Cell::new(artist)]));
+    }
+    
+    // Flavor text
+    if let Some(flavor_text) = card.get("flavorText").and_then(|v| v.as_str()) {
+        if !flavor_text.is_empty() {
+            let decoded_text = decode_html_entities(flavor_text);
+            table.add_row(Row::new(vec![Cell::new("Flavor Text"), Cell::new(&decoded_text)]));
+        }
     }
     
     table.printstd();
@@ -770,6 +858,8 @@ fn extract_card_info_json(html: &str, url: &str) -> serde_json::Value {
     serde_json::Value::Object(card_info)
 }
 async fn search_cards(params: SearchParams, global: crate::Global) -> Result<()> {
+    let cache_manager = CacheManager::new()?;
+    
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(global.timeout))
         .build()?;
@@ -881,6 +971,37 @@ async fn search_cards(params: SearchParams, global: crate::Global) -> Result<()>
         println!("Request payload: {}", serde_json::to_string_pretty(&payload)?);
     }
 
+    // Generate cache key
+    let url = "https://gatherer.wizards.com/advanced-search";
+    let headers = vec![
+        ("accept".to_string(), "text/x-component".to_string()),
+        ("content-type".to_string(), "text/plain;charset=UTF-8".to_string()),
+    ];
+    let cache_key = CacheManager::hash_gatherer_search_request(url, &payload, &headers);
+    
+    if global.verbose {
+        println!("Cache key: {}", cache_key);
+    }
+
+    // Check cache first
+    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
+        if global.verbose {
+            println!("Using cached response");
+        }
+        
+        let card_data = &cached_response.data;
+        if params.pretty {
+            display_pretty_results(card_data, &params)?;
+        } else {
+            println!("{}", serde_json::to_string_pretty(card_data)?);
+        }
+        return Ok(());
+    }
+
+    if global.verbose {
+        println!("Cache miss, fetching from API");
+    }
+
     let response = client
         .post("https://gatherer.wizards.com/advanced-search")
         .header("accept", "text/x-component")
@@ -920,6 +1041,13 @@ async fn search_cards(params: SearchParams, global: crate::Global) -> Result<()>
     let parsed_data = parse_server_action_response(&response_text)?;
     
     if let Some(card_data) = parsed_data {
+        // Cache the successful response
+        cache_manager.set(&cache_key, card_data.clone()).await?;
+        
+        if global.verbose {
+            println!("Response cached");
+        }
+        
         if params.pretty {
             display_pretty_results(&card_data, &params)?;
         } else {

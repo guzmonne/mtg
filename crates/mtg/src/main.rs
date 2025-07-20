@@ -4,6 +4,7 @@
 use crate::prelude::*;
 use clap::Parser;
 
+mod cache;
 mod cards;
 mod completions;
 mod error;
