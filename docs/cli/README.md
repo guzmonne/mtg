@@ -8,12 +8,14 @@ The MTG CLI provides a powerful command-line interface for interacting with Magi
 - [Card Commands](./cards.md) - Search and retrieve card information
 - [Set Commands](./sets.md) - Browse sets and generate booster packs
 - [Type Commands](./types.md) - Access card types and format information
+- [Gatherer Commands](./gatherer.md) - Search using Wizards' official Gatherer database
+- [Workflow Guide](./workflow.md) - Common workflows and interactive tools
 - [Shell Completions](./completions.md) - Generate shell completions for enhanced CLI experience
 - [Configuration](./configuration.md) - Environment variables and settings
 
 ## Overview
 
-The MTG CLI is built around five main command categories:
+The MTG CLI is built around six main command categories:
 
 ### Cards
 
@@ -26,6 +28,10 @@ Browse Magic sets, view set information, and generate virtual booster packs.
 ### Types
 
 Access comprehensive information about card types, subtypes, supertypes, and game formats.
+
+### Gatherer
+
+Search using Wizards of the Coast's official Gatherer advanced search functionality for the most authoritative card data.
 
 ### Completions
 
@@ -40,6 +46,9 @@ Start the Model Context Protocol server for AI integration.
 ```bash
 # Search for a specific card
 mtg cards search "Lightning Bolt"
+
+# Search using official Gatherer database
+mtg gatherer search --name "Lightning Bolt" --rarity "Common"
 
 # List recent sets
 mtg sets list --page-size 10

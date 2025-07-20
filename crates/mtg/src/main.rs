@@ -7,6 +7,7 @@ use clap::Parser;
 mod cards;
 mod completions;
 mod error;
+mod gatherer;
 mod mcp;
 mod prelude;
 mod sets;
@@ -53,6 +54,9 @@ pub enum SubCommands {
     /// Get card types, subtypes, supertypes, and formats
     Types(crate::types::App),
 
+    /// Search cards using Wizards' Gatherer advanced search
+    Gatherer(crate::gatherer::App),
+
     /// Generate shell completions
     Completions(crate::completions::App),
 
@@ -71,6 +75,7 @@ async fn main() -> Result<()> {
         SubCommands::Cards(sub_app) => crate::cards::run(sub_app, app.global).await,
         SubCommands::Sets(sub_app) => crate::sets::run(sub_app, app.global).await,
         SubCommands::Types(sub_app) => crate::types::run(sub_app, app.global).await,
+        SubCommands::Gatherer(sub_app) => crate::gatherer::run(sub_app, app.global).await,
         SubCommands::Completions(sub_app) => crate::completions::run(sub_app, app.global).await,
         SubCommands::Mcp => crate::mcp::run_mcp_server(app.global).await,
     }
