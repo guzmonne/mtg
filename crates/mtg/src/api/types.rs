@@ -3,7 +3,7 @@ use crate::prelude::*;
 #[derive(Debug, clap::Parser)]
 #[command(name = "types")]
 #[command(about = "Get card types, subtypes, supertypes, and game formats")]
-pub struct App {
+pub struct TypesCommand {
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -27,22 +27,35 @@ pub enum Commands {
     Formats,
 }
 
-pub async fn run(app: App, global: crate::Global) -> Result<()> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(global.timeout))
-        .build()?;
+impl TypesCommand {
+    pub async fn run(self) -> Result<()> {
+        let api_base_url = std::env::var("MTG_API_BASE_URL")
+            .unwrap_or_else(|_| "https://api.magicthegathering.io/v1".to_string());
+        let timeout = std::env::var("MTG_TIMEOUT")
+            .unwrap_or_else(|_| "30".to_string())
+            .parse::<u64>()
+            .unwrap_or(30);
+        let verbose = std::env::var("MTG_VERBOSE")
+            .unwrap_or_else(|_| "false".to_string())
+            .parse::<bool>()
+            .unwrap_or(false);
 
-    if global.verbose {
-        aprintln!("MTG API Base URL: {}", global.api_base_url);
-        aprintln!("Request Timeout: {}s", global.timeout);
-        aprintln!();
-    }
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(timeout))
+            .build()?;
 
-    match app.command {
-        Commands::List => list_types(client, &global.api_base_url).await,
-        Commands::Subtypes => list_subtypes(client, &global.api_base_url).await,
-        Commands::Supertypes => list_supertypes(client, &global.api_base_url).await,
-        Commands::Formats => list_formats(client, &global.api_base_url).await,
+        if verbose {
+            aprintln!("MTG API Base URL: {}", api_base_url);
+            aprintln!("Request Timeout: {}s", timeout);
+            aprintln!();
+        }
+
+        match self.command {
+            Commands::List => list_types(client, &api_base_url).await,
+            Commands::Subtypes => list_subtypes(client, &api_base_url).await,
+            Commands::Supertypes => list_supertypes(client, &api_base_url).await,
+            Commands::Formats => list_formats(client, &api_base_url).await,
+        }
     }
 }
 

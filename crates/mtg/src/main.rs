@@ -4,15 +4,13 @@
 use crate::prelude::*;
 use clap::Parser;
 
+mod api;
 mod cache;
-mod cards;
 mod completions;
 mod error;
 mod gatherer;
 mod mcp;
 mod prelude;
-mod sets;
-mod types;
 
 #[derive(Debug, clap::Parser)]
 #[command(author, version, about, long_about = "Magic The Gathering API CLI")]
@@ -46,14 +44,11 @@ pub struct Global {
 
 #[derive(Debug, clap::Parser)]
 pub enum SubCommands {
-    /// Search and retrieve Magic cards
-    Cards(crate::cards::App),
-
-    /// Browse Magic sets and generate booster packs
-    Sets(crate::sets::App),
-
-    /// Get card types, subtypes, supertypes, and formats
-    Types(crate::types::App),
+    /// Access the MTG API directly
+    Api {
+        #[command(subcommand)]
+        command: crate::api::ApiCommands,
+    },
 
     /// Search cards using Wizards' Gatherer advanced search
     Gatherer(crate::gatherer::App),
@@ -73,9 +68,7 @@ async fn main() -> Result<()> {
     let app = App::parse();
 
     match app.command {
-        SubCommands::Cards(sub_app) => crate::cards::run(sub_app, app.global).await,
-        SubCommands::Sets(sub_app) => crate::sets::run(sub_app, app.global).await,
-        SubCommands::Types(sub_app) => crate::types::run(sub_app, app.global).await,
+        SubCommands::Api { command } => command.run().await,
         SubCommands::Gatherer(sub_app) => crate::gatherer::run(sub_app, app.global).await,
         SubCommands::Completions(sub_app) => crate::completions::run(sub_app, app.global).await,
         SubCommands::Mcp => crate::mcp::run_mcp_server(app.global).await,
