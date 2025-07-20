@@ -46,22 +46,29 @@ cargo build
 mtg --help
 ```
 
-### 2. Search for a Card
+### 2. Try Each Search Engine
 
 ```bash
-mtg cards search "Black Lotus"
+# Scryfall (recommended) - intuitive syntax
+mtg scryfall search "Lightning Bolt" --pretty
+
+# Gatherer - official Wizards database
+mtg gatherer search --name "Lightning Bolt" --pretty
+
+# MTG API - structured parameters
+mtg api cards search "Lightning Bolt" --pretty
 ```
 
 ### 3. Browse Sets
 
 ```bash
-mtg sets list --page-size 5
+mtg api sets list --page-size 5
 ```
 
 ### 4. Get Card Types
 
 ```bash
-mtg types list
+mtg api types list
 ```
 
 ### 5. Set Up Shell Completions
@@ -96,31 +103,78 @@ Override defaults for individual commands:
 
 ```bash
 # Use custom API URL
-mtg --api-base-url "https://custom-api.example.com/v1" cards search "Mox"
+mtg --api-base-url "https://custom-api.example.com/v1" api cards search "Mox"
 
 # Set longer timeout for slow connections
-mtg --timeout 120 sets list
+mtg --timeout 120 api sets list
 
 # Enable verbose output for debugging
-mtg --verbose cards search "Lightning Bolt"
+mtg --verbose scryfall search "Lightning Bolt"
+```
+
+## Choosing a Search Engine
+
+The MTG CLI provides three different search engines:
+
+### 🔍 **Scryfall** (Recommended for most users)
+- **Best for**: Flexible searches with intuitive syntax
+- **Strengths**: Fast, comprehensive, modern query language
+- **Use when**: You want the most user-friendly search experience
+
+```bash
+mtg scryfall search "c:red t:creature mv<=3" --pretty
+```
+
+### 🏛️ **Gatherer** (Official Wizards Database)
+- **Best for**: Official data and complex boolean searches
+- **Strengths**: Most authoritative source, advanced filtering
+- **Use when**: You need official Wizards data or complex search logic
+
+```bash
+mtg gatherer search --card-type "Creature" --colors "R" --power "2-5" --pretty
+```
+
+### 🔧 **MTG API** (Structured Searches)
+- **Best for**: Programmatic use and specific filters
+- **Strengths**: Structured parameters, good for automation
+- **Use when**: You need consistent, structured search parameters
+
+```bash
+mtg api cards list --colors "Red" --type "Creature" --cmc 3 --pretty
 ```
 
 ## Basic Usage Patterns
 
 ### Card Searches
 
+#### MTG API
 ```bash
 # Simple name search
-mtg cards search "Lightning"
+mtg api cards search "Lightning"
 
 # Exact name match
-mtg cards search "Lightning Bolt" --exact
+mtg api cards search "Lightning Bolt" --exact
 
 # Search with pagination
-mtg cards search "Dragon" --page 2 --page-size 10
+mtg api cards search "Dragon" --page 2 --page-size 10
 
 # Search by ID
-mtg cards get 409574
+mtg api cards get 409574
+```
+
+#### Scryfall (Recommended)
+```bash
+# Simple name search
+mtg scryfall search "Lightning Bolt" --pretty
+
+# Advanced query syntax
+mtg scryfall search "c:red t:creature mv<=3" --pretty
+
+# Complex searches
+mtg scryfall search "f:modern c:wu t:creature" --pretty
+
+# Get specific card
+mtg scryfall card "Lightning Bolt" --pretty
 ```
 
 ### Gatherer Advanced Search
@@ -146,32 +200,32 @@ mtg gatherer card "Vivi Ornitier" --pretty
 
 ```bash
 # List all sets
-mtg sets list
+mtg api sets list
 
 # Search sets by name
-mtg sets search "Zendikar"
+mtg api sets search "Zendikar"
 
 # Get specific set
-mtg sets get "ZEN"
+mtg api sets get "ZEN"
 
 # Generate booster pack
-mtg sets booster "KTK"
+mtg api sets booster "KTK"
 ```
 
 ### Type Information
 
 ```bash
 # List all types
-mtg types list
+mtg api types list
 
 # Get subtypes
-mtg types subtypes
+mtg api types subtypes
 
 # Get supertypes
-mtg types supertypes
+mtg api types supertypes
 
 # Get formats
-mtg types formats
+mtg api types formats
 ```
 
 ## Output Formatting
@@ -201,7 +255,7 @@ Found 25 cards matching 'Lightning Bolt'
 If you experience timeouts, increase the timeout value:
 
 ```bash
-mtg --timeout 120 cards search "Expensive Query"
+mtg --timeout 120 scryfall search "c:red t:creature mv>=8"
 ```
 
 ### Rate Limiting

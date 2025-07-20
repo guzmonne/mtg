@@ -16,8 +16,9 @@ MTG CLI is a comprehensive command-line tool that provides access to Magic: The 
 - **Card Search**: Advanced search with multiple filters (name, colors, type, rarity, set, mana cost)
 - **Set Browsing**: Explore Magic sets and generate virtual booster packs
 - **Type Information**: Access comprehensive card types, subtypes, supertypes, and game formats
+- **Multiple Search Engines**: Support for both Wizards' Gatherer and Scryfall APIs
 - **Shell Completions**: Auto-completion support for Bash, Zsh, Fish, PowerShell, and Elvish
-- **High Performance**: Async operations with built-in rate limiting and timeout controls
+- **High Performance**: Async operations with built-in caching and timeout controls
 
 ### AI Integration
 
@@ -84,6 +85,9 @@ mtg api types list
 
 # Generate booster pack
 mtg api sets booster "KTK"
+
+# Search using Scryfall
+mtg scryfall search "c:blue t:instant mv<=3"
 ```
 
 ### Set Up Shell Completions
@@ -345,6 +349,8 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 - [Card Commands](docs/cli/cards.md) - Advanced card search techniques
 - [Set Commands](docs/cli/sets.md) - Set browsing and booster generation
 - [Type Commands](docs/cli/types.md) - Type system and format queries
+- [Gatherer Commands](docs/cli/gatherer.md) - Official Wizards search functionality
+- [Scryfall Commands](docs/cli/scryfall.md) - Powerful Scryfall search engine
 - [Shell Completions](docs/cli/completions.md) - Completion setup for all shells
 - [MCP Integration](docs/mcp/overview.md) - AI assistant integration guide
 

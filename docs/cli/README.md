@@ -9,13 +9,14 @@ The MTG CLI provides a powerful command-line interface for interacting with Magi
 - [Set Commands](./sets.md) - Browse sets and generate booster packs
 - [Type Commands](./types.md) - Access card types and format information
 - [Gatherer Commands](./gatherer.md) - Search using Wizards' official Gatherer database
+- [Scryfall Commands](./scryfall.md) - Search using Scryfall's powerful search engine
 - [Workflow Guide](./workflow.md) - Common workflows and interactive tools
 - [Shell Completions](./completions.md) - Generate shell completions for enhanced CLI experience
 - [Configuration](./configuration.md) - Environment variables and settings
 
 ## Overview
 
-The MTG CLI is built around four main command categories:
+The MTG CLI is built around five main command categories:
 
 ### API
 
@@ -27,6 +28,10 @@ Access the official Magic: The Gathering API directly with subcommands for:
 ### Gatherer
 
 Search using Wizards of the Coast's official Gatherer advanced search functionality for the most authoritative card data.
+
+### Scryfall
+
+Search using Scryfall's powerful and flexible search engine with advanced syntax support for comprehensive card queries.
 
 ### Completions
 
@@ -44,6 +49,9 @@ mtg api cards search "Lightning Bolt"
 
 # Search using official Gatherer database
 mtg gatherer search --name "Lightning Bolt" --rarity "Common"
+
+# Search using Scryfall's powerful syntax
+mtg scryfall search "c:red t:creature mv<=3"
 
 # List recent sets
 mtg api sets list --page-size 10

@@ -4,9 +4,15 @@ This guide demonstrates common workflows for using the MTG CLI effectively, incl
 
 ## Basic Workflow: Search to Card Details
 
-The most common workflow involves searching for cards and then getting detailed information about specific cards that interest you.
+The most common workflow involves searching for cards and then getting detailed information about specific cards that interest you. The MTG CLI provides three different search engines, each with their own strengths:
+
+- **MTG API** (`mtg api cards`): Official API with structured filters
+- **Gatherer** (`mtg gatherer`): Wizards' official database with advanced search
+- **Scryfall** (`mtg scryfall`): Powerful query syntax and comprehensive data
 
 ### 1. Search for Cards
+
+#### Using Gatherer (Wizards' Official Database)
 
 Use the `gatherer search` command to find cards matching your criteria:
 
@@ -36,6 +42,39 @@ mtg gatherer search --power "5-10" --toughness "2-5" --pretty
 mtg gatherer search --format "Legal:Modern,Banned:Legacy" --pretty
 ```
 
+#### Using Scryfall (Powerful Query Syntax)
+
+Scryfall provides a more flexible query syntax that many players prefer:
+
+```bash
+# Basic name search
+mtg scryfall search "Lightning Bolt" --pretty
+
+# Color and type combinations
+mtg scryfall search "c:red t:creature" --pretty
+
+# Mana value and power/toughness
+mtg scryfall search "c:blue t:instant mv<=2" --pretty
+
+# Complex queries with multiple conditions
+mtg scryfall search "c:wu t:creature mv<=3" --pretty
+
+# Format legality
+mtg scryfall search "f:modern c:red t:creature" --pretty
+
+# Advanced syntax with operators
+mtg scryfall search "c>=bant t:creature pow>=3" --pretty
+
+# Oracle text search
+mtg scryfall search "o:flying o:vigilance" --pretty
+
+# Set and rarity filters
+mtg scryfall search "s:war r:mythic" --pretty
+
+# Using advanced search with individual filters
+mtg scryfall advanced --colors "wu" --card-type "creature" --mv "<=3" --pretty
+```
+
 ### 2. Copy Card Names from Results
 
 From the search results, identify cards you want to learn more about. The search shows a table with card names in the first column:
@@ -49,8 +88,9 @@ From the search results, identify cards you want to learn more about. The search
 
 ### 3. Get Detailed Card Information
 
-Use the exact card name from the search results with the `gatherer card` command:
+Use the exact card name from the search results to get detailed information:
 
+#### Using Gatherer
 ```bash
 # Get detailed information in table format
 mtg gatherer card "Lightning Angel" --pretty
@@ -62,12 +102,59 @@ mtg gatherer card "Lightning Angel"
 mtg gatherer card "Lightning, Army of One" --pretty
 ```
 
+#### Using Scryfall
+```bash
+# Get detailed information in table format
+mtg scryfall card "Lightning Bolt" --pretty
+
+# Get complete JSON data for programmatic use
+mtg scryfall card "Lightning Bolt"
+
+# Get specific printing from a set
+mtg scryfall card "Lightning Bolt" --set "lea" --pretty
+```
+
+## Choosing the Right Search Engine
+
+Each search engine has different strengths. Here's when to use each:
+
+### MTG API (`mtg api cards`)
+- **Best for**: Structured searches with specific filters
+- **Strengths**: Official API, reliable, good for programmatic use
+- **Use when**: You need specific filters like exact mana cost, power/toughness ranges
+
+```bash
+# Structured filtering
+mtg api cards list --colors "Red,Blue" --type "Creature" --cmc 4 --pretty
+```
+
+### Gatherer (`mtg gatherer`)
+- **Best for**: Official Wizards data, complex boolean searches
+- **Strengths**: Most authoritative source, advanced search capabilities
+- **Use when**: You need the most official/accurate data or complex search logic
+
+```bash
+# Complex boolean searches
+mtg gatherer search --supertype "Legendary,Snow" --card-type "Creature+Artifact" --pretty
+```
+
+### Scryfall (`mtg scryfall`)
+- **Best for**: Flexible queries, modern search syntax, comprehensive data
+- **Strengths**: Intuitive syntax, fast, excellent for exploration
+- **Use when**: You want flexible search syntax or are familiar with Scryfall's query language
+
+```bash
+# Intuitive query syntax
+mtg scryfall search "c:wu t:creature mv<=3 f:modern" --pretty
+```
+
 ## Advanced Workflows
 
 ### Filtering and Refinement
 
 Start with broad searches and progressively narrow down:
 
+#### Using Gatherer
 ```bash
 # 1. Start broad
 mtg gatherer search --card-type "Planeswalker" --pretty
@@ -82,10 +169,26 @@ mtg gatherer search --card-type "Planeswalker" --colors "U" --format "Legal:Mode
 mtg gatherer card "Jace, the Mind Sculptor" --pretty
 ```
 
+#### Using Scryfall
+```bash
+# 1. Start broad
+mtg scryfall search "t:planeswalker" --pretty
+
+# 2. Add color filter
+mtg scryfall search "t:planeswalker c:blue" --pretty
+
+# 3. Add format restriction
+mtg scryfall search "t:planeswalker c:blue f:modern" --pretty
+
+# 4. Get details for interesting cards
+mtg scryfall card "Jace, the Mind Sculptor" --pretty
+```
+
 ### Set Exploration
 
 Explore cards from specific Magic sets:
 
+#### Using Gatherer
 ```bash
 # 1. Find all mythic rares in a set
 mtg gatherer search --set "War of the Spark" --rarity "Mythic" --pretty
@@ -97,10 +200,23 @@ mtg gatherer search --set "War of the Spark" --card-type "Planeswalker" --pretty
 mtg gatherer card "Nicol Bolas, Dragon-God" --pretty
 ```
 
+#### Using Scryfall
+```bash
+# 1. Find all mythic rares in a set
+mtg scryfall search "s:war r:mythic" --pretty
+
+# 2. Look at specific card types
+mtg scryfall search "s:war t:planeswalker" --pretty
+
+# 3. Get details for specific cards
+mtg scryfall card "Nicol Bolas, Dragon-God" --pretty
+```
+
 ### Deck Building Research
 
 Research cards for specific deck archetypes:
 
+#### Using Gatherer
 ```bash
 # 1. Find aggressive red creatures
 mtg gatherer search --card-type "Creature" --colors "R" --power "2" --mana-cost "{1}" --pretty
@@ -112,9 +228,134 @@ mtg gatherer search --card-type "Planeswalker" --colors "UW" --format "Legal:Sta
 mtg gatherer card "Teferi, Hero of Dominaria" --pretty
 ```
 
+#### Using Scryfall
+```bash
+# 1. Find aggressive red creatures
+mtg scryfall search "c:red t:creature mv<=2 pow>=2" --pretty
+
+# 2. Look for control win conditions
+mtg scryfall search "c:wu t:planeswalker f:standard" --pretty
+
+# 3. Research specific cards
+mtg scryfall card "Teferi, Hero of Dominaria" --pretty
+```
+
+### Format-Specific Research
+
+#### Standard Legal Cards
+```bash
+# Scryfall: Current Standard creatures
+mtg scryfall search "f:standard t:creature mv<=3" --pretty
+
+# Gatherer: Standard legal planeswalkers
+mtg gatherer search --format "Legal:Standard" --card-type "Planeswalker" --pretty
+```
+
+#### Commander Research
+```bash
+# Scryfall: Find potential commanders
+mtg scryfall search "is:commander c:wu" --pretty
+
+# Scryfall: Cards legal in commander with specific color identity
+mtg scryfall search "id<=esper f:commander" --pretty
+```
+
+#### Modern Staples
+```bash
+# Scryfall: Modern legal instants and sorceries
+mtg scryfall search "f:modern (t:instant or t:sorcery) mv<=2" --pretty
+```
+
+## Scryfall-Specific Workflows
+
+Scryfall's query syntax enables unique search patterns that aren't easily achievable with other engines:
+
+### Advanced Scryfall Queries
+
+#### Power/Toughness Relationships
+```bash
+# Creatures where power > toughness
+mtg scryfall search "t:creature pow>tou" --pretty
+
+# Creatures with equal power and toughness
+mtg scryfall search "t:creature pow=tou" --pretty
+
+# High power, low toughness creatures
+mtg scryfall search "t:creature pow>=4 tou<=2" --pretty
+```
+
+#### Mana Cost Patterns
+```bash
+# Cards with X in their mana cost
+mtg scryfall search "m:x" --pretty
+
+# Cards with hybrid mana
+mtg scryfall search "is:hybrid" --pretty
+
+# Cards with Phyrexian mana
+mtg scryfall search "is:phyrexian" --pretty
+
+# Expensive spells (high mana value)
+mtg scryfall search "mv>=8 (t:instant or t:sorcery)" --pretty
+```
+
+#### Special Card Properties
+```bash
+# Double-faced cards
+mtg scryfall search "is:dfc" --pretty
+
+# Split cards
+mtg scryfall search "is:split" --pretty
+
+# Cards that can be your commander
+mtg scryfall search "is:commander c:bant" --pretty
+
+# Reserved list cards
+mtg scryfall search "is:reserved" --pretty
+```
+
+#### Text and Flavor Searches
+```bash
+# Cards mentioning specific keywords in oracle text
+mtg scryfall search "o:flying o:vigilance" --pretty
+
+# Cards with specific flavor text
+mtg scryfall search "ft:jace" --pretty
+
+# Cards by specific artist
+mtg scryfall search "a:\"Rebecca Guay\"" --pretty
+```
+
+#### Complex Boolean Logic
+```bash
+# Either red creatures OR blue instants
+mtg scryfall search "(c:red t:creature) or (c:blue t:instant)" --pretty
+
+# Legendary creatures that are NOT red
+mtg scryfall search "t:legendary t:creature -c:red" --pretty
+
+# Artifacts that are either equipment OR vehicles
+mtg scryfall search "t:artifact (t:equipment or t:vehicle)" --pretty
+```
+
+### Scryfall Sorting and Display Options
+
+```bash
+# Sort by different criteria
+mtg scryfall search "c:red t:creature" --order cmc --pretty
+mtg scryfall search "t:planeswalker" --order usd --pretty
+mtg scryfall search "c:blue" --order power --dir desc --pretty
+
+# Include extra cards (tokens, etc.)
+mtg scryfall search "t:token" --include-extras --pretty
+
+# Show different printings
+mtg scryfall search "Lightning Bolt" --unique prints --pretty
+```
+
 ## Interactive Workflow with fzf
 
-For users who have `fzf` (fuzzy finder) installed, here's a powerful bash function that combines search and card selection into an interactive workflow:
+For users who have `fzf` (fuzzy finder) installed, here are powerful bash functions that combine search and card selection into an interactive workflow. These work with both Gatherer and Scryfall:
 
 ### Installation
 
@@ -254,13 +495,135 @@ All gatherer search options are supported. Add --pretty for final card display."
 
 # Shorter alias for convenience
 alias mtgf='mtg_card_search'
+
+# Interactive Scryfall search function
+scryfall_search() {
+    local search_args=()
+    local pretty_flag=""
+    local help_text="Usage: scryfall_search [search_query] [--pretty]
+
+Search for MTG cards interactively using Scryfall and fzf.
+
+Examples:
+  scryfall_search \"c:red t:creature\"
+  scryfall_search \"Lightning Bolt\" --pretty
+  scryfall_search \"f:modern c:wu t:creature mv<=3\"
+
+All Scryfall query syntax is supported. Add --pretty for final card display."
+
+    # Parse arguments to separate --pretty flag
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --help|-h)
+                echo "$help_text" 1>&2
+                return 0
+                ;;
+            --pretty)
+                pretty_flag="--pretty"
+                shift
+                ;;
+            *)
+                search_args+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    # Check if mtg command exists
+    if ! command -v mtg &> /dev/null; then
+        echo "Error: 'mtg' command not found. Please install the MTG CLI first." 1>&2
+        return 1
+    fi
+
+    # Check if fzf exists
+    if ! command -v fzf &> /dev/null; then
+        echo "Error: 'fzf' not found. Please install fzf first:" 1>&2
+        echo "  brew install fzf    # macOS" 1>&2
+        echo "  sudo apt install fzf    # Ubuntu/Debian" 1>&2
+        return 1
+    fi
+
+    # Check if jq exists
+    if ! command -v jq &> /dev/null; then
+        echo "Error: 'jq' not found. Please install jq first:" 1>&2
+        echo "  brew install jq    # macOS" 1>&2
+        echo "  sudo apt install jq    # Ubuntu/Debian" 1>&2
+        return 1
+    fi
+
+    # Combine all search arguments into a single query
+    local query="${search_args[*]}"
+    if [[ -z "$query" ]]; then
+        echo "Error: Please provide a search query." 1>&2
+        echo "$help_text" 1>&2
+        return 1
+    fi
+
+    echo "Searching Scryfall for: $query" 1>&2
+
+    # Get search results in JSON format
+    local tmpfile=$(mktemp)
+    trap "rm -f $tmpfile" EXIT
+
+    if ! mtg scryfall search "$query" > "$tmpfile" 2>&1; then
+        echo "Error: Search failed. Please check your query syntax." 1>&2
+        cat "$tmpfile" 1>&2
+        return 1
+    fi
+
+    # Extract card names using jq
+    local card_names
+    card_names=$(jq -r '.data[]?.name // empty' < "$tmpfile" 2>/dev/null)
+
+    if [[ -z "$card_names" ]]; then
+        echo "No cards found matching your query: $query" 1>&2
+        return 1
+    fi
+
+    # Count results
+    local card_count
+    card_count=$(echo "$card_names" | wc -l | tr -d ' ')
+
+    echo "Found $card_count cards. Use fzf to select one..." 1>&2
+    echo "Press Ctrl+C to cancel, Enter to select, or type to filter." 1>&2
+    echo "" 1>&2
+
+    # Create a preview command that shows card details
+    local preview_cmd='mtg scryfall card --pretty {}'
+
+    # Use fzf to select a card
+    local selected_card
+    selected_card=$(echo "$card_names" | fzf \
+        --height=80% \
+        --border \
+        --prompt="Select a card: " \
+        --preview="$preview_cmd" \
+        --preview-window=right:60% \
+        --header="Found $card_count cards - Press Enter to select, Ctrl+C to cancel")
+
+    # Check if user cancelled
+    if [[ -z "$selected_card" ]]; then
+        echo "Selection cancelled." 1>&2
+        return 0
+    fi
+
+    echo "" 1>&2
+    echo "Getting details for: $selected_card" 1>&2
+    echo "----------------------------------------" 1>&2
+
+    # Get detailed card information
+    mtg scryfall card "$selected_card" $pretty_flag
+}
+
+# Shorter alias for convenience
+alias scryfallf='scryfall_search'
 ```
 
 ### Usage Examples
 
 After adding the functions to your shell configuration and reloading it (`source ~/.bashrc` or restart your terminal), you can use:
 
-#### Basic Interactive Search (mtg_card_search / mtgf)
+#### Gatherer Interactive Search (mtg_card_search / mtgf)
 
 ```bash
 # Basic search with interactive selection
@@ -280,6 +643,28 @@ mtgf --card-type "Planeswalker" --colors "U" --pretty
 
 # Get help
 mtg_card_search --help
+```
+
+#### Scryfall Interactive Search (scryfall_search / scryfallf)
+
+```bash
+# Basic search with interactive selection
+scryfall_search "Lightning Bolt"
+
+# Search with Scryfall syntax
+scryfall_search "c:red t:creature mv<=3" --pretty
+
+# Complex queries
+scryfall_search "f:modern c:wu t:creature"
+
+# Advanced syntax
+scryfall_search "pow>tou c:green" --pretty
+
+# Use the shorter alias
+scryfallf "is:commander c:bant" --pretty
+
+# Get help
+scryfall_search --help
 ```
 
 #### Advanced Browse with Pagination (mtg_card_browse / mtgb)
@@ -337,11 +722,29 @@ mtg_card_browse --help
 - **Include punctuation** exactly as shown: `"Jace, the Mind Sculptor"`
 - **Case doesn't matter**: `"lightning bolt"` works the same as `"Lightning Bolt"`
 
+### Search Engine Selection
+
+- **Use Scryfall** for flexible, intuitive queries and modern search patterns
+- **Use Gatherer** for official Wizards data and complex boolean logic
+- **Use MTG API** for structured, programmatic searches with specific filters
+
 ### Search Optimization
 
+#### General Tips
 - **Start broad, then narrow**: Begin with general searches and add filters
 - **Use pagination**: Large result sets are paginated; use `--page` to navigate
 - **Combine filters**: Use multiple parameters to find exactly what you need
+
+#### Scryfall-Specific Tips
+- **Learn the syntax**: Scryfall's query language is very powerful once you know it
+- **Use operators**: `>=`, `<=`, `>`, `<`, `=`, `!=` work with numbers
+- **Combine with OR**: Use `(condition1) or (condition2)` for complex logic
+- **Negate with `-`**: Use `-c:red` to exclude red cards
+
+#### Gatherer-Specific Tips
+- **Use boolean operators**: Comma for OR, plus for AND in multi-value fields
+- **Exact matching**: Gatherer is more strict about exact matches
+- **Format syntax**: Use "Legal:Format" or "Banned:Format" for legality
 
 ### Output Formats
 
@@ -354,11 +757,13 @@ mtg_card_browse --help
 - **Specific searches** are faster than broad ones
 - **Use set filters** when looking for cards from specific releases
 - **Cache results** in scripts by saving JSON output to files
+- **Scryfall is generally faster** for most queries due to its optimized API
 
 ## Integration with Other Tools
 
 ### Shell Scripting
 
+#### Gatherer
 ```bash
 # Save search results for later processing
 mtg gatherer search --card-type "Creature" --colors "R" > red_creatures.json
@@ -367,14 +772,55 @@ mtg gatherer search --card-type "Creature" --colors "R" > red_creatures.json
 cat red_creatures.json | jq '.items[].instanceName' | sort
 ```
 
+#### Scryfall
+```bash
+# Save Scryfall search results
+mtg scryfall search "c:red t:creature" > red_creatures_scryfall.json
+
+# Extract card names from Scryfall results
+cat red_creatures_scryfall.json | jq '.data[].name' | sort
+
+# Get specific card data
+cat red_creatures_scryfall.json | jq '.data[] | {name: .name, mana_cost: .mana_cost, cmc: .cmc}'
+```
+
 ### Text Processing
 
+#### Gatherer
 ```bash
 # Find cards with specific rules text
 mtg gatherer search --rules "flying" --pretty | grep "Creature"
 
 # Count cards by rarity
 mtg gatherer search --card-type "Creature" | jq '.items | group_by(.rarityName) | map({rarity: .[0].rarityName, count: length})'
+```
+
+#### Scryfall
+```bash
+# Find cards with specific oracle text
+mtg scryfall search "o:flying" --pretty | grep "Creature"
+
+# Count cards by rarity from Scryfall
+mtg scryfall search "t:creature" | jq '.data | group_by(.rarity) | map({rarity: .[0].rarity, count: length})'
+
+# Extract mana costs and analyze
+mtg scryfall search "c:red t:creature" | jq '.data[].mana_cost' | sort | uniq -c
+```
+
+### Advanced Data Analysis
+
+```bash
+# Compare card counts between different sources
+echo "Gatherer red creatures:"
+mtg gatherer search --card-type "Creature" --colors "R" | jq '.totalItems'
+
+echo "Scryfall red creatures:"
+mtg scryfall search "c:red t:creature" | jq '.total_cards'
+
+# Find cards that exist in one source but not another
+mtg gatherer search --card-type "Creature" --colors "R" | jq -r '.items[].instanceName' | sort > gatherer_red.txt
+mtg scryfall search "c:red t:creature" | jq -r '.data[].name' | sort > scryfall_red.txt
+comm -23 gatherer_red.txt scryfall_red.txt  # Cards in Gatherer but not Scryfall
 ```
 
 This workflow documentation provides a comprehensive guide for efficiently using the MTG CLI to research and explore Magic: The Gathering cards.

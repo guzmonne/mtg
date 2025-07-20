@@ -11,6 +11,7 @@ mod error;
 mod gatherer;
 mod mcp;
 mod prelude;
+mod scryfall;
 
 #[derive(Debug, clap::Parser)]
 #[command(author, version, about, long_about = "Magic The Gathering API CLI")]
@@ -53,6 +54,9 @@ pub enum SubCommands {
     /// Search cards using Wizards' Gatherer advanced search
     Gatherer(crate::gatherer::App),
 
+    /// Search cards using Scryfall advanced search
+    Scryfall(crate::scryfall::App),
+
     /// Generate shell completions
     Completions(crate::completions::App),
 
@@ -70,6 +74,7 @@ async fn main() -> Result<()> {
     match app.command {
         SubCommands::Api { command } => command.run().await,
         SubCommands::Gatherer(sub_app) => crate::gatherer::run(sub_app, app.global).await,
+        SubCommands::Scryfall(sub_app) => crate::scryfall::run(sub_app, app.global).await,
         SubCommands::Completions(sub_app) => crate::completions::run(sub_app, app.global).await,
         SubCommands::Mcp => crate::mcp::run_mcp_server(app.global).await,
     }
