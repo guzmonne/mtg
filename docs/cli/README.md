@@ -15,19 +15,14 @@ The MTG CLI provides a powerful command-line interface for interacting with Magi
 
 ## Overview
 
-The MTG CLI is built around six main command categories:
+The MTG CLI is built around four main command categories:
 
-### Cards
+### API
 
-Search for Magic cards with advanced filtering options including name, colors, type, rarity, set, and mana cost.
-
-### Sets
-
-Browse Magic sets, view set information, and generate virtual booster packs.
-
-### Types
-
-Access comprehensive information about card types, subtypes, supertypes, and game formats.
+Access the official Magic: The Gathering API directly with subcommands for:
+- **Cards** - Search for Magic cards with advanced filtering options including name, colors, type, rarity, set, and mana cost
+- **Sets** - Browse Magic sets, view set information, and generate virtual booster packs
+- **Types** - Access comprehensive information about card types, subtypes, supertypes, and game formats
 
 ### Gatherer
 
@@ -45,16 +40,16 @@ Start the Model Context Protocol server for AI integration.
 
 ```bash
 # Search for a specific card
-mtg cards search "Lightning Bolt"
+mtg api cards search "Lightning Bolt"
 
 # Search using official Gatherer database
 mtg gatherer search --name "Lightning Bolt" --rarity "Common"
 
 # List recent sets
-mtg sets list --page-size 10
+mtg api sets list --page-size 10
 
 # Get all card types
-mtg types list
+mtg api types list
 
 # Generate shell completions
 mtg completions generate bash

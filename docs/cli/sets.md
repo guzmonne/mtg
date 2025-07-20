@@ -1,6 +1,6 @@
 # Set Commands
 
-The `mtg sets` command provides access to Magic: The Gathering set information and booster pack generation.
+The `mtg api sets` command provides access to Magic: The Gathering set information and booster pack generation.
 
 ## Available Commands
 
@@ -15,49 +15,49 @@ The `mtg sets` command provides access to Magic: The Gathering set information a
 
 ```bash
 # List all sets (paginated)
-mtg sets list
+mtg api sets list
 
 # List with custom page size
-mtg sets list --page-size 10
+mtg api sets list --page-size 10
 
 # Get specific page
-mtg sets list --page 2 --page-size 20
+mtg api sets list --page 2 --page-size 20
 ```
 
 ### Filtering by Name
 
 ```bash
 # Sets with "Zendikar" in the name
-mtg sets list --name "Zendikar"
+mtg api sets list --name "Zendikar"
 
 # Sets with "Masters" in the name
-mtg sets list --name "Masters"
+mtg api sets list --name "Masters"
 ```
 
 ### Filtering by Block
 
 ```bash
 # Sets from Innistrad block
-mtg sets list --block "Innistrad"
+mtg api sets list --block "Innistrad"
 
 # Sets from Ravnica block
-mtg sets list --block "Ravnica"
+mtg api sets list --block "Ravnica"
 ```
 
 ### Filtering by Type
 
 ```bash
 # Core sets only
-mtg sets list --type "core"
+mtg api sets list --type "core"
 
 # Expansion sets
-mtg sets list --type "expansion"
+mtg api sets list --type "expansion"
 
 # Masters sets
-mtg sets list --type "masters"
+mtg api sets list --type "masters"
 
 # Commander products
-mtg sets list --type "commander"
+mtg api sets list --type "commander"
 ```
 
 ## Set Search
@@ -66,13 +66,13 @@ Search for sets by name with partial matching:
 
 ```bash
 # Find sets with "Dominaria" in the name
-mtg sets search "Dominaria"
+mtg api sets search "Dominaria"
 
 # Find Ravnica sets
-mtg sets search "Ravnica"
+mtg api sets search "Ravnica"
 
 # Find recent sets
-mtg sets search "2024"
+mtg api sets search "2024"
 ```
 
 ## Get Specific Set
@@ -81,13 +81,13 @@ Retrieve detailed information about a specific set:
 
 ```bash
 # Get Khans of Tarkir
-mtg sets get "KTK"
+mtg api sets get "KTK"
 
 # Get Alpha
-mtg sets get "LEA"
+mtg api sets get "LEA"
 
 # Get Modern Horizons 3
-mtg sets get "MH3"
+mtg api sets get "MH3"
 ```
 
 ## Booster Pack Generation
@@ -96,13 +96,13 @@ Generate virtual booster packs from specific sets:
 
 ```bash
 # Generate Khans of Tarkir booster
-mtg sets booster "KTK"
+mtg api sets booster "KTK"
 
 # Generate Innistrad booster
-mtg sets booster "ISD"
+mtg api sets booster "ISD"
 
 # Generate recent set booster
-mtg sets booster "BLB"  # Bloomburrow
+mtg api sets booster "BLB"  # Bloomburrow
 ```
 
 ## Output Examples
@@ -280,13 +280,13 @@ Some sets have unique booster structures:
 
 ```bash
 # Find all Ravnica sets
-mtg sets search "Ravnica"
+mtg api sets search "Ravnica"
 
 # Find sets from a specific year
-mtg sets list --name "2023"
+mtg api sets list --name "2023"
 
 # Find all Masters sets
-mtg sets list --type "masters"
+mtg api sets list --type "masters"
 ```
 
 ### Booster Generation
@@ -295,7 +295,7 @@ mtg sets list --type "masters"
 # Generate multiple boosters (run command multiple times)
 for i in {1..3}; do
   echo "=== Booster $i ==="
-  mtg sets booster "KTK"
+  mtg api sets booster "KTK"
   echo
 done
 ```
@@ -304,10 +304,10 @@ done
 
 ```bash
 # Get detailed info about a set before opening boosters
-mtg sets get "KTK"
+mtg api sets get "KTK"
 
 # Then generate booster
-mtg sets booster "KTK"
+mtg api sets booster "KTK"
 ```
 
 ---

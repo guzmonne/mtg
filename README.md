@@ -74,16 +74,16 @@ MTG CLI is a comprehensive command-line tool that provides access to Magic: The 
 
 ```bash
 # Search for a specific card
-mtg cards search "Lightning Bolt"
+mtg api cards search "Lightning Bolt"
 
 # List recent Magic sets
-mtg sets list --page-size 10
+mtg api sets list --page-size 10
 
 # Get all card types
-mtg types list
+mtg api types list
 
 # Generate booster pack
-mtg sets booster "KTK"
+mtg api sets booster "KTK"
 ```
 
 ### Set Up Shell Completions
@@ -138,51 +138,51 @@ export MTG_VERBOSE=1
 
 ```bash
 # Basic search
-mtg cards search "Lightning"
+mtg api cards search "Lightning"
 
 # Exact name matching
-mtg cards search "Lightning Bolt" --exact
+mtg api cards search "Lightning Bolt" --exact
 
 # Advanced filtering
-mtg cards list --colors "Red,Blue" --type "Creature" --cmc 4
+mtg api cards list --colors "Red,Blue" --type "Creature" --cmc 4
 
 # Get specific card by ID
-mtg cards get 409574
+mtg api cards get 409574
 
 # Search with pagination
-mtg cards search "Dragon" --page 2 --page-size 20
+mtg api cards search "Dragon" --page 2 --page-size 20
 ```
 
 ### Set Commands
 
 ```bash
 # List all sets
-mtg sets list
+mtg api sets list
 
 # Search sets by name
-mtg sets search "Zendikar"
+mtg api sets search "Zendikar"
 
 # Get specific set information
-mtg sets get "KTK"
+mtg api sets get "KTK"
 
 # Generate booster pack
-mtg sets booster "ISD"
+mtg api sets booster "ISD"
 ```
 
 ### Type Commands
 
 ```bash
 # List all card types
-mtg types list
+mtg api types list
 
 # Get subtypes
-mtg types subtypes
+mtg api types subtypes
 
 # Get supertypes
-mtg types supertypes
+mtg api types supertypes
 
 # Get game formats
-mtg types formats
+mtg api types formats
 ```
 
 ### Completion Commands
@@ -230,25 +230,25 @@ Add to your Claude Desktop configuration:
 
 ```bash
 # Find expensive red creatures
-mtg cards list --colors "Red" --type "Creature" --cmc 6 --rarity "Mythic Rare"
+mtg api cards list --colors "Red" --type "Creature" --cmc 6 --rarity "Mythic Rare"
 
 # Search for artifacts from specific set
-mtg cards list --type "Artifact" --set "KTK" --page-size 50
+mtg api cards list --type "Artifact" --set "KTK" --page-size 50
 
 # Find cards legal in Modern format
-mtg cards list --format "Modern" --rarity "Rare"
+mtg api cards list --format "Modern" --rarity "Rare"
 ```
 
 ### Set Analysis
 
 ```bash
 # Research Khans of Tarkir
-mtg sets get "KTK"
+mtg api sets get "KTK"
 
 # Generate multiple booster packs
 for i in {1..3}; do
   echo "=== Booster Pack $i ==="
-  mtg sets booster "KTK"
+  mtg api sets booster "KTK"
   echo
 done
 ```
@@ -257,13 +257,13 @@ done
 
 ```bash
 # Find all Dragons
-mtg cards list --subtype "Dragon" --page-size 100
+mtg api cards list --subtype "Dragon" --page-size 100
 
 # Research tribal strategies
-mtg types subtypes | grep -i "warrior\|wizard\|goblin"
+mtg api types subtypes | grep -i "warrior\|wizard\|goblin"
 
 # Check format legality
-mtg types formats
+mtg api types formats
 ```
 
 ## Configuration
@@ -309,7 +309,7 @@ cargo build --release
 cargo test
 
 # Run with logging
-RUST_LOG=debug cargo run -- cards search "Lightning Bolt"
+RUST_LOG=debug cargo run -- api cards search "Lightning Bolt"
 ```
 
 ### Project Structure
@@ -356,7 +356,7 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 ```bash
 # Increase timeout
-mtg --timeout 120 cards search "Complex Query"
+mtg --timeout 120 api cards search "Complex Query"
 ```
 
 **API Rate Limiting:**
@@ -372,7 +372,7 @@ mtg --timeout 120 cards search "Complex Query"
 curl -s "https://api.magicthegathering.io/v1/cards?pageSize=1"
 
 # Check with verbose output
-mtg --verbose cards search "test"
+mtg --verbose api cards search "test"
 ```
 
 **Shell Completions Not Working:**
@@ -392,7 +392,7 @@ Enable detailed debugging:
 ```bash
 export RUST_LOG=debug
 export RUST_BACKTRACE=1
-mtg --verbose cards search "Lightning Bolt"
+mtg --verbose api cards search "Lightning Bolt"
 ```
 
 ## Contributing

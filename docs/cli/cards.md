@@ -1,6 +1,6 @@
 # Card Commands
 
-The `mtg cards` command provides comprehensive access to Magic: The Gathering card data.
+The `mtg api cards` command provides comprehensive access to Magic: The Gathering card data through the official API.
 
 ## Available Commands
 
@@ -16,10 +16,10 @@ Search for cards by name (supports partial matching):
 
 ```bash
 # Find all cards with "Lightning" in the name
-mtg cards search "Lightning"
+mtg api cards search "Lightning"
 
 # Find cards with "Bolt" in the name
-mtg cards search "Bolt"
+mtg api cards search "Bolt"
 ```
 
 ### Exact Name Matching
@@ -28,7 +28,7 @@ Use the `--exact` flag for precise matches:
 
 ```bash
 # Find only cards named exactly "Lightning Bolt"
-mtg cards search "Lightning Bolt" --exact
+mtg api cards search "Lightning Bolt" --exact
 ```
 
 ### Pagination
@@ -37,13 +37,13 @@ Control result pagination:
 
 ```bash
 # Get first 5 results
-mtg cards search "Dragon" --page-size 5
+mtg api cards search "Dragon" --page-size 5
 
 # Get second page of results
-mtg cards search "Dragon" --page 2 --page-size 10
+mtg api cards search "Dragon" --page 2 --page-size 10
 
 # Get many results (max 100 per page)
-mtg cards search "Creature" --page-size 100
+mtg api cards search "Creature" --page-size 100
 ```
 
 ### Language Support
@@ -52,10 +52,10 @@ Search for foreign language cards:
 
 ```bash
 # Search for Japanese cards
-mtg cards search "Lightning Bolt" --language "Japanese"
+mtg api cards search "Lightning Bolt" --language "Japanese"
 
 # Search for German cards
-mtg cards search "Blitz" --language "German"
+mtg api cards search "Blitz" --language "German"
 ```
 
 ## Advanced Card Listing
@@ -66,105 +66,105 @@ The `list` command provides powerful filtering options:
 
 ```bash
 # List recent cards
-mtg cards list
+mtg api cards list
 
 # List with custom page size
-mtg cards list --page-size 20
+mtg api cards list --page-size 20
 ```
 
 ### Color Filtering
 
 ```bash
 # Red cards only
-mtg cards list --colors "Red"
+mtg api cards list --colors "Red"
 
 # Multi-color cards (AND logic)
-mtg cards list --colors "Red,Blue"
+mtg api cards list --colors "Red,Blue"
 
 # Cards with any of these colors (OR logic)
-mtg cards list --colors "Red|Blue|Green"
+mtg api cards list --colors "Red|Blue|Green"
 
 # Colorless cards
-mtg cards list --colors "Colorless"
+mtg api cards list --colors "Colorless"
 ```
 
 ### Type Filtering
 
 ```bash
 # Creatures only
-mtg cards list --type "Creature"
+mtg api cards list --type "Creature"
 
 # Instants and Sorceries
-mtg cards list --type "Instant" --page 1
-mtg cards list --type "Sorcery" --page 1
+mtg api cards list --type "Instant" --page 1
+mtg api cards list --type "Sorcery" --page 1
 
 # Artifacts
-mtg cards list --type "Artifact"
+mtg api cards list --type "Artifact"
 ```
 
 ### Rarity Filtering
 
 ```bash
 # Mythic Rare cards
-mtg cards list --rarity "Mythic Rare"
+mtg api cards list --rarity "Mythic Rare"
 
 # Common cards
-mtg cards list --rarity "Common"
+mtg api cards list --rarity "Common"
 
 # Rare and Mythic
-mtg cards list --rarity "Rare"
+mtg api cards list --rarity "Rare"
 ```
 
 ### Set Filtering
 
 ```bash
 # Cards from specific set
-mtg cards list --set "KTK"  # Khans of Tarkir
+mtg api cards list --set "KTK"  # Khans of Tarkir
 
 # Cards from Alpha
-mtg cards list --set "LEA"
+mtg api cards list --set "LEA"
 
 # Cards from recent sets
-mtg cards list --set "MH3"  # Modern Horizons 3
+mtg api cards list --set "MH3"  # Modern Horizons 3
 ```
 
 ### Mana Cost Filtering
 
 ```bash
 # Cards with CMC 1
-mtg cards list --cmc 1
+mtg api cards list --cmc 1
 
 # Cards with CMC 3
-mtg cards list --cmc 3
+mtg api cards list --cmc 3
 
 # High CMC cards
-mtg cards list --cmc 10
+mtg api cards list --cmc 10
 ```
 
 ### Power and Toughness
 
 ```bash
 # Creatures with power 1
-mtg cards list --power 1
+mtg api cards list --power 1
 
 # Creatures with toughness 1
-mtg cards list --toughness 1
+mtg api cards list --toughness 1
 
 # Powerful creatures
-mtg cards list --power 5 --toughness 5
+mtg api cards list --power 5 --toughness 5
 ```
 
 ### Combining Filters
 
 ```bash
 # Red creatures from Khans of Tarkir
-mtg cards list --colors "Red" --type "Creature" --set "KTK"
+mtg api cards list --colors "Red" --type "Creature" --set "KTK"
 
 # Cheap blue instants
-mtg cards list --colors "Blue" --type "Instant" --cmc 1
+mtg api cards list --colors "Blue" --type "Instant" --cmc 1
 
 # Expensive mythic artifacts
-mtg cards list --type "Artifact" --rarity "Mythic Rare" --cmc 5
+mtg api cards list --type "Artifact" --rarity "Mythic Rare" --cmc 5
 ```
 
 ## Get Specific Card
@@ -173,10 +173,10 @@ Retrieve detailed information about a specific card:
 
 ```bash
 # Get card by ID
-mtg cards get 409574
+mtg api cards get 409574
 
 # Get card by multiverse ID
-mtg cards get 1234567
+mtg api cards get 1234567
 ```
 
 ## Output Examples
@@ -275,20 +275,20 @@ When specifying colors, use these values:
 
 ```bash
 # Use shorter names for broader results
-mtg cards search "Bolt" --page-size 50
+mtg api cards search "Bolt" --page-size 50
 
 # Combine with exact for precision
-mtg cards search "Lightning Bolt" --exact --page-size 100
+mtg api cards search "Lightning Bolt" --exact --page-size 100
 ```
 
 ### Finding Specific Cards
 
 ```bash
 # Search by artist
-mtg cards list --artist "John Avon"
+mtg api cards list --artist "John Avon"
 
 # Search by flavor text (if supported)
-mtg cards search "sparkmage"
+mtg api cards search "sparkmage"
 ```
 
 ### Performance Tips

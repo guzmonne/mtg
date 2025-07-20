@@ -1,6 +1,6 @@
 # Type Commands
 
-The `mtg types` command provides access to Magic: The Gathering type system information, including card types, subtypes, supertypes, and game formats.
+The `mtg api types` command provides access to Magic: The Gathering type system information, including card types, subtypes, supertypes, and game formats.
 
 ## Available Commands
 
@@ -15,7 +15,7 @@ The `mtg types` command provides access to Magic: The Gathering type system info
 
 ```bash
 # Get all card types
-mtg types list
+mtg api types list
 ```
 
 This returns all primary card types including:
@@ -55,7 +55,7 @@ Total: 10 types
 
 ```bash
 # Get all subtypes
-mtg types subtypes
+mtg api types subtypes
 ```
 
 Subtypes are more specific classifications within each card type:
@@ -105,7 +105,7 @@ Total: 347 subtypes
 
 ```bash
 # Get all supertypes
-mtg types supertypes
+mtg api types supertypes
 ```
 
 Supertypes are special designations that modify how cards work:
@@ -135,7 +135,7 @@ Total: 4 supertypes
 
 ```bash
 # Get all game formats
-mtg types formats
+mtg api types formats
 ```
 
 This returns all official Magic formats where cards can be legal:
@@ -191,13 +191,13 @@ Each card has exactly one primary type:
 
 ```bash
 # Find creatures
-mtg cards list --type "Creature"
+mtg api cards list --type "Creature"
 
 # Find instants
-mtg cards list --type "Instant"
+mtg api cards list --type "Instant"
 
 # Find artifacts
-mtg cards list --type "Artifact"
+mtg api cards list --type "Artifact"
 ```
 
 #### Multiple Types
@@ -214,23 +214,23 @@ Some cards have multiple types:
 
 ```bash
 # Find all Dragons
-mtg cards list --subtype "Dragon"
+mtg api cards list --subtype "Dragon"
 
 # Find all Warriors
-mtg cards list --subtype "Warrior"
+mtg api cards list --subtype "Warrior"
 
 # Find Human Warriors
-mtg cards list --subtype "Human,Warrior"
+mtg api cards list --subtype "Human,Warrior"
 ```
 
 #### Land Subtypes
 
 ```bash
 # Find all Islands
-mtg cards list --subtype "Island"
+mtg api cards list --subtype "Island"
 
 # Find all basic lands
-mtg cards list --supertype "Basic"
+mtg api cards list --supertype "Basic"
 ```
 
 ### Format Legality
@@ -262,40 +262,40 @@ Legality:
 
 ```bash
 # What creature types are available?
-mtg types subtypes | grep -i "creature types"
+mtg api types subtypes | grep -i "creature types"
 
 # What formats exist for competitive play?
-mtg types formats
+mtg api types formats
 
 # Find all legendary creatures
-mtg cards list --supertype "Legendary" --type "Creature"
+mtg api cards list --supertype "Legendary" --type "Creature"
 ```
 
 ### Format Research
 
 ```bash
 # Check what formats exist
-mtg types formats
+mtg api types formats
 
 # Find cards legal in specific formats
-mtg cards list --format "Modern"
+mtg api cards list --format "Modern"
 
 # Research tribal strategies
-mtg types subtypes | grep -i "tribal"
+mtg api types subtypes | grep -i "tribal"
 ```
 
 ### Card Analysis
 
 ```bash
 # Understand artifact subtypes
-mtg types subtypes | grep -i "equipment\|vehicle"
+mtg api types subtypes | grep -i "equipment\|vehicle"
 
 # Research planeswalker types
-mtg types subtypes | grep -i "planeswalker"
+mtg api types subtypes | grep -i "planeswalker"
 
 # Find basic land types
-mtg types supertypes
-mtg types subtypes | grep -i "plains\|island\|swamp\|mountain\|forest"
+mtg api types supertypes
+mtg api types subtypes | grep -i "plains\|island\|swamp\|mountain\|forest"
 ```
 
 ## Type System Rules
@@ -326,26 +326,26 @@ mtg types subtypes | grep -i "plains\|island\|swamp\|mountain\|forest"
 
 ```bash
 # Find all legendary dragons
-mtg cards list --supertype "Legendary" --type "Creature" --subtype "Dragon"
+mtg api cards list --supertype "Legendary" --type "Creature" --subtype "Dragon"
 
 # Find equipment artifacts
-mtg cards list --type "Artifact" --subtype "Equipment"
+mtg api cards list --type "Artifact" --subtype "Equipment"
 
 # Find tribal spells
-mtg cards list --type "Tribal"
+mtg api cards list --type "Tribal"
 ```
 
 ### Format-Specific Queries
 
 ```bash
 # Research Standard-legal cards
-mtg cards list --format "Standard"
+mtg api cards list --format "Standard"
 
 # Find Commander-specific cards
-mtg cards list --format "Commander"
+mtg api cards list --format "Commander"
 
 # Research Pauper commons
-mtg cards list --format "Pauper" --rarity "Common"
+mtg api cards list --format "Pauper" --rarity "Common"
 ```
 
 ## Reference Tables
