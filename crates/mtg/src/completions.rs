@@ -41,7 +41,7 @@ fn generate_completions_for_shell(shell: Shell) {
         Shell::PowerShell => generate_completions(clap_complete::shells::PowerShell),
         Shell::Elvish => generate_completions(clap_complete::shells::Elvish),
         _ => {
-            eprintln!("Unsupported shell: {shell}");
+            aeprintln!("Unsupported shell: {shell}");
             std::process::exit(1);
         }
     }

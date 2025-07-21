@@ -1,7 +1,6 @@
 use crate::cache::CacheManager;
 use crate::prelude::*;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 /// Complete Scryfall Set object with all API fields
 #[derive(Debug, Serialize, Deserialize, Clone)]

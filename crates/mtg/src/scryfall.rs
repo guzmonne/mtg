@@ -10,6 +10,15 @@ pub struct App {
     pub command: SubCommands,
 }
 
+#[derive(Debug)]
+enum QueryIssue {
+    UnknownKeyword(String),
+    #[allow(dead_code)]
+    InvalidOperator(String),
+    #[allow(dead_code)]
+    MalformedExpression(String),
+}
+
 #[derive(Debug, clap::Parser)]
 pub enum SubCommands {
     /// Smart search that auto-detects what you're looking for (recommended for LLMs)
@@ -726,9 +735,7 @@ pub async fn run(app: App, global: crate::Global) -> Result<()> {
         SubCommands::Build { pretty, json } => {
             build_query_interactive(!json && pretty, global).await
         }
-    };
-
-    Ok(())
+    }
 }
 
 async fn get_autocomplete(query: &str, include_extras: bool, global: crate::Global) -> Result<()> {
@@ -740,7 +747,7 @@ async fn get_autocomplete(query: &str, include_extras: bool, global: crate::Glob
         .build()?;
 
     // Build URL with query parameters
-    let mut url = "https://api.scryfall.com/cards/autocomplete".to_string();
+    let url = "https://api.scryfall.com/cards/autocomplete".to_string();
     let mut query_params = vec![("q", query.to_string())];
 
     if include_extras {
@@ -762,7 +769,7 @@ async fn get_autocomplete(query: &str, include_extras: bool, global: crate::Glob
         }
 
         if global.verbose {
-            eprintln!("Found {} suggestions", autocomplete.total_values);
+            aeprintln!("Found {} suggestions", autocomplete.total_values);
         }
 
         return Ok(());
@@ -809,7 +816,7 @@ async fn get_autocomplete(query: &str, include_extras: bool, global: crate::Glob
     }
 
     if global.verbose {
-        eprintln!("Found {} suggestions", autocomplete.total_values);
+        aeprintln!("Found {} suggestions", autocomplete.total_values);
     }
 
     Ok(())
@@ -821,7 +828,7 @@ async fn smart_find(query: &str, pretty: bool, page: u32, global: crate::Global)
 
     // Validate query first
     if let Err(validation_error) = validate_and_suggest_query(query) {
-        eprintln!("{validation_error}");
+        aeprintln!("{validation_error}");
         return Ok(());
     }
 
@@ -830,37 +837,37 @@ async fn smart_find(query: &str, pretty: bool, page: u32, global: crate::Global)
         match intent {
             QueryIntent::ExactCardName(name) => {
                 if global.verbose {
-                    eprintln!("Auto-detected: Exact card name lookup for '{name}'");
+                    aeprintln!("Auto-detected: Exact card name lookup for '{name}'");
                 }
                 get_card_by_name(&name, pretty, None, global).await
             }
             QueryIntent::SetCollector(set, collector) => {
                 if global.verbose {
-                    eprintln!("Auto-detected: Set/collector lookup for {set} {collector}",);
+                    aeprintln!("Auto-detected: Set/collector lookup for {set} {collector}",);
                 }
                 get_card_by_collector(&set, &collector, None, pretty, global).await
             }
             QueryIntent::ArenaId(id) => {
                 if global.verbose {
-                    eprintln!("Auto-detected: Arena ID lookup for {id}");
+                    aeprintln!("Auto-detected: Arena ID lookup for {id}");
                 }
                 get_card_by_arena_id(id, pretty, global).await
             }
             QueryIntent::MtgoId(id) => {
                 if global.verbose {
-                    eprintln!("Auto-detected: MTGO ID lookup for {id}");
+                    aeprintln!("Auto-detected: MTGO ID lookup for {id}");
                 }
                 get_card_by_mtgo_id(id, pretty, global).await
             }
             QueryIntent::ScryfallId(id) => {
                 if global.verbose {
-                    eprintln!("Auto-detected: Scryfall UUID lookup");
+                    aeprintln!("Auto-detected: Scryfall UUID lookup");
                 }
                 get_card_by_id(&id, pretty, global).await
             }
             QueryIntent::SearchQuery(search_query) => {
                 if global.verbose {
-                    eprintln!("Auto-detected: Search query '{search_query}'");
+                    aeprintln!("Auto-detected: Search query '{search_query}'");
                 }
                 search_cards(
                     SearchParams {
@@ -883,7 +890,7 @@ async fn smart_find(query: &str, pretty: bool, page: u32, global: crate::Global)
     } else {
         // Fallback to search if we can't detect intent
         if global.verbose {
-            eprintln!("Could not auto-detect intent, falling back to search");
+            aeprintln!("Could not auto-detect intent, falling back to search");
         }
         search_cards(
             SearchParams {
@@ -1020,7 +1027,7 @@ async fn search_creatures(
     let query = query_parts.join(" ");
 
     if global.verbose {
-        eprintln!("Generated creature search query: {query}");
+        aeprintln!("Generated creature search query: {query}");
     }
 
     search_cards(
@@ -1066,7 +1073,7 @@ async fn search_instants(
     let query = query_parts.join(" ");
 
     if global.verbose {
-        eprintln!("Generated instant search query: {query}");
+        aeprintln!("Generated instant search query: {query}");
     }
 
     search_cards(
@@ -1112,7 +1119,7 @@ async fn search_sorceries(
     let query = query_parts.join(" ");
 
     if global.verbose {
-        eprintln!("Generated sorcery search query: {query}");
+        aeprintln!("Generated sorcery search query: {query}");
     }
 
     search_cards(
@@ -1158,7 +1165,7 @@ async fn search_planeswalkers(
     let query = query_parts.join(" ");
 
     if global.verbose {
-        eprintln!("Generated planeswalker search query: {query}");
+        aeprintln!("Generated planeswalker search query: {query}");
     }
 
     search_cards(
@@ -1203,7 +1210,7 @@ async fn search_commanders(
     let query = query_parts.join(" ");
 
     if global.verbose {
-        eprintln!("Generated commander search query: {query}");
+        aeprintln!("Generated commander search query: {query}");
     }
 
     search_cards(
@@ -1499,8 +1506,8 @@ fn suggest_card_name_correction(query: &str) -> Option<String> {
         ("sol ring", "Sol Ring"),
         ("black lotus", "Black Lotus"),
         ("time walk", "Time Walk"),
-        ("ancestral recal", "Ancestral Recall"),
-        ("mox saphire", "Mox Sapphire"),
+        ("ancestral recall", "Ancestral Recall"),
+        ("mox sapphire", "Mox Sapphire"),
         ("mox ruby", "Mox Ruby"),
         ("mox pearl", "Mox Pearl"),
         ("mox emerald", "Mox Emerald"),
@@ -1650,13 +1657,6 @@ fn validate_and_suggest_query(query: &str) -> Result<String, String> {
     Ok(query.to_string())
 }
 
-#[derive(Debug)]
-enum QueryIssue {
-    UnknownKeyword(String),
-    InvalidOperator(String),
-    MalformedExpression(String),
-}
-
 fn find_query_issues(query: &str) -> Vec<QueryIssue> {
     let mut issues = Vec::new();
 
@@ -1804,19 +1804,6 @@ fn parse_scryfall_response(response_text: &str) -> Result<ScryfallSearchResponse
     // Parse as search response
     let search_response: ScryfallSearchResponse = serde_json::from_str(response_text)?;
     Ok(search_response)
-}
-
-fn parse_scryfall_card_response_with_query(
-    response_text: &str,
-    query: &str,
-) -> Result<ScryfallCard> {
-    match parse_scryfall_card_response(response_text) {
-        Ok(card) => Ok(card),
-        Err(e) => {
-            let enhanced_error = enhance_error_message(&e.to_string(), query);
-            Err(eyre!("{}", enhanced_error))
-        }
-    }
 }
 
 fn parse_scryfall_card_response(response_text: &str) -> Result<ScryfallCard> {
@@ -1974,8 +1961,8 @@ fn display_pretty_results(response: &ScryfallSearchResponse, params: &SearchPara
     table.printstd();
 
     // Display pagination summary
-    eprintln!();
-    eprintln!(
+    aeprintln!();
+    aeprintln!(
         "Found {} cards (showing {} on page {})",
         response.total_cards.unwrap_or(response.data.len() as u32),
         response.data.len(),
@@ -1983,73 +1970,16 @@ fn display_pretty_results(response: &ScryfallSearchResponse, params: &SearchPara
     );
 
     if response.has_more {
-        eprintln!();
-        eprintln!("Pagination commands:");
+        aeprintln!();
+        aeprintln!("Pagination commands:");
 
-        let mut base_cmd = format!("mtg scryfall search \"{}\"", params.query);
+        let base_cmd = format!("mtg scryfall search \"{}\"", params.query);
 
         if params.page > 1 {
-            eprintln!("Previous page: {base_cmd} --page {}", params.page - 1);
+            aeprintln!("Previous page: {base_cmd} --page {}", params.page - 1);
         }
-        eprintln!("Next page: {base_cmd} --page {}", params.page + 1);
-        eprintln!("Jump to page: {base_cmd} --page <PAGE_NUMBER>");
-    }
-
-    Ok(())
-}
-
-fn display_advanced_pretty_results(
-    response: &ScryfallSearchResponse,
-    params: &AdvancedSearchParams,
-) -> Result<()> {
-    let mut table = Table::new();
-    table.set_format(*format::consts::FORMAT_CLEAN);
-    table.add_row(Row::new(vec![
-        Cell::new("Name"),
-        Cell::new("Cost"),
-        Cell::new("Type"),
-        Cell::new("Set"),
-        Cell::new("Rarity"),
-        Cell::new("P/T/L"),
-    ]));
-
-    for card in &response.data {
-        let mana_cost = card.mana_cost.as_deref().unwrap_or("");
-        let pt_loyalty = if let Some(loyalty) = &card.loyalty {
-            loyalty.clone()
-        } else if let (Some(power), Some(toughness)) = (&card.power, &card.toughness) {
-            format!("{power}/{toughness}")
-        } else {
-            "-".to_string()
-        };
-
-        table.add_row(Row::new(vec![
-            Cell::new(&card.name),
-            Cell::new(mana_cost),
-            Cell::new(&card.type_line),
-            Cell::new(&card.set_name),
-            Cell::new(&card.rarity),
-            Cell::new(&pt_loyalty),
-        ]));
-    }
-
-    table.printstd();
-
-    // Display pagination summary
-    eprintln!();
-    eprintln!(
-        "Found {} cards (showing {} on page {})",
-        response.total_cards.unwrap_or(response.data.len() as u32),
-        response.data.len(),
-        params.page
-    );
-
-    if response.has_more {
-        eprintln!();
-        eprintln!(
-            "Next page available - use --page {} to continue",
-            params.page + 1
-        );
+        aeprintln!("Next page: {base_cmd} --page {}", params.page + 1);
+        aeprintln!("Jump to page: {base_cmd} --page <PAGE_NUMBER>");
     }
 
     Ok(())
@@ -2180,7 +2110,7 @@ pub async fn search_cards_json(
         .build()?;
 
     // Build URL with query parameters
-    let mut url = "https://api.scryfall.com/cards/search".to_string();
+    let url = "https://api.scryfall.com/cards/search".to_string();
     let mut query_params = vec![
         ("q", params.query.clone()),
         ("page", params.page.to_string()),
@@ -2268,7 +2198,7 @@ pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result
         .build()?;
 
     // Build URL with query parameters
-    let mut url = "https://api.scryfall.com/cards/search".to_string();
+    let url = "https://api.scryfall.com/cards/search".to_string();
     let mut query_params = vec![
         ("q", params.query.clone()),
         ("page", params.page.to_string()),

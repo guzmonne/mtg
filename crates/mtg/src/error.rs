@@ -128,37 +128,6 @@ impl ScryfallApiError {
             },
         }
     }
-
-    /// Get warnings associated with this error
-    pub fn warnings(&self) -> Vec<String> {
-        match self {
-            ScryfallApiError::ApiError { warnings, .. } => warnings.clone(),
-            ScryfallApiError::BadRequest { warnings, .. } => warnings.clone(),
-            _ => Vec::new(),
-        }
-    }
-
-    /// Check if this error is retryable
-    pub fn is_retryable(&self) -> bool {
-        matches!(
-            self,
-            ScryfallApiError::RateLimit { .. }
-                | ScryfallApiError::ServerError { .. }
-                | ScryfallApiError::Network(_)
-                | ScryfallApiError::Timeout { .. }
-        )
-    }
-
-    /// Get suggested retry delay in seconds
-    pub fn retry_delay(&self) -> Option<u64> {
-        match self {
-            ScryfallApiError::RateLimit { retry_after, .. } => Some(*retry_after),
-            ScryfallApiError::ServerError { .. } => Some(5), // 5 second delay for server errors
-            ScryfallApiError::Network(_) => Some(2),         // 2 second delay for network errors
-            ScryfallApiError::Timeout { .. } => Some(1),     // 1 second delay for timeouts
-            _ => None,
-        }
-    }
 }
 
 /// Extract retry-after value from error details string
@@ -167,25 +136,3 @@ fn extract_retry_after(details: &str) -> Option<u64> {
     let re = regex::Regex::new(r"(?i)retry.?after[:\s]+(\d+)").ok()?;
     re.captures(details)?.get(1)?.as_str().parse().ok()
 }
-
-/// Image-related errors
-#[derive(thiserror::Error, Debug)]
-pub enum ImageError {
-    #[error("Image download failed: {0}")]
-    Download(String),
-
-    #[error("Image format not supported: {0}")]
-    UnsupportedFormat(String),
-
-    #[error("Image corruption detected: {0}")]
-    Corruption(String),
-
-    #[error("Image cache error: {0}")]
-    Cache(String),
-
-    #[error("Image validation failed: {0}")]
-    Validation(String),
-}
-
-/// Result type alias for convenience
-pub type Result<T> = std::result::Result<T, Error>;

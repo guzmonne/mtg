@@ -7,18 +7,6 @@ use std::path::{Path, PathBuf};
 /// Cache-related errors
 #[derive(thiserror::Error, Debug)]
 pub enum CacheError {
-    #[error("Cache directory error: {0}")]
-    Directory(String),
-
-    #[error("Cache corruption: {0}")]
-    Corruption(String),
-
-    #[error("Cache size limit exceeded: {current} > {limit}")]
-    SizeLimit { current: u64, limit: u64 },
-
-    #[error("Cache key error: {0}")]
-    Key(String),
-
     #[error("Cache serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 
@@ -40,11 +28,6 @@ pub struct CachedResponse {
 impl CacheManager {
     pub fn new() -> Result<Self> {
         let cache_dir = Self::get_cache_dir()?;
-        Ok(Self { cache_dir })
-    }
-
-    pub fn with_dir(cache_dir: PathBuf) -> Result<Self> {
-        Self::ensure_cache_dir(&cache_dir)?;
         Ok(Self { cache_dir })
     }
 
@@ -133,41 +116,48 @@ impl CacheManager {
 
         Ok(())
     }
-
-    pub async fn clear(&self) -> Result<()> {
-        let entries = fs::read_dir(&self.cache_dir)?;
-
-        for entry in entries {
-            let entry = entry?;
-            if entry.path().extension().and_then(|s| s.to_str()) == Some("json") {
-                tokio::fs::remove_file(entry.path()).await?;
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn list_cached_files(&self) -> Result<Vec<String>> {
-        let mut files = Vec::new();
-        let entries = fs::read_dir(&self.cache_dir)?;
-
-        for entry in entries {
-            let entry = entry?;
-            if let Some(name) = entry.file_name().to_str() {
-                if name.ends_with(".json") {
-                    files.push(name.to_string());
-                }
-            }
-        }
-
-        Ok(files)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    impl CacheManager {
+        pub fn with_dir(cache_dir: PathBuf) -> Result<Self> {
+            Self::ensure_cache_dir(&cache_dir)?;
+            Ok(Self { cache_dir })
+        }
+
+        pub async fn clear(&self) -> Result<()> {
+            let entries = fs::read_dir(&self.cache_dir)?;
+
+            for entry in entries {
+                let entry = entry?;
+                if entry.path().extension().and_then(|s| s.to_str()) == Some("json") {
+                    tokio::fs::remove_file(entry.path()).await?;
+                }
+            }
+
+            Ok(())
+        }
+
+        pub fn list_cached_files(&self) -> Result<Vec<String>> {
+            let mut files = Vec::new();
+            let entries = fs::read_dir(&self.cache_dir)?;
+
+            for entry in entries {
+                let entry = entry?;
+                if let Some(name) = entry.file_name().to_str() {
+                    if name.ends_with(".json") {
+                        files.push(name.to_string());
+                    }
+                }
+            }
+
+            Ok(files)
+        }
+    }
 
     #[tokio::test]
     async fn test_cache_manager() -> Result<()> {

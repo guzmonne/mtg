@@ -1,6 +1,5 @@
 #![allow(clippy::large_enum_variant)]
 #![allow(clippy::uninlined_format_args)]
-#![allow(unused)]
 
 use crate::prelude::*;
 use clap::Parser;
@@ -153,7 +152,7 @@ async fn handle_sets_command(command: SetCommands, global: Global) -> Result<()>
                 match sets::SetType::from_str(&type_str) {
                     Some(t) => Some(t),
                     None => {
-                        eprintln!(
+                        aeprintln!(
                             "Invalid set type: {type_str}. Use 'mtg sets types' to see available types."
                         );
                         return Ok(());
@@ -228,15 +227,15 @@ fn display_sets_table(sets_list: &sets::ScryfallSetList) -> Result<()> {
 
     // Display warnings if any
     if let Some(warnings) = &sets_list.warnings {
-        eprintln!();
-        eprintln!("⚠️  Warnings:");
+        aeprintln!();
+        aeprintln!("⚠️  Warnings:");
         for warning in warnings {
-            eprintln!("   • {warning}");
+            aeprintln!("   • {warning}");
         }
     }
 
-    eprintln!();
-    eprintln!("Found {} sets", sets_list.data.len());
+    aeprintln!();
+    aeprintln!("Found {} sets", sets_list.data.len());
 
     Ok(())
 }
