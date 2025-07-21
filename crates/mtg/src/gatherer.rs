@@ -439,7 +439,12 @@ fn display_pretty_results(data: &Value, params: &SearchParams) -> Result<()> {
 fn card_name_to_url_slug(name: &str) -> String {
     name.to_lowercase()
         .replace(' ', "-")
-        .replace([',', '\'', ':', '!', '?', '(', ')', '[', ']', '{', '}', '/', '\\', '"'], "")
+        .replace(
+            [
+                ',', '\'', ':', '!', '?', '(', ')', '[', ']', '{', '}', '/', '\\', '"',
+            ],
+            "",
+        )
         .replace('&', "and")
         .replace("--", "-")
         .trim_matches('-')

@@ -888,7 +888,7 @@ impl DeckAnalysisTool {
             Box::pin(async move {
                 let empty_args = HashMap::new();
                 let args = request.arguments.as_ref().unwrap_or(&empty_args);
-                
+
                 if let Some(deck_list) = args.get("deck_list").and_then(|v| v.as_str()) {
                     // Create a default Global config
                     let global = crate::Global {
@@ -899,7 +899,7 @@ impl DeckAnalysisTool {
 
                     match crate::deck::analyze_deck_list_mcp(deck_list, global).await {
                         Ok(analysis) => tool_text_response!(analysis),
-                        Err(e) => tool_text_response!(format!("Failed to analyze deck: {}", e))
+                        Err(e) => tool_text_response!(format!("Failed to analyze deck: {}", e)),
                     }
                 } else {
                     tool_text_response!("Error: 'deck_list' parameter is required.")
