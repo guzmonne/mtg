@@ -13,7 +13,6 @@ The MTG CLI provides a powerful command-line interface for interacting with Magi
 - [Scryfall Commands](./scryfall.md) - Search using Scryfall's powerful search engine
 - [Workflow Guide](./workflow.md) - Common workflows and interactive tools
 - [Shell Completions](./completions.md) - Generate shell completions for enhanced CLI experience
-- [Configuration](./configuration.md) - Environment variables and settings
 
 ## Overview
 
@@ -22,6 +21,7 @@ The MTG CLI is built around six main command categories:
 ### API
 
 Access the official Magic: The Gathering API directly with subcommands for:
+
 - **Cards** - Search for Magic cards with advanced filtering options including name, colors, type, rarity, set, and mana cost
 - **Sets** - Browse Magic sets, view set information, and generate virtual booster packs
 - **Types** - Access comprehensive information about card types, subtypes, supertypes, and game formats
@@ -33,6 +33,7 @@ Search using Wizards of the Coast's official Gatherer advanced search functional
 ### Scryfall
 
 Search using Scryfall's powerful and flexible search engine with:
+
 - **Multiple lookup methods** - Find cards by name, ID, set/collector number, Arena ID, MTGO ID, and more
 - **Advanced search syntax** - Use Scryfall's comprehensive query language
 - **Enhanced filtering** - Individual filter options for precise searches
@@ -42,6 +43,7 @@ Search using Scryfall's powerful and flexible search engine with:
 ### Deck Analysis
 
 Analyze Magic: The Gathering deck lists with comprehensive statistics:
+
 - **Mana curve analysis** - Understand your deck's speed and consistency
 - **Type distribution** - Breakdown by card types (creatures, spells, lands)
 - **Color analysis** - Color identity and mana requirements

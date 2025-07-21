@@ -1,4 +1,5 @@
 #![allow(clippy::large_enum_variant)]
+#![allow(clippy::uninlined_format_args)]
 #![allow(unused)]
 
 use crate::prelude::*;

@@ -189,6 +189,7 @@ mtg cards list --rarity <TAB>     # Available rarities (if implemented)
 ### Completions Not Working
 
 1. **Verify Installation**:
+
    ```bash
    # Check if completion file exists
    ls -la ~/.local/share/bash-completion/completions/mtg  # Bash
@@ -197,6 +198,7 @@ mtg cards list --rarity <TAB>     # Available rarities (if implemented)
    ```
 
 2. **Reload Shell Configuration**:
+
    ```bash
    source ~/.bashrc    # Bash
    source ~/.zshrc     # Zsh
@@ -204,6 +206,7 @@ mtg cards list --rarity <TAB>     # Available rarities (if implemented)
    ```
 
 3. **Check Shell Configuration**:
+
    ```bash
    # Bash: Ensure bash-completion is installed
    # Ubuntu/Debian: sudo apt install bash-completion
@@ -315,4 +318,4 @@ fi
 
 ---
 
-Next: [Configuration](configuration.md) | Back: [Type Commands](types.md)
+Next: [README](./README.md) | Back: [Type Commands](types.md)

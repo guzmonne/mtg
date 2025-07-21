@@ -29,7 +29,7 @@ futures = "0.3.31"
 clap-stdin = "0.6.0"
 reqwest = { version = "0.12.9", features = ["json"] }
 mcp-core = { version = "0.1.50", features = ["sse"] }
-dirs = "5.0"
+dirs = "6.0"
 sha2 = "0.10"
 urlencoding = "2.1"
 regex = "1.10"
