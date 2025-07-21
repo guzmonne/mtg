@@ -112,7 +112,8 @@ async fn analyze_deck_stats(
     // Output results
     match format.as_str() {
         "json" => output_json(&deck_with_details, &stats)?,
-        "pretty" | _ => output_pretty(&deck_with_details, &stats)?,
+        "pretty" => output_pretty(&deck_with_details, &stats)?,
+        _ => output_pretty(&deck_with_details, &stats)?,
     }
     
     Ok(())

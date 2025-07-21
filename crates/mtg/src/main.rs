@@ -218,7 +218,7 @@ fn display_sets_table(sets_list: &sets::ScryfallSetList) -> Result<()> {
             Cell::new(&set.code.to_uppercase()),
             Cell::new(&set.name),
             Cell::new(&set.set_type),
-            Cell::new(&set.released_at.as_deref().unwrap_or("Unknown")),
+            Cell::new(set.released_at.as_deref().unwrap_or("Unknown")),
             Cell::new(&set.card_count.to_string()),
             Cell::new(if set.digital { "Yes" } else { "No" }),
         ]));

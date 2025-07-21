@@ -25,13 +25,13 @@ jobs:
           
           # macOS Intel
           - target: x86_64-apple-darwin
-            os: macos-latest
+            os: macos-14
             artifact_name: mtg
             asset_name: mtg-macos-x86_64
           
           # macOS Apple Silicon
           - target: aarch64-apple-darwin
-            os: macos-latest
+            os: macos-14
             artifact_name: mtg
             asset_name: mtg-macos-arm64
           

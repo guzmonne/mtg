@@ -348,10 +348,10 @@ impl ScryfallNamedTool {
                                                     .get("details")
                                                     .and_then(|v| v.as_str())
                                                     .unwrap_or("Unknown error");
-                                                return tool_text_response!(format!(
+                                                tool_text_response!(format!(
                                                     "Card not found: {}",
                                                     error_msg
-                                                ));
+                                                ))
                                             } else {
                                                 // Parse as card response
                                                 match serde_json::from_value::<
@@ -461,10 +461,10 @@ impl ScryfallIdTool {
                                             .get("details")
                                             .and_then(|v| v.as_str())
                                             .unwrap_or("Unknown error");
-                                        return tool_text_response!(format!(
+                                        tool_text_response!(format!(
                                             "Card not found: {}",
                                             error_msg
-                                        ));
+                                        ))
                                     } else {
                                         match serde_json::from_value::<crate::scryfall::ScryfallCard>(
                                             json_value,
@@ -578,10 +578,10 @@ impl ScryfallCollectorTool {
                                             .get("details")
                                             .and_then(|v| v.as_str())
                                             .unwrap_or("Unknown error");
-                                        return tool_text_response!(format!(
+                                        tool_text_response!(format!(
                                             "Card not found: {}",
                                             error_msg
-                                        ));
+                                        ))
                                     } else {
                                         match serde_json::from_value::<crate::scryfall::ScryfallCard>(
                                             json_value,
@@ -685,10 +685,10 @@ impl ScryfallRandomTool {
                                         .get("details")
                                         .and_then(|v| v.as_str())
                                         .unwrap_or("Unknown error");
-                                    return tool_text_response!(format!(
+                                    tool_text_response!(format!(
                                         "No random card found: {}",
                                         error_msg
-                                    ));
+                                    ))
                                 } else {
                                     match serde_json::from_value::<crate::scryfall::ScryfallCard>(
                                         json_value,
@@ -796,10 +796,10 @@ impl ScryfallAutocompleteTool {
                                             .get("details")
                                             .and_then(|v| v.as_str())
                                             .unwrap_or("Unknown error");
-                                        return tool_text_response!(format!(
+                                        tool_text_response!(format!(
                                             "Autocomplete failed: {}",
                                             error_msg
-                                        ));
+                                        ))
                                     } else if object_type == "catalog" {
                                         if let Some(data) =
                                             json_value.get("data").and_then(|v| v.as_array())

@@ -439,20 +439,7 @@ fn display_pretty_results(data: &Value, params: &SearchParams) -> Result<()> {
 fn card_name_to_url_slug(name: &str) -> String {
     name.to_lowercase()
         .replace(' ', "-")
-        .replace(',', "")
-        .replace('\'', "")
-        .replace(':', "")
-        .replace('!', "")
-        .replace('?', "")
-        .replace('(', "")
-        .replace(')', "")
-        .replace('[', "")
-        .replace(']', "")
-        .replace('{', "")
-        .replace('}', "")
-        .replace('/', "")
-        .replace('\\', "")
-        .replace('"', "")
+        .replace([',', '\'', ':', '!', '?', '(', ')', '[', ']', '{', '}', '/', '\\', '"'], "")
         .replace('&', "and")
         .replace("--", "-")
         .trim_matches('-')
@@ -609,9 +596,11 @@ async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()>
         .timeout(std::time::Duration::from_secs(global.timeout))
         .build()?;
 
-    let mut request = SearchRequest::default();
-    request.card_name = name.to_string();
-    request.page = "1".to_string();
+    let request = SearchRequest {
+        card_name: name.to_string(),
+        page: "1".to_string(),
+        ..Default::default()
+    };
 
     let payload = serde_json::json!(["$undefined", request, {}, true, 1]);
 
