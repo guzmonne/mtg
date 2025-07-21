@@ -1,8 +1,8 @@
-use crate::prelude::*;
 use crate::cache::CacheManager;
+use crate::prelude::*;
+use prettytable::{format, Cell, Row, Table};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use prettytable::{Table, Row, Cell, format};
 
 #[derive(Debug, clap::Parser)]
 pub struct App {
@@ -10,82 +10,83 @@ pub struct App {
     pub command: SubCommands,
 }
 
-    #[derive(Debug, clap::Parser)]
-    pub enum SubCommands {
-        /// Search for Magic cards using Gatherer advanced search
-        Search {
-            /// Card name to search for
-            #[clap(long, short)]
-            name: Option<String>,
-    
-            /// Rules text to search for
-            #[clap(long)]
-            rules: Option<String>,
-    
-            /// Card type (e.g., "Creature", "Instant", "Creature,Enchantment" for OR, "Creature+Legendary" for AND)
-            #[clap(long, short = 't')]
-            card_type: Option<String>,
-    
-            /// Card subtype (e.g., "Human", "Wizard", "Human,Wizard" for OR, "Human+Soldier" for AND)
-            #[clap(long, short = 's')]
-            subtype: Option<String>,
-    
-            /// Card supertype (e.g., "Legendary", "Snow", "Legendary,Snow" for OR)
-            #[clap(long)]
-            supertype: Option<String>,
-    
-            /// Mana cost (e.g., "{2}{U}", "1W(B/G)(W/P)")
-            #[clap(long, short = 'm')]
-            mana_cost: Option<String>,
-    
-            /// Set name (e.g., "Magic: The Gathering—FINAL FANTASY")
-            #[clap(long)]
-            set: Option<String>,
-    
-            /// Rarity (Common, Uncommon, Rare, Mythic)
-            #[clap(long, short)]
-            rarity: Option<String>,
-    
-            /// Artist name
-            #[clap(long, short)]
-            artist: Option<String>,
-    
-            /// Power value or range (e.g., "5", "5-10")
-            #[clap(long, short)]
-            power: Option<String>,
-    
-            /// Toughness value or range (e.g., "2", "2-5")
-            #[clap(long)]
-            toughness: Option<String>,
-    
-            /// Loyalty value or range (e.g., "3", "3-6")
-            #[clap(long)]
-            loyalty: Option<String>,
-    
-            /// Flavor text to search for
-            #[clap(long)]
-            flavor: Option<String>,
-    
-            /// Colors (e.g., "W", "U", "B", "R", "G", "!RBW" for not these colors)
-            #[clap(long, short)]
-            colors: Option<String>,
-    
-            /// Format legality (e.g., "Legal:Standard", "Banned:Modern", "Legal:Standard,Banned:Modern")
-            #[clap(long, short = 'f')]
-            format: Option<String>,
-    
-            /// Language (e.g., "English", "Japanese", "French", "German", "Spanish", "Italian")
-            #[clap(long, short = 'l')]
-            language: Option<String>,
-    
-            /// Display results in a formatted table instead of JSON
-            #[clap(long)]
-            pretty: bool,
-    
-            /// Page number for pagination (default: 1)
-            #[clap(long, default_value = "1")]
-            page: u32,
-        },    /// Get a specific Magic card by name
+#[derive(Debug, clap::Parser)]
+pub enum SubCommands {
+    /// Search for Magic cards using Gatherer advanced search
+    Search {
+        /// Card name to search for
+        #[clap(long, short)]
+        name: Option<String>,
+
+        /// Rules text to search for
+        #[clap(long)]
+        rules: Option<String>,
+
+        /// Card type (e.g., "Creature", "Instant", "Creature,Enchantment" for OR, "Creature+Legendary" for AND)
+        #[clap(long, short = 't')]
+        card_type: Option<String>,
+
+        /// Card subtype (e.g., "Human", "Wizard", "Human,Wizard" for OR, "Human+Soldier" for AND)
+        #[clap(long, short = 's')]
+        subtype: Option<String>,
+
+        /// Card supertype (e.g., "Legendary", "Snow", "Legendary,Snow" for OR)
+        #[clap(long)]
+        supertype: Option<String>,
+
+        /// Mana cost (e.g., "{2}{U}", "1W(B/G)(W/P)")
+        #[clap(long, short = 'm')]
+        mana_cost: Option<String>,
+
+        /// Set name (e.g., "Magic: The Gathering—FINAL FANTASY")
+        #[clap(long)]
+        set: Option<String>,
+
+        /// Rarity (Common, Uncommon, Rare, Mythic)
+        #[clap(long, short)]
+        rarity: Option<String>,
+
+        /// Artist name
+        #[clap(long, short)]
+        artist: Option<String>,
+
+        /// Power value or range (e.g., "5", "5-10")
+        #[clap(long, short)]
+        power: Option<String>,
+
+        /// Toughness value or range (e.g., "2", "2-5")
+        #[clap(long)]
+        toughness: Option<String>,
+
+        /// Loyalty value or range (e.g., "3", "3-6")
+        #[clap(long)]
+        loyalty: Option<String>,
+
+        /// Flavor text to search for
+        #[clap(long)]
+        flavor: Option<String>,
+
+        /// Colors (e.g., "W", "U", "B", "R", "G", "!RBW" for not these colors)
+        #[clap(long, short)]
+        colors: Option<String>,
+
+        /// Format legality (e.g., "Legal:Standard", "Banned:Modern", "Legal:Standard,Banned:Modern")
+        #[clap(long, short = 'f')]
+        format: Option<String>,
+
+        /// Language (e.g., "English", "Japanese", "French", "German", "Spanish", "Italian")
+        #[clap(long, short = 'l')]
+        language: Option<String>,
+
+        /// Display results in a formatted table instead of JSON
+        #[clap(long)]
+        pretty: bool,
+
+        /// Page number for pagination (default: 1)
+        #[clap(long, default_value = "1")]
+        page: u32,
+    },
+    /// Get a specific Magic card by name
     Card {
         /// Card name to fetch
         name: String,
@@ -185,30 +186,32 @@ pub async fn run(app: App, global: crate::Global) -> Result<()> {
             pretty,
             page,
         } => {
-            search_cards(SearchParams {
-                name,
-                rules,
-                card_type,
-                subtype,
-                supertype,
-                mana_cost,
-                set,
-                rarity,
-                artist,
-                power,
-                toughness,
-                loyalty,
-                flavor,
-                colors,
-                format,
-                language,
-                pretty,
-                page,
-            }, global).await
+            search_cards(
+                SearchParams {
+                    name,
+                    rules,
+                    card_type,
+                    subtype,
+                    supertype,
+                    mana_cost,
+                    set,
+                    rarity,
+                    artist,
+                    power,
+                    toughness,
+                    loyalty,
+                    flavor,
+                    colors,
+                    format,
+                    language,
+                    pretty,
+                    page,
+                },
+                global,
+            )
+            .await
         }
-        SubCommands::Card { name, pretty } => {
-            get_card(&name, pretty, global).await
-        }
+        SubCommands::Card { name, pretty } => get_card(&name, pretty, global).await,
     }
 }
 
@@ -237,11 +240,11 @@ fn parse_server_action_response(response: &str) -> Result<Option<Value>> {
     // Next.js server action responses have format:
     // 0:{"a":"$@1","f":"","b":"..."}
     // 1:{"apiVersion":"1","method":"CardData.search","data":{...}}
-    
+
     for line in response.lines() {
         if let Some(colon_pos) = line.find(':') {
             let json_part = &line[colon_pos + 1..];
-            
+
             // Try to parse this line as JSON
             if let Ok(parsed) = serde_json::from_str::<Value>(json_part) {
                 // Look for the card data in the response
@@ -255,7 +258,7 @@ fn parse_server_action_response(response: &str) -> Result<Option<Value>> {
             }
         }
     }
-    
+
     // If no structured data found, try parsing the entire response as JSON
     match serde_json::from_str::<Value>(response) {
         Ok(json) => Ok(Some(json)),
@@ -271,9 +274,9 @@ fn decode_html_entities(text: &str) -> String {
         .replace("&#39;", "'")
         .replace("&apos;", "'")
         .replace("&nbsp;", " ")
-        .replace("<i>", "")  // Remove italic tags for terminal display
+        .replace("<i>", "") // Remove italic tags for terminal display
         .replace("</i>", "")
-        .replace("<b>", "")  // Remove bold tags
+        .replace("<b>", "") // Remove bold tags
         .replace("</b>", "")
         .replace("<br>", "\n")
         .replace("<br/>", "\n")
@@ -284,7 +287,10 @@ fn display_pretty_results(data: &Value, params: &SearchParams) -> Result<()> {
     let total_pages = data.get("totalPages").and_then(|v| v.as_u64()).unwrap_or(1);
     let current_page = data.get("pageIndex").and_then(|v| v.as_u64()).unwrap_or(1);
     let total_items = data.get("totalItems").and_then(|v| v.as_u64()).unwrap_or(0);
-    let current_items = data.get("currentItemCount").and_then(|v| v.as_u64()).unwrap_or(0);
+    let current_items = data
+        .get("currentItemCount")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
 
     // Create table with clean format (space-separated columns)
     let mut table = Table::new();
@@ -300,31 +306,36 @@ fn display_pretty_results(data: &Value, params: &SearchParams) -> Result<()> {
 
     if let Some(items) = data.get("items").and_then(|v| v.as_array()) {
         for item in items {
-            let name = item.get("instanceName")
+            let name = item
+                .get("instanceName")
                 .and_then(|v| v.as_str())
                 .unwrap_or("Unknown");
-            
-            let type_line = item.get("instanceTypeLine")
+
+            let type_line = item
+                .get("instanceTypeLine")
                 .and_then(|v| v.as_str())
                 .unwrap_or("Unknown");
-            
-            let mana_cost = item.get("instanceManaText")
+
+            let mana_cost = item
+                .get("instanceManaText")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            
-            let set_name = item.get("setName")
+
+            let set_name = item
+                .get("setName")
                 .and_then(|v| v.as_str())
                 .unwrap_or("Unknown");
-            
-            let rarity = item.get("rarityName")
+
+            let rarity = item
+                .get("rarityName")
                 .and_then(|v| v.as_str())
                 .unwrap_or("Unknown");
-            
+
             // Handle power/toughness/loyalty
             let power = item.get("oraclePower").and_then(|v| v.as_str());
             let toughness = item.get("oracleToughness").and_then(|v| v.as_str());
             let loyalty = item.get("calculatedLoyalty").and_then(|v| v.as_u64());
-            
+
             let pt_loyalty = if let Some(loyalty_val) = loyalty {
                 loyalty_val.to_string()
             } else if let (Some(p), Some(t)) = (power, toughness) {
@@ -348,17 +359,19 @@ fn display_pretty_results(data: &Value, params: &SearchParams) -> Result<()> {
 
     // Display pagination summary to stderr
     eprintln!();
-    eprintln!("Found {} cards (showing {} on page {} of {})", 
-             total_items, current_items, current_page, total_pages);
+    eprintln!(
+        "Found {} cards (showing {} on page {} of {})",
+        total_items, current_items, current_page, total_pages
+    );
 
     // Show pagination commands if needed
     if total_pages > 1 {
         eprintln!();
         eprintln!("Pagination commands:");
-        
+
         // Build base command from current search parameters
         let mut base_cmd = "mtg gatherer search".to_string();
-        
+
         if let Some(name) = &params.name {
             base_cmd.push_str(&format!(" --name \"{}\"", name));
         }
@@ -455,10 +468,11 @@ fn format_query_with_operators(query: &str) -> String {
         } else {
             query.split('+').collect()
         };
-        
+
         let operator = if query.contains(',') { "~OR~" } else { "~AND~" };
-        
-        parts.iter()
+
+        parts
+            .iter()
             .map(|part| format!("eq~{}", part.trim()))
             .collect::<Vec<String>>()
             .join(&format!(",{},", operator))
@@ -471,7 +485,7 @@ fn display_single_card_pretty(html: &str) -> Result<()> {
     // Parse HTML to extract card information
     // This is a simplified parser - in a real implementation you might want to use a proper HTML parser
     let mut table = Table::new();
-    
+
     // Extract card name
     if let Some(start) = html.find("<title>") {
         if let Some(end) = html[start..].find("</title>") {
@@ -481,7 +495,7 @@ fn display_single_card_pretty(html: &str) -> Result<()> {
             }
         }
     }
-    
+
     // Extract mana cost
     if let Some(start) = html.find("Mana Cost:") {
         if let Some(line_end) = html[start..].find('\n') {
@@ -491,13 +505,16 @@ fn display_single_card_pretty(html: &str) -> Result<()> {
                     let mana_cost = &line[cost_start + 9..cost_start + 9 + cost_end];
                     let clean_cost = mana_cost.replace("<img", "").replace("/>", "");
                     if !clean_cost.trim().is_empty() {
-                        table.add_row(Row::new(vec![Cell::new("Mana Cost"), Cell::new(&clean_cost)]));
+                        table.add_row(Row::new(vec![
+                            Cell::new("Mana Cost"),
+                            Cell::new(&clean_cost),
+                        ]));
                     }
                 }
             }
         }
     }
-    
+
     // Extract type line
     if let Some(start) = html.find("Type:") {
         if let Some(line_end) = html[start..].find('\n') {
@@ -510,7 +527,7 @@ fn display_single_card_pretty(html: &str) -> Result<()> {
             }
         }
     }
-    
+
     // Extract oracle text
     if let Some(start) = html.find("Oracle Text:") {
         if let Some(line_end) = html[start..].find("</tr>") {
@@ -519,12 +536,15 @@ fn display_single_card_pretty(html: &str) -> Result<()> {
                 if let Some(text_end) = line[text_start + 9..].find("</td>") {
                     let oracle_text = &line[text_start + 9..text_start + 9 + text_end];
                     let clean_text = oracle_text.replace("<br>", "\n").replace("<br/>", "\n");
-                    table.add_row(Row::new(vec![Cell::new("Oracle Text"), Cell::new(&clean_text)]));
+                    table.add_row(Row::new(vec![
+                        Cell::new("Oracle Text"),
+                        Cell::new(&clean_text),
+                    ]));
                 }
             }
         }
     }
-    
+
     // Extract power/toughness
     if let Some(start) = html.find("P/T:") {
         if let Some(line_end) = html[start..].find('\n') {
@@ -537,7 +557,7 @@ fn display_single_card_pretty(html: &str) -> Result<()> {
             }
         }
     }
-    
+
     // Extract loyalty
     if let Some(start) = html.find("Loyalty:") {
         if let Some(line_end) = html[start..].find('\n') {
@@ -550,14 +570,14 @@ fn display_single_card_pretty(html: &str) -> Result<()> {
             }
         }
     }
-    
+
     table.printstd();
     Ok(())
 }
 
 async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()> {
     let cache_manager = CacheManager::new()?;
-    
+
     // Use the existing search functionality to find the card
     let search_params = SearchParams {
         name: Some(name.to_string()),
@@ -576,7 +596,7 @@ async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()>
         colors: None,
         format: None,
         language: None, // Use default (English)
-        pretty: false, // Always get JSON first
+        pretty: false,  // Always get JSON first
         page: 1,
     };
 
@@ -593,22 +613,19 @@ async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()>
     request.card_name = name.to_string();
     request.page = "1".to_string();
 
-    let payload = serde_json::json!([
-        "$undefined",
-        request,
-        {},
-        true,
-        1
-    ]);
+    let payload = serde_json::json!(["$undefined", request, {}, true, 1]);
 
     // Generate cache key
     let url = "https://gatherer.wizards.com/advanced-search";
     let headers = vec![
         ("accept".to_string(), "text/x-component".to_string()),
-        ("content-type".to_string(), "text/plain;charset=UTF-8".to_string()),
+        (
+            "content-type".to_string(),
+            "text/plain;charset=UTF-8".to_string(),
+        ),
     ];
     let cache_key = CacheManager::hash_gatherer_search_request(url, &payload, &headers);
-    
+
     if global.verbose {
         println!("Cache key: {}", cache_key);
     }
@@ -618,16 +635,18 @@ async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()>
         if global.verbose {
             println!("Using cached response for card '{}'", name);
         }
-        
+
         let card_data = &cached_response.data;
         if let Some(items) = card_data.get("items").and_then(|v| v.as_array()) {
             if items.is_empty() {
-                return Err(crate::error::Error::Generic(format!("Card '{}' not found", name)).into());
+                return Err(
+                    crate::error::Error::Generic(format!("Card '{}' not found", name)).into(),
+                );
             }
 
             // Get the first matching card (exact name match preferred)
             let mut best_match = &items[0];
-            
+
             // Look for exact name match
             for item in items {
                 if let Some(card_name) = item.get("instanceName").and_then(|v| v.as_str()) {
@@ -678,30 +697,32 @@ async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()>
         .await?;
 
     let response_text = response.text().await?;
-    
+
     if global.verbose {
         println!("Search response length: {} characters", response_text.len());
     }
 
     // Parse the response
     let parsed_data = parse_server_action_response(&response_text)?;
-    
+
     if let Some(card_data) = parsed_data {
         // Cache the successful response
         cache_manager.set(&cache_key, card_data.clone()).await?;
-        
+
         if global.verbose {
             println!("Response cached for card '{}'", name);
         }
-        
+
         if let Some(items) = card_data.get("items").and_then(|v| v.as_array()) {
             if items.is_empty() {
-                return Err(crate::error::Error::Generic(format!("Card '{}' not found", name)).into());
+                return Err(
+                    crate::error::Error::Generic(format!("Card '{}' not found", name)).into(),
+                );
             }
 
             // Get the first matching card (exact name match preferred)
             let mut best_match = &items[0];
-            
+
             // Look for exact name match
             for item in items {
                 if let Some(card_name) = item.get("instanceName").and_then(|v| v.as_str()) {
@@ -730,84 +751,99 @@ async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()>
 fn display_single_card_details(card: &serde_json::Value) -> Result<()> {
     let mut table = Table::new();
     table.set_format(*format::consts::FORMAT_CLEAN);
-    
+
     // Card name
     if let Some(name) = card.get("instanceName").and_then(|v| v.as_str()) {
         table.add_row(Row::new(vec![Cell::new("Name"), Cell::new(name)]));
     }
-    
+
     // Mana cost
     if let Some(mana_cost) = card.get("instanceManaText").and_then(|v| v.as_str()) {
         if !mana_cost.is_empty() {
             table.add_row(Row::new(vec![Cell::new("Mana Cost"), Cell::new(mana_cost)]));
         }
     }
-    
+
     // Type line
     if let Some(type_line) = card.get("instanceTypeLine").and_then(|v| v.as_str()) {
         table.add_row(Row::new(vec![Cell::new("Type"), Cell::new(type_line)]));
     }
-    
+
     // Oracle text
     if let Some(oracle_text) = card.get("instanceText").and_then(|v| v.as_str()) {
         if !oracle_text.is_empty() {
             let decoded_text = decode_html_entities(oracle_text);
-            table.add_row(Row::new(vec![Cell::new("Oracle Text"), Cell::new(&decoded_text)]));
+            table.add_row(Row::new(vec![
+                Cell::new("Oracle Text"),
+                Cell::new(&decoded_text),
+            ]));
         }
     }
-    
+
     // Power/Toughness
     let power = card.get("oraclePower").and_then(|v| v.as_str());
     let toughness = card.get("oracleToughness").and_then(|v| v.as_str());
     if let (Some(p), Some(t)) = (power, toughness) {
-        table.add_row(Row::new(vec![Cell::new("Power/Toughness"), Cell::new(&format!("{}/{}", p, t))]));
+        table.add_row(Row::new(vec![
+            Cell::new("Power/Toughness"),
+            Cell::new(&format!("{}/{}", p, t)),
+        ]));
     }
-    
+
     // Loyalty
     if let Some(loyalty) = card.get("calculatedLoyalty").and_then(|v| v.as_u64()) {
-        table.add_row(Row::new(vec![Cell::new("Loyalty"), Cell::new(&loyalty.to_string())]));
+        table.add_row(Row::new(vec![
+            Cell::new("Loyalty"),
+            Cell::new(&loyalty.to_string()),
+        ]));
     }
-    
+
     // Set
     if let Some(set_name) = card.get("setName").and_then(|v| v.as_str()) {
         table.add_row(Row::new(vec![Cell::new("Set"), Cell::new(set_name)]));
     }
-    
+
     // Rarity
     if let Some(rarity) = card.get("rarityName").and_then(|v| v.as_str()) {
         table.add_row(Row::new(vec![Cell::new("Rarity"), Cell::new(rarity)]));
     }
-    
+
     // Artist
     if let Some(artist) = card.get("artistName").and_then(|v| v.as_str()) {
         table.add_row(Row::new(vec![Cell::new("Artist"), Cell::new(artist)]));
     }
-    
+
     // Flavor text
     if let Some(flavor_text) = card.get("flavorText").and_then(|v| v.as_str()) {
         if !flavor_text.is_empty() {
             let decoded_text = decode_html_entities(flavor_text);
-            table.add_row(Row::new(vec![Cell::new("Flavor Text"), Cell::new(&decoded_text)]));
+            table.add_row(Row::new(vec![
+                Cell::new("Flavor Text"),
+                Cell::new(&decoded_text),
+            ]));
         }
     }
-    
+
     table.printstd();
     Ok(())
 }
 
 fn extract_card_info_json(html: &str, url: &str) -> serde_json::Value {
     let mut card_info = serde_json::Map::new();
-    
+
     // Extract card name
     if let Some(start) = html.find("<title>") {
         if let Some(end) = html[start..].find("</title>") {
             let title = &html[start + 7..start + end];
             if let Some(card_name) = title.split(" - ").next() {
-                card_info.insert("name".to_string(), serde_json::Value::String(card_name.to_string()));
+                card_info.insert(
+                    "name".to_string(),
+                    serde_json::Value::String(card_name.to_string()),
+                );
             }
         }
     }
-    
+
     // Extract mana cost
     if let Some(start) = html.find("Mana Cost:") {
         if let Some(line_end) = html[start..].find('\n') {
@@ -815,15 +851,22 @@ fn extract_card_info_json(html: &str, url: &str) -> serde_json::Value {
             if let Some(cost_start) = line.find("</td><td>") {
                 if let Some(cost_end) = line[cost_start + 9..].find("</td>") {
                     let mana_cost = &line[cost_start + 9..cost_start + 9 + cost_end];
-                    let clean_cost = mana_cost.replace("<img", "").replace("/>", "").trim().to_string();
+                    let clean_cost = mana_cost
+                        .replace("<img", "")
+                        .replace("/>", "")
+                        .trim()
+                        .to_string();
                     if !clean_cost.is_empty() {
-                        card_info.insert("mana_cost".to_string(), serde_json::Value::String(clean_cost));
+                        card_info.insert(
+                            "mana_cost".to_string(),
+                            serde_json::Value::String(clean_cost),
+                        );
                     }
                 }
             }
         }
     }
-    
+
     // Extract type line
     if let Some(start) = html.find("Type:") {
         if let Some(line_end) = html[start..].find('\n') {
@@ -831,12 +874,15 @@ fn extract_card_info_json(html: &str, url: &str) -> serde_json::Value {
             if let Some(type_start) = line.find("</td><td>") {
                 if let Some(type_end) = line[type_start + 9..].find("</td>") {
                     let type_line = &line[type_start + 9..type_start + 9 + type_end];
-                    card_info.insert("type_line".to_string(), serde_json::Value::String(type_line.to_string()));
+                    card_info.insert(
+                        "type_line".to_string(),
+                        serde_json::Value::String(type_line.to_string()),
+                    );
                 }
             }
         }
     }
-    
+
     // Extract oracle text
     if let Some(start) = html.find("Oracle Text:") {
         if let Some(line_end) = html[start..].find("</tr>") {
@@ -845,21 +891,30 @@ fn extract_card_info_json(html: &str, url: &str) -> serde_json::Value {
                 if let Some(text_end) = line[text_start + 9..].find("</td>") {
                     let oracle_text = &line[text_start + 9..text_start + 9 + text_end];
                     let clean_text = oracle_text.replace("<br>", "\n").replace("<br/>", "\n");
-                    card_info.insert("oracle_text".to_string(), serde_json::Value::String(clean_text));
+                    card_info.insert(
+                        "oracle_text".to_string(),
+                        serde_json::Value::String(clean_text),
+                    );
                 }
             }
         }
     }
-    
+
     if !url.is_empty() {
-        card_info.insert("gatherer_url".to_string(), serde_json::Value::String(url.to_string()));
+        card_info.insert(
+            "gatherer_url".to_string(),
+            serde_json::Value::String(url.to_string()),
+        );
     }
-    
+
     serde_json::Value::Object(card_info)
 }
-pub async fn search_cards_json(params: SearchParams, global: crate::Global) -> Result<serde_json::Value> {
+pub async fn search_cards_json(
+    params: SearchParams,
+    global: crate::Global,
+) -> Result<serde_json::Value> {
     let cache_manager = CacheManager::new()?;
-    
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(global.timeout))
         .build()?;
@@ -887,12 +942,16 @@ pub async fn search_cards_json(params: SearchParams, global: crate::Global) -> R
     }
     if let Some(ref set) = params.set {
         let escaped_set = set.replace(" ", "_").replace(":", "_");
-        request.set_name = format!("eq~{}~{}", escaped_set, set.chars().take(3).collect::<String>().to_uppercase());
+        request.set_name = format!(
+            "eq~{}~{}",
+            escaped_set,
+            set.chars().take(3).collect::<String>().to_uppercase()
+        );
     }
     if let Some(ref rarity) = params.rarity {
         let rarity_code = match rarity.to_lowercase().as_str() {
             "common" => "C",
-            "uncommon" => "U", 
+            "uncommon" => "U",
             "rare" => "R",
             "mythic" | "mythic rare" => "M",
             _ => rarity,
@@ -916,7 +975,10 @@ pub async fn search_cards_json(params: SearchParams, global: crate::Global) -> R
     }
     if let Some(ref colors) = params.colors {
         if colors.starts_with("!") || colors.starts_with("not ") {
-            let clean_colors = colors.trim_start_matches('!').trim_start_matches("not ").trim();
+            let clean_colors = colors
+                .trim_start_matches('!')
+                .trim_start_matches("not ")
+                .trim();
             request.colors = format!("neq~{}", clean_colors.replace(",", "_"));
         } else {
             request.colors = colors.replace(",", "_");
@@ -945,18 +1007,15 @@ pub async fn search_cards_json(params: SearchParams, global: crate::Global) -> R
 
     request.page = params.page.to_string();
 
-    let payload = serde_json::json!([
-        "$undefined",
-        request,
-        {},
-        true,
-        params.page
-    ]);
+    let payload = serde_json::json!(["$undefined", request, {}, true, params.page]);
 
     let url = "https://gatherer.wizards.com/advanced-search";
     let headers = vec![
         ("accept".to_string(), "text/x-component".to_string()),
-        ("content-type".to_string(), "text/plain;charset=UTF-8".to_string()),
+        (
+            "content-type".to_string(),
+            "text/plain;charset=UTF-8".to_string(),
+        ),
     ];
     let cache_key = CacheManager::hash_gatherer_search_request(url, &payload, &headers);
 
@@ -991,7 +1050,7 @@ pub async fn search_cards_json(params: SearchParams, global: crate::Global) -> R
 
     let response_text = response.text().await?;
     let parsed_data = parse_server_action_response(&response_text)?;
-    
+
     if let Some(card_data) = parsed_data {
         cache_manager.set(&cache_key, card_data.clone()).await?;
         Ok(card_data)
@@ -1002,7 +1061,7 @@ pub async fn search_cards_json(params: SearchParams, global: crate::Global) -> R
 
 pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result<()> {
     let cache_manager = CacheManager::new()?;
-    
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(global.timeout))
         .build()?;
@@ -1035,12 +1094,16 @@ pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result
     if let Some(ref set) = params.set {
         // Format set name with proper escaping for special characters
         let escaped_set = set.replace(" ", "_").replace(":", "_");
-        request.set_name = format!("eq~{}~{}", escaped_set, set.chars().take(3).collect::<String>().to_uppercase());
+        request.set_name = format!(
+            "eq~{}~{}",
+            escaped_set,
+            set.chars().take(3).collect::<String>().to_uppercase()
+        );
     }
     if let Some(ref rarity) = params.rarity {
         let rarity_code = match rarity.to_lowercase().as_str() {
             "common" => "C",
-            "uncommon" => "U", 
+            "uncommon" => "U",
             "rare" => "R",
             "mythic" | "mythic rare" => "M",
             _ => rarity,
@@ -1068,7 +1131,10 @@ pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result
     if let Some(ref colors) = params.colors {
         // Colors can have neq~ prefix for "not equal"
         if colors.starts_with("!") || colors.starts_with("not ") {
-            let clean_colors = colors.trim_start_matches('!').trim_start_matches("not ").trim();
+            let clean_colors = colors
+                .trim_start_matches('!')
+                .trim_start_matches("not ")
+                .trim();
             request.colors = format!("neq~{}", clean_colors.replace(",", "_"));
         } else {
             request.colors = colors.replace(",", "_");
@@ -1102,26 +1168,26 @@ pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result
     request.page = params.page.to_string();
 
     // Create the request payload as expected by the API
-    let payload = serde_json::json!([
-        "$undefined",
-        request,
-        {},
-        true,
-        params.page
-    ]);
+    let payload = serde_json::json!(["$undefined", request, {}, true, params.page]);
 
     if global.verbose {
-        println!("Request payload: {}", serde_json::to_string_pretty(&payload)?);
+        println!(
+            "Request payload: {}",
+            serde_json::to_string_pretty(&payload)?
+        );
     }
 
     // Generate cache key
     let url = "https://gatherer.wizards.com/advanced-search";
     let headers = vec![
         ("accept".to_string(), "text/x-component".to_string()),
-        ("content-type".to_string(), "text/plain;charset=UTF-8".to_string()),
+        (
+            "content-type".to_string(),
+            "text/plain;charset=UTF-8".to_string(),
+        ),
     ];
     let cache_key = CacheManager::hash_gatherer_search_request(url, &payload, &headers);
-    
+
     if global.verbose {
         println!("Cache key: {}", cache_key);
     }
@@ -1131,7 +1197,7 @@ pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result
         if global.verbose {
             println!("Using cached response");
         }
-        
+
         let card_data = &cached_response.data;
         if params.pretty {
             display_pretty_results(card_data, &params)?;
@@ -1175,22 +1241,22 @@ pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result
     }
 
     let response_text = response.text().await?;
-    
+
     if global.verbose {
         println!("Raw response: {}", response_text);
     }
 
     // Parse Next.js server action response format
     let parsed_data = parse_server_action_response(&response_text)?;
-    
+
     if let Some(card_data) = parsed_data {
         // Cache the successful response
         cache_manager.set(&cache_key, card_data.clone()).await?;
-        
+
         if global.verbose {
             println!("Response cached");
         }
-        
+
         if params.pretty {
             display_pretty_results(&card_data, &params)?;
         } else {

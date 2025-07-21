@@ -4,6 +4,9 @@ Comprehensive examples demonstrating how to use the MTG MCP server's card search
 
 ## Table of Contents
 
+- [Direct Card Lookup](#direct-card-lookup)
+- [Card Name Suggestions](#card-name-suggestions)
+- [Random Card Discovery](#random-card-discovery)
 - [Basic Card Searches](#basic-card-searches)
 - [Advanced Filtering](#advanced-filtering)
 - [Deck Building Scenarios](#deck-building-scenarios)
@@ -12,6 +15,159 @@ Comprehensive examples demonstrating how to use the MTG MCP server's card search
 - [Collection Management](#collection-management)
 - [Competitive Analysis](#competitive-analysis)
 - [Integration Examples](#integration-examples)
+
+## Direct Card Lookup
+
+### Get Card by Exact Name
+
+**Scenario**: Get detailed information for a specific card
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "scryfall_get_card_by_name",
+    "arguments": {
+      "name": "Lightning Bolt"
+    }
+  }
+}
+```
+
+**Response**:
+```
+ Name              Lightning Bolt 
+ Mana Cost         {R} 
+ Mana Value        1 
+ Type              Instant 
+ Oracle Text       Lightning Bolt deals 3 damage to any target. 
+ Set               Ravnica: Clue Edition (CLU) 
+ Rarity            uncommon 
+ Artist            Christopher Moeller 
+ Collector Number  141 
+ Legal In          modern, legacy, vintage, commander 
+```
+
+### Get Card by Scryfall ID
+
+**Scenario**: Retrieve a card using its unique Scryfall identifier
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "scryfall_get_card_by_id",
+    "arguments": {
+      "id": "5f70df6d-7e8d-4ba4-b425-b56c271f525c"
+    }
+  }
+}
+```
+
+### Get Card by Set and Collector Number
+
+**Scenario**: Get a specific printing from a particular set
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "scryfall_get_card_by_collector",
+    "arguments": {
+      "set_code": "ktk",
+      "collector_number": "150"
+    }
+  }
+}
+```
+
+## Card Name Suggestions
+
+### Autocomplete Card Names
+
+**Scenario**: Help users find cards when they only remember part of the name
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "scryfall_autocomplete_card_names",
+    "arguments": {
+      "query": "light"
+    }
+  }
+}
+```
+
+**Response**:
+```
+Card name suggestions for 'light':
+
+1. Lightform
+2. Light 'Em Up
+3. Light Up the Night
+4. Light of Day
+5. Light the Way
+6. Lightning Bolt
+7. Lightning Helix
+...
+Found 20 suggestions
+```
+
+### Include Extra Cards
+
+**Scenario**: Get suggestions including tokens and emblems
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "scryfall_autocomplete_card_names",
+    "arguments": {
+      "query": "angel",
+      "include_extras": true
+    }
+  }
+}
+```
+
+## Random Card Discovery
+
+### Get Any Random Card
+
+**Scenario**: Discover new cards for inspiration
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "scryfall_get_random_card",
+    "arguments": {}
+  }
+}
+```
+
+### Get Filtered Random Card
+
+**Scenario**: Get a random card matching specific criteria
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "scryfall_get_random_card",
+    "arguments": {
+      "query": "c:red t:creature mana>=4"
+    }
+  }
+}
+```
+
+**Use Cases**:
+- **Deck inspiration**: Find random cards in your colors
+- **Challenge brewing**: Build around a random card
+- **Learning**: Discover cards you've never seen
+- **Cube design**: Find interesting inclusions
 
 ## Basic Card Searches
 

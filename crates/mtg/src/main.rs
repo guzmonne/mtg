@@ -51,54 +51,53 @@ pub enum SetCommands {
         /// Filter by set type (core, expansion, masters, etc.)
         #[clap(long)]
         set_type: Option<String>,
-        
+
         /// Filter sets released after this date (YYYY-MM-DD)
         #[clap(long)]
         released_after: Option<String>,
-        
+
         /// Filter sets released before this date (YYYY-MM-DD)
         #[clap(long)]
         released_before: Option<String>,
-        
+
         /// Filter by block name
         #[clap(long)]
         block: Option<String>,
-        
+
         /// Filter digital-only sets
         #[clap(long)]
         digital_only: Option<bool>,
-        
+
         /// Display results in a formatted table instead of JSON
         #[clap(long)]
         pretty: bool,
     },
-    
+
     /// Get information about a specific set
     Get {
         /// Set code (e.g., "ktk", "war", "m21")
         set_code: String,
-        
+
         /// Display result in a formatted table instead of JSON
         #[clap(long)]
         pretty: bool,
     },
-    
+
     /// List available set types
     Types,
 }
-
 
 #[derive(Debug, clap::Parser)]
 pub enum McpCommands {
     /// Start MCP server with STDIO transport (default)
     Stdio,
-    
+
     /// Start MCP server with SSE transport (HTTP endpoints)
     Sse {
         /// Host to bind to
         #[clap(long, default_value = "127.0.0.1")]
         host: String,
-        
+
         /// Port to bind to
         #[clap(long, default_value = "3000")]
         port: u16,
@@ -137,19 +136,22 @@ pub enum SubCommands {
 
 async fn handle_sets_command(command: SetCommands, global: Global) -> Result<()> {
     match command {
-        SetCommands::List { 
-            set_type, 
-            released_after, 
-            released_before, 
-            block, 
-            digital_only, 
-            pretty 
+        SetCommands::List {
+            set_type,
+            released_after,
+            released_before,
+            block,
+            digital_only,
+            pretty,
         } => {
             let set_type_enum = if let Some(type_str) = set_type {
                 match sets::SetType::from_str(&type_str) {
                     Some(t) => Some(t),
                     None => {
-                        eprintln!("Invalid set type: {}. Use 'mtg sets types' to see available types.", type_str);
+                        eprintln!(
+                            "Invalid set type: {}. Use 'mtg sets types' to see available types.",
+                            type_str
+                        );
                         return Ok(());
                     }
                 }
@@ -194,8 +196,8 @@ async fn handle_sets_command(command: SetCommands, global: Global) -> Result<()>
 }
 
 fn display_sets_table(sets_list: &sets::ScryfallSetList) -> Result<()> {
-    use prettytable::{Table, Row, Cell, format};
-    
+    use prettytable::{format, Cell, Row, Table};
+
     let mut table = Table::new();
     table.set_format(*format::consts::FORMAT_CLEAN);
     table.add_row(Row::new(vec![
@@ -236,40 +238,61 @@ fn display_sets_table(sets_list: &sets::ScryfallSetList) -> Result<()> {
 }
 
 fn display_set_details(set: &sets::ScryfallSet) -> Result<()> {
-    use prettytable::{Table, Row, Cell, format};
-    
+    use prettytable::{format, Cell, Row, Table};
+
     let mut table = Table::new();
     table.set_format(*format::consts::FORMAT_CLEAN);
-    
+
     table.add_row(Row::new(vec![Cell::new("Property"), Cell::new("Value")]));
-    table.add_row(Row::new(vec![Cell::new("Code"), Cell::new(&set.code.to_uppercase())]));
+    table.add_row(Row::new(vec![
+        Cell::new("Code"),
+        Cell::new(&set.code.to_uppercase()),
+    ]));
     table.add_row(Row::new(vec![Cell::new("Name"), Cell::new(&set.name)]));
     table.add_row(Row::new(vec![Cell::new("Type"), Cell::new(&set.set_type)]));
-    
+
     if let Some(released) = &set.released_at {
         table.add_row(Row::new(vec![Cell::new("Released"), Cell::new(released)]));
     }
-    
-    table.add_row(Row::new(vec![Cell::new("Card Count"), Cell::new(&set.card_count.to_string())]));
-    
+
+    table.add_row(Row::new(vec![
+        Cell::new("Card Count"),
+        Cell::new(&set.card_count.to_string()),
+    ]));
+
     if let Some(printed_size) = set.printed_size {
-        table.add_row(Row::new(vec![Cell::new("Printed Size"), Cell::new(&printed_size.to_string())]));
+        table.add_row(Row::new(vec![
+            Cell::new("Printed Size"),
+            Cell::new(&printed_size.to_string()),
+        ]));
     }
-    
+
     if let Some(block) = &set.block {
         table.add_row(Row::new(vec![Cell::new("Block"), Cell::new(block)]));
     }
-    
-    table.add_row(Row::new(vec![Cell::new("Digital Only"), Cell::new(if set.digital { "Yes" } else { "No" })]));
-    table.add_row(Row::new(vec![Cell::new("Foil Only"), Cell::new(if set.foil_only { "Yes" } else { "No" })]));
-    table.add_row(Row::new(vec![Cell::new("Nonfoil Only"), Cell::new(if set.nonfoil_only { "Yes" } else { "No" })]));
-    
+
+    table.add_row(Row::new(vec![
+        Cell::new("Digital Only"),
+        Cell::new(if set.digital { "Yes" } else { "No" }),
+    ]));
+    table.add_row(Row::new(vec![
+        Cell::new("Foil Only"),
+        Cell::new(if set.foil_only { "Yes" } else { "No" }),
+    ]));
+    table.add_row(Row::new(vec![
+        Cell::new("Nonfoil Only"),
+        Cell::new(if set.nonfoil_only { "Yes" } else { "No" }),
+    ]));
+
     if let Some(mtgo_code) = &set.mtgo_code {
         table.add_row(Row::new(vec![Cell::new("MTGO Code"), Cell::new(mtgo_code)]));
     }
-    
+
     if let Some(arena_code) = &set.arena_code {
-        table.add_row(Row::new(vec![Cell::new("Arena Code"), Cell::new(arena_code)]));
+        table.add_row(Row::new(vec![
+            Cell::new("Arena Code"),
+            Cell::new(arena_code),
+        ]));
     }
 
     table.printstd();
@@ -291,7 +314,9 @@ async fn main() -> Result<()> {
         SubCommands::Completions(sub_app) => crate::completions::run(sub_app, app.global).await,
         SubCommands::Mcp { command } => match command {
             Some(McpCommands::Stdio) | None => crate::mcp::run_mcp_server(app.global).await,
-            Some(McpCommands::Sse { host, port }) => crate::mcp::run_sse_server(app.global, host, port).await,
+            Some(McpCommands::Sse { host, port }) => {
+                crate::mcp::run_sse_server(app.global, host, port).await
+            }
         },
     }
     .map_err(|err: color_eyre::eyre::Report| eyre!(err))

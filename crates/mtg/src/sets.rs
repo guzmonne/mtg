@@ -1,5 +1,5 @@
-use crate::prelude::*;
 use crate::cache::CacheManager;
+use crate::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -237,24 +237,29 @@ pub struct SetListParams {
 /// Get all sets from Scryfall API
 pub async fn list_sets(params: SetListParams, global: crate::Global) -> Result<ScryfallSetList> {
     let cache_manager = CacheManager::new()?;
-    
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(global.timeout))
         .user_agent("mtg-cli/1.0")
         .build()?;
 
     let url = "https://api.scryfall.com/sets";
-    
+
     // Generate cache key based on parameters
-    let cache_key = CacheManager::hash_request(&(&url, &params.set_type, &params.released_after, &params.released_before));
+    let cache_key = CacheManager::hash_request(&(
+        &url,
+        &params.set_type,
+        &params.released_after,
+        &params.released_before,
+    ));
 
     // Check cache first
     if let Some(cached_response) = cache_manager.get(&cache_key).await? {
         let mut response: ScryfallSetList = serde_json::from_value(cached_response.data)?;
-        
+
         // Apply client-side filtering if needed
         apply_set_filters(&mut response, &params);
-        
+
         return Ok(response);
     }
 
@@ -263,44 +268,46 @@ pub async fn list_sets(params: SetListParams, global: crate::Global) -> Result<S
         println!("Request URL: {}", url);
     }
 
-    let response = client
-        .get(url)
-        .send()
-        .await?;
+    let response = client.get(url).send().await?;
 
     if global.verbose {
         println!("Response status: {}", response.status());
     }
 
     let response_text = response.text().await?;
-    
+
     // Parse the response
     let mut set_response = parse_scryfall_set_list_response(&response_text)?;
-    
+
     // Apply client-side filtering
     apply_set_filters(&mut set_response, &params);
-    
+
     // Cache the response
-    cache_manager.set(&cache_key, serde_json::to_value(&set_response)?).await?;
-    
+    cache_manager
+        .set(&cache_key, serde_json::to_value(&set_response)?)
+        .await?;
+
     if global.verbose {
         println!("Response cached");
     }
-    
+
     Ok(set_response)
 }
 
 /// Get a specific set by code
 pub async fn get_set_by_code(code: &str, global: crate::Global) -> Result<ScryfallSet> {
     let cache_manager = CacheManager::new()?;
-    
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(global.timeout))
         .user_agent("mtg-cli/1.0")
         .build()?;
 
-    let url = format!("https://api.scryfall.com/sets/{}", urlencoding::encode(code));
-    
+    let url = format!(
+        "https://api.scryfall.com/sets/{}",
+        urlencoding::encode(code)
+    );
+
     // Generate cache key
     let cache_key = CacheManager::hash_request(&url);
 
@@ -315,27 +322,26 @@ pub async fn get_set_by_code(code: &str, global: crate::Global) -> Result<Scryfa
         println!("Request URL: {}", url);
     }
 
-    let response = client
-        .get(&url)
-        .send()
-        .await?;
+    let response = client.get(&url).send().await?;
 
     if global.verbose {
         println!("Response status: {}", response.status());
     }
 
     let response_text = response.text().await?;
-    
+
     // Parse the response
     let set = parse_scryfall_set_response(&response_text)?;
-    
+
     // Cache the response
-    cache_manager.set(&cache_key, serde_json::to_value(&set)?).await?;
-    
+    cache_manager
+        .set(&cache_key, serde_json::to_value(&set)?)
+        .await?;
+
     if global.verbose {
         println!("Response cached");
     }
-    
+
     Ok(set)
 }
 
@@ -343,7 +349,7 @@ pub async fn get_set_by_code(code: &str, global: crate::Global) -> Result<Scryfa
 fn parse_scryfall_set_list_response(response_text: &str) -> Result<ScryfallSetList> {
     // First, try to parse as a generic JSON value to check the object type
     let json_value: serde_json::Value = serde_json::from_str(response_text)?;
-    
+
     if let Some(object_type) = json_value.get("object").and_then(|v| v.as_str()) {
         if object_type == "error" {
             // Parse as error response
@@ -352,7 +358,7 @@ fn parse_scryfall_set_list_response(response_text: &str) -> Result<ScryfallSetLi
             return Err(eyre!("Scryfall API error: {}", api_error));
         }
     }
-    
+
     // Parse as set list response
     let set_list: ScryfallSetList = serde_json::from_str(response_text)?;
     Ok(set_list)
@@ -362,7 +368,7 @@ fn parse_scryfall_set_list_response(response_text: &str) -> Result<ScryfallSetLi
 fn parse_scryfall_set_response(response_text: &str) -> Result<ScryfallSet> {
     // First, try to parse as a generic JSON value to check the object type
     let json_value: serde_json::Value = serde_json::from_str(response_text)?;
-    
+
     if let Some(object_type) = json_value.get("object").and_then(|v| v.as_str()) {
         if object_type == "error" {
             // Parse as error response
@@ -371,7 +377,7 @@ fn parse_scryfall_set_response(response_text: &str) -> Result<ScryfallSet> {
             return Err(eyre!("Scryfall API error: {}", api_error));
         }
     }
-    
+
     // Parse as set response
     let set: ScryfallSet = serde_json::from_str(response_text)?;
     Ok(set)
@@ -379,9 +385,12 @@ fn parse_scryfall_set_response(response_text: &str) -> Result<ScryfallSet> {
 
 /// Apply client-side filters to set list
 fn apply_set_filters(response: &mut ScryfallSetList, params: &SetListParams) {
-    if params.set_type.is_none() && params.released_after.is_none() && 
-       params.released_before.is_none() && params.block.is_none() && 
-       params.digital_only.is_none() {
+    if params.set_type.is_none()
+        && params.released_after.is_none()
+        && params.released_before.is_none()
+        && params.block.is_none()
+        && params.digital_only.is_none()
+    {
         return; // No filters to apply
     }
 
@@ -413,7 +422,10 @@ fn apply_set_filters(response: &mut ScryfallSetList, params: &SetListParams) {
         // Filter by block
         if let Some(ref filter_block) = params.block {
             if let Some(ref set_block) = set.block {
-                if !set_block.to_lowercase().contains(&filter_block.to_lowercase()) {
+                if !set_block
+                    .to_lowercase()
+                    .contains(&filter_block.to_lowercase())
+                {
                     return false;
                 }
             } else {

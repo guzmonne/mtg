@@ -4,12 +4,140 @@ Tools provide AI assistants with interactive functions to search and analyze Mag
 
 ## Available Tools
 
-The MTG MCP server provides two powerful card search tools:
+The MTG MCP server provides 7 comprehensive card tools:
 
-| Tool                        | Purpose                           | API Source | Parameters                                    |
-| --------------------------- | --------------------------------- | ---------- | --------------------------------------------- |
-| **gatherer_search_cards**   | Official Wizards database search | Gatherer   | name, rules, types, colors, mana, set, etc.  |
-| **scryfall_search_cards**   | Advanced third-party search      | Scryfall   | query, name, oracle, colors, format, etc.    |
+| Tool                              | Purpose                           | API Source | Parameters                                    |
+| --------------------------------- | --------------------------------- | ---------- | --------------------------------------------- |
+| **scryfall_get_card_by_name**     | Get card by exact name           | Scryfall   | name, set (optional)                         |
+| **scryfall_get_card_by_id**       | Get card by Scryfall ID           | Scryfall   | id                                           |
+| **scryfall_get_card_by_collector** | Get card by set/collector number | Scryfall   | set_code, collector_number, lang (optional)  |
+| **scryfall_get_random_card**      | Get random card with filtering    | Scryfall   | query (optional)                             |
+| **scryfall_autocomplete_card_names** | Get card name suggestions      | Scryfall   | query, include_extras (optional)            |
+| **gatherer_search_cards**         | Official Wizards database search | Gatherer   | name, rules, types, colors, mana, set, etc.  |
+| **scryfall_search_cards**         | Advanced third-party search      | Scryfall   | query, name, oracle, colors, format, etc.    |
+
+## scryfall_get_card_by_name
+
+Get a specific Magic: The Gathering card by its exact name using Scryfall API.
+
+### Parameters
+
+```json
+{
+  "name": "Lightning Bolt",    // Required: Exact card name
+  "set": "lea"                 // Optional: Set code for specific printing
+}
+```
+
+### Sort Options
+
+The `order` parameter supports the following sort criteria:
+
+| Order Value | Description | Use Case |
+|-------------|-------------|----------|
+| `name` | Alphabetical by card name | General browsing |
+| `set` | By set release order | Set analysis |
+| `released` | By card release date | Historical research |
+| `rarity` | By rarity (common → mythic) | Collection building |
+| `color` | By color identity | Color-based analysis |
+| `cmc` | By mana value/CMC | Curve analysis |
+| `power` | By power value | Creature comparison |
+| `toughness` | By toughness value | Defensive analysis |
+| `usd` | By USD price | Budget considerations |
+| `tix` | By MTGO ticket price | Online play |
+| `eur` | By EUR price | European markets |
+| `edhrec` | By EDH/Commander popularity | Commander deck building |
+| `penny` | By Penny Dreadful legality | Format-specific |
+| `artist` | By artist name | Art collection |
+| `review` | By community review score | Quality assessment |
+| `spoiled` | By spoiler date | Latest previews |
+| `updated` | By last database update | Data freshness |
+
+### Direction Options
+
+- `auto` - Automatic direction based on sort type (default)
+- `asc` - Ascending order (A-Z, low-high, old-new)
+- `desc` - Descending order (Z-A, high-low, new-old)
+
+### Unique Strategies
+
+- `cards` - One result per unique card (default)
+- `art` - One result per unique artwork
+- `prints` - Show all printings/versions
+
+### Examples
+
+#### Random Card (No Filter)
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "scryfall_get_random_card",
+    "arguments": {}
+  }
+}
+```
+
+#### Filtered Random Card
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "scryfall_get_random_card",
+    "arguments": {
+      "query": "c:red t:creature mana>=4"
+    }
+  }
+}
+```
+
+## scryfall_autocomplete_card_names
+
+Get autocomplete suggestions for Magic: The Gathering card names.
+
+### Parameters
+
+```json
+{
+  "query": "light",            // Required: Partial card name
+  "include_extras": false      // Optional: Include tokens/emblems (default: false)
+}
+```
+
+### Example
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "scryfall_autocomplete_card_names",
+    "arguments": {
+      "query": "light"
+    }
+  }
+}
+```
+
+**Response:**
+```
+Card name suggestions for 'light':
+
+1. Lightform
+2. Light 'Em Up
+3. Light Up the Night
+4. Light of Day
+5. Light the Way
+6. Light of Hope
+7. Lightwalker
+8. Lightbringer
+9. Lightning Axe
+10. Lightning Dart
+...
+
+Found 20 suggestions
+```
 
 ## gatherer_search_cards
 
@@ -167,7 +295,12 @@ You can use either a direct `query` parameter with Scryfall syntax, or individua
   "format": "standard",         // Format legality (standard, modern, legacy, etc.)
   "language": "en",             // Language code (en, ja, de, fr, etc.)
   "page": 1,                    // Page number (default: 1)
-  "order": "name"               // Sort order (name, cmc, power, released, etc.)
+  "order": "name",              // Sort order (name, set, released, rarity, color, usd, tix, eur, cmc, power, toughness, edhrec, penny, artist, review, spoiled, updated)
+  "dir": "auto",                // Sort direction (auto, asc, desc)
+  "include_extras": false,      // Include extra cards like tokens and emblems
+  "include_multilingual": false, // Include cards in other languages
+  "include_variations": false,  // Include card variations
+  "unique": "cards"             // Unique strategy (cards, art, prints)
 }
 ```
 
@@ -216,7 +349,44 @@ You can use either a direct `query` parameter with Scryfall syntax, or individua
       "identity": "wubrg",  // 5-color identity
       "card_type": "creature",
       "mv": "<=3",
-      "format": "commander"
+      "format": "commander",
+      "order": "edhrec",
+      "dir": "desc"
+    }
+  }
+}
+```
+
+#### Advanced Sorting and Filtering
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "scryfall_search_cards",
+    "arguments": {
+      "query": "t:creature f:standard",
+      "order": "spoiled",        // Sort by spoiler date
+      "dir": "desc",             // Newest first
+      "include_extras": false,   // Exclude tokens
+      "unique": "prints"         // Show all printings
+    }
+  }
+}
+```
+
+#### Price-Based Search
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "scryfall_search_cards",
+    "arguments": {
+      "query": "f:modern r:rare",
+      "order": "usd",            // Sort by USD price
+      "dir": "desc",             // Most expensive first
+      "include_variations": true // Include alternate arts
     }
   }
 }
