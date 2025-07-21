@@ -339,7 +339,7 @@ fn display_pretty_results(data: &Value, params: &SearchParams) -> Result<()> {
             let pt_loyalty = if let Some(loyalty_val) = loyalty {
                 loyalty_val.to_string()
             } else if let (Some(p), Some(t)) = (power, toughness) {
-                format!("{}/{}", p, t)
+                format!("{p}/{t}")
             } else {
                 "-".to_string()
             };
@@ -360,8 +360,7 @@ fn display_pretty_results(data: &Value, params: &SearchParams) -> Result<()> {
     // Display pagination summary to stderr
     eprintln!();
     eprintln!(
-        "Found {} cards (showing {} on page {} of {})",
-        total_items, current_items, current_page, total_pages
+        "Found {total_items} cards (showing {current_items} on page {current_page} of {total_pages})"
     );
 
     // Show pagination commands if needed
@@ -373,64 +372,64 @@ fn display_pretty_results(data: &Value, params: &SearchParams) -> Result<()> {
         let mut base_cmd = "mtg gatherer search".to_string();
 
         if let Some(name) = &params.name {
-            base_cmd.push_str(&format!(" --name \"{}\"", name));
+            base_cmd.push_str(&format!(" --name \"{name}\""));
         }
         if let Some(rules) = &params.rules {
-            base_cmd.push_str(&format!(" --rules \"{}\"", rules));
+            base_cmd.push_str(&format!(" --rules \"{rules}\""));
         }
         if let Some(card_type) = &params.card_type {
-            base_cmd.push_str(&format!(" --card-type \"{}\"", card_type));
+            base_cmd.push_str(&format!(" --card-type \"{card_type}\""));
         }
         if let Some(subtype) = &params.subtype {
-            base_cmd.push_str(&format!(" --subtype \"{}\"", subtype));
+            base_cmd.push_str(&format!(" --subtype \"{subtype}\""));
         }
         if let Some(supertype) = &params.supertype {
-            base_cmd.push_str(&format!(" --supertype \"{}\"", supertype));
+            base_cmd.push_str(&format!(" --supertype \"{supertype}\""));
         }
         if let Some(mana_cost) = &params.mana_cost {
-            base_cmd.push_str(&format!(" --mana-cost \"{}\"", mana_cost));
+            base_cmd.push_str(&format!(" --mana-cost \"{mana_cost}\""));
         }
         if let Some(set) = &params.set {
-            base_cmd.push_str(&format!(" --set \"{}\"", set));
+            base_cmd.push_str(&format!(" --set \"{set}\""));
         }
         if let Some(rarity) = &params.rarity {
-            base_cmd.push_str(&format!(" --rarity \"{}\"", rarity));
+            base_cmd.push_str(&format!(" --rarity \"{rarity}\""));
         }
         if let Some(artist) = &params.artist {
-            base_cmd.push_str(&format!(" --artist \"{}\"", artist));
+            base_cmd.push_str(&format!(" --artist \"{artist}\""));
         }
         if let Some(power) = &params.power {
-            base_cmd.push_str(&format!(" --power \"{}\"", power));
+            base_cmd.push_str(&format!(" --power \"{power}\""));
         }
         if let Some(toughness) = &params.toughness {
-            base_cmd.push_str(&format!(" --toughness \"{}\"", toughness));
+            base_cmd.push_str(&format!(" --toughness \"{toughness}\""));
         }
         if let Some(loyalty) = &params.loyalty {
-            base_cmd.push_str(&format!(" --loyalty \"{}\"", loyalty));
+            base_cmd.push_str(&format!(" --loyalty \"{loyalty}\""));
         }
         if let Some(flavor) = &params.flavor {
-            base_cmd.push_str(&format!(" --flavor \"{}\"", flavor));
+            base_cmd.push_str(&format!(" --flavor \"{flavor}\""));
         }
         if let Some(colors) = &params.colors {
-            base_cmd.push_str(&format!(" --colors \"{}\"", colors));
+            base_cmd.push_str(&format!(" --colors \"{colors}\""));
         }
         if let Some(format) = &params.format {
-            base_cmd.push_str(&format!(" --format \"{}\"", format));
+            base_cmd.push_str(&format!(" --format \"{format}\""));
         }
         if let Some(language) = &params.language {
-            base_cmd.push_str(&format!(" --language \"{}\"", language));
+            base_cmd.push_str(&format!(" --language \"{language}\""));
         }
         if params.pretty {
             base_cmd.push_str(" --pretty");
         }
 
         if current_page > 1 {
-            eprintln!("Previous page: {} --page {}", base_cmd, current_page - 1);
+            eprintln!("Previous page: {base_cmd} --page {}", current_page - 1);
         }
         if current_page < total_pages {
-            eprintln!("Next page: {} --page {}", base_cmd, current_page + 1);
+            eprintln!("Next page: {base_cmd} --page {}", current_page + 1);
         }
-        eprintln!("Jump to page: {} --page <PAGE_NUMBER>", base_cmd);
+        eprintln!("Jump to page: {base_cmd} --page <PAGE_NUMBER>");
     }
 
     Ok(())
@@ -467,9 +466,9 @@ fn format_query_with_operators(query: &str) -> String {
             .iter()
             .map(|part| format!("eq~{}", part.trim()))
             .collect::<Vec<String>>()
-            .join(&format!(",{},", operator))
+            .join(&format!(",{operator},"))
     } else {
-        format!("eq~{}", query)
+        format!("eq~{query}")
     }
 }
 
@@ -593,7 +592,7 @@ async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()>
     };
 
     if global.verbose {
-        println!("Searching for card '{}' using advanced search", name);
+        println!("Searching for card '{name}' using advanced search");
     }
 
     // Perform the search
@@ -621,20 +620,20 @@ async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()>
     let cache_key = CacheManager::hash_gatherer_search_request(url, &payload, &headers);
 
     if global.verbose {
-        println!("Cache key: {}", cache_key);
+        println!("Cache key: {cache_key}");
     }
 
     // Check cache first
     if let Some(cached_response) = cache_manager.get(&cache_key).await? {
         if global.verbose {
-            println!("Using cached response for card '{}'", name);
+            println!("Using cached response for card '{name}'");
         }
 
         let card_data = &cached_response.data;
         if let Some(items) = card_data.get("items").and_then(|v| v.as_array()) {
             if items.is_empty() {
                 return Err(
-                    crate::error::Error::Generic(format!("Card '{}' not found", name)).into(),
+                    crate::error::Error::Generic(format!("Card '{name}' not found")).into(),
                 );
             }
 
@@ -657,13 +656,13 @@ async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()>
                 println!("{}", serde_json::to_string_pretty(best_match)?);
             }
         } else {
-            return Err(crate::error::Error::Generic(format!("Card '{}' not found", name)).into());
+            return Err(crate::error::Error::Generic(format!("Card '{name}' not found")).into());
         }
         return Ok(());
     }
 
     if global.verbose {
-        println!("Cache miss for card '{}', fetching from API", name);
+        println!("Cache miss for card '{name}', fetching from API");
     }
 
     let response = client
@@ -704,13 +703,13 @@ async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()>
         cache_manager.set(&cache_key, card_data.clone()).await?;
 
         if global.verbose {
-            println!("Response cached for card '{}'", name);
+            println!("Response cached for card '{name}'");
         }
 
         if let Some(items) = card_data.get("items").and_then(|v| v.as_array()) {
             if items.is_empty() {
                 return Err(
-                    crate::error::Error::Generic(format!("Card '{}' not found", name)).into(),
+                    crate::error::Error::Generic(format!("Card '{name}' not found")).into(),
                 );
             }
 
@@ -733,10 +732,10 @@ async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()>
                 println!("{}", serde_json::to_string_pretty(best_match)?);
             }
         } else {
-            return Err(crate::error::Error::Generic(format!("Card '{}' not found", name)).into());
+            return Err(crate::error::Error::Generic(format!("Card '{name}' not found")).into());
         }
     } else {
-        return Err(crate::error::Error::Generic(format!("Card '{}' not found", name)).into());
+        return Err(crate::error::Error::Generic(format!("Card '{name}' not found")).into());
     }
 
     Ok(())
@@ -780,7 +779,7 @@ fn display_single_card_details(card: &serde_json::Value) -> Result<()> {
     if let (Some(p), Some(t)) = (power, toughness) {
         table.add_row(Row::new(vec![
             Cell::new("Power/Toughness"),
-            Cell::new(&format!("{}/{}", p, t)),
+            Cell::new(&format!("{p}/{t}")),
         ]));
     }
 
@@ -950,7 +949,7 @@ pub async fn search_cards_json(
             "mythic" | "mythic rare" => "M",
             _ => rarity,
         };
-        request.rarity_name = format!("eq~{}~{}", rarity, rarity_code);
+        request.rarity_name = format!("eq~{rarity}~{rarity_code}");
     }
     if let Some(ref artist) = params.artist {
         request.artist_name = artist.clone();
@@ -996,7 +995,7 @@ pub async fn search_cards_json(
             "chinese traditional" | "traditional chinese" => "zh-tw",
             _ => language,
         };
-        request.language = format!("eq~{}~{}", language, lang_code);
+        request.language = format!("eq~{language}~{lang_code}");
     }
 
     request.page = params.page.to_string();
@@ -1102,7 +1101,7 @@ pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result
             "mythic" | "mythic rare" => "M",
             _ => rarity,
         };
-        request.rarity_name = format!("eq~{}~{}", rarity, rarity_code);
+        request.rarity_name = format!("eq~{rarity}~{rarity_code}");
     }
     if let Some(ref artist) = params.artist {
         request.artist_name = artist.clone();
@@ -1154,7 +1153,7 @@ pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result
             "chinese traditional" | "traditional chinese" => "zh-tw",
             _ => language, // Use as-is if not recognized
         };
-        request.language = format!("eq~{}~{}", language, lang_code);
+        request.language = format!("eq~{language}~{lang_code}");
     }
     // Note: language defaults to "eq~English~en-us" if not specified
 
@@ -1183,7 +1182,7 @@ pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result
     let cache_key = CacheManager::hash_gatherer_search_request(url, &payload, &headers);
 
     if global.verbose {
-        println!("Cache key: {}", cache_key);
+        println!("Cache key: {cache_key}");
     }
 
     // Check cache first
@@ -1237,7 +1236,7 @@ pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result
     let response_text = response.text().await?;
 
     if global.verbose {
-        println!("Raw response: {}", response_text);
+        println!("Raw response: {response_text}");
     }
 
     // Parse Next.js server action response format

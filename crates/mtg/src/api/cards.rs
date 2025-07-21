@@ -194,7 +194,7 @@ impl CardsCommand {
 }
 
 async fn list_cards(client: reqwest::Client, base_url: &str, options: ListOptions) -> Result<()> {
-    let url = f!("{}/cards", base_url);
+    let url = f!("{base_url}/cards");
     let mut request = client.get(&url);
 
     // Add all the optional parameters
@@ -345,7 +345,7 @@ async fn search_cards(
         options.name.clone()
     };
 
-    let url = f!("{}/cards", base_url);
+    let url = f!("{base_url}/cards");
     let mut request = client
         .get(&url)
         .query(&[("name", &search_name)])

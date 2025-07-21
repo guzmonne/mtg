@@ -465,7 +465,7 @@ fn output_pretty(deck_list: &DeckList, stats: &DeckStats) -> Result<()> {
             curve_table.add_row(Row::new(vec![
                 Cell::new(&mv.to_string()),
                 Cell::new(&count.to_string()),
-                Cell::new(&format!("{:.1}%", percentage)),
+                Cell::new(&format!("{percentage:.1}%")),
             ]));
         }
 
@@ -492,7 +492,7 @@ fn output_pretty(deck_list: &DeckList, stats: &DeckStats) -> Result<()> {
             type_table.add_row(Row::new(vec![
                 Cell::new(card_type),
                 Cell::new(&count.to_string()),
-                Cell::new(&format!("{:.1}%", percentage)),
+                Cell::new(&format!("{percentage:.1}%")),
             ]));
         }
 
@@ -519,7 +519,7 @@ fn output_pretty(deck_list: &DeckList, stats: &DeckStats) -> Result<()> {
             color_table.add_row(Row::new(vec![
                 Cell::new(color),
                 Cell::new(&count.to_string()),
-                Cell::new(&format!("{:.1}%", percentage)),
+                Cell::new(&format!("{percentage:.1}%")),
             ]));
         }
 
@@ -555,94 +555,129 @@ fn output_pretty(deck_list: &DeckList, stats: &DeckStats) -> Result<()> {
         println!();
     }
 
-    // Card list
+    // Card list with detailed descriptions
     if !deck_list.main_deck.is_empty() {
         println!("Main Deck ({} cards):", stats.main_deck_cards);
-        let mut deck_table = Table::new();
-        deck_table.set_format(*format::consts::FORMAT_CLEAN);
-        deck_table.add_row(Row::new(vec![
-            Cell::new("Qty"),
-            Cell::new("Name"),
-            Cell::new("Mana Cost"),
-            Cell::new("Type"),
-            Cell::new("Set"),
-        ]));
+        println!("{}", "=".repeat(80));
 
         for card in &deck_list.main_deck {
-            let mana_cost = card
-                .card_details
-                .as_ref()
-                .and_then(|d| d.mana_cost.as_deref())
-                .unwrap_or("");
-            let type_line = card
-                .card_details
-                .as_ref()
-                .map(|d| d.type_line.as_str())
-                .unwrap_or("");
-            let set_info = if let Some(set_code) = &card.set_code {
-                set_code.clone()
-            } else {
-                card.card_details
-                    .as_ref()
-                    .map(|d| d.set.clone())
-                    .unwrap_or_default()
-            };
+            println!();
+            println!("{}x {}", card.quantity, card.name);
 
-            deck_table.add_row(Row::new(vec![
-                Cell::new(&card.quantity.to_string()),
-                Cell::new(&card.name),
-                Cell::new(mana_cost),
-                Cell::new(type_line),
-                Cell::new(&set_info),
-            ]));
+            if let Some(details) = &card.card_details {
+                // Mana cost and type line
+                if let Some(mana_cost) = &details.mana_cost {
+                    if !mana_cost.is_empty() {
+                        println!("Mana Cost: {mana_cost}");
+                    }
+                }
+                println!("Type: {}", details.type_line);
+
+                // Power/Toughness for creatures
+                if let (Some(power), Some(toughness)) = (&details.power, &details.toughness) {
+                    println!("Power/Toughness: {power}/{toughness}");
+                }
+
+                // Loyalty for planeswalkers
+                if let Some(loyalty) = &details.loyalty {
+                    println!("Loyalty: {loyalty}");
+                }
+
+                // Oracle text
+                if let Some(oracle_text) = &details.oracle_text {
+                    if !oracle_text.is_empty() {
+                        println!("Oracle Text:");
+                        // Format oracle text with proper line breaks
+                        for line in oracle_text.lines() {
+                            println!("  {line}");
+                        }
+                    }
+                }
+
+                // Flavor text
+                if let Some(flavor_text) = &details.flavor_text {
+                    if !flavor_text.is_empty() {
+                        println!("Flavor Text:");
+                        for line in flavor_text.lines() {
+                            println!("  \"{line}\"");
+                        }
+                    }
+                }
+
+                // Set information
+                println!("Set: {} ({})", details.set_name, details.set);
+
+                // Rarity
+                println!("Rarity: {}", details.rarity);
+            } else {
+                println!("(Card details not available)");
+            }
+
+            println!("{}", "-".repeat(40));
         }
 
-        deck_table.printstd();
         println!();
     }
 
     if !deck_list.sideboard.is_empty() {
         println!("Sideboard ({} cards):", stats.sideboard_cards);
-        let mut sb_table = Table::new();
-        sb_table.set_format(*format::consts::FORMAT_CLEAN);
-        sb_table.add_row(Row::new(vec![
-            Cell::new("Qty"),
-            Cell::new("Name"),
-            Cell::new("Mana Cost"),
-            Cell::new("Type"),
-            Cell::new("Set"),
-        ]));
+        println!("{}", "=".repeat(80));
 
         for card in &deck_list.sideboard {
-            let mana_cost = card
-                .card_details
-                .as_ref()
-                .and_then(|d| d.mana_cost.as_deref())
-                .unwrap_or("");
-            let type_line = card
-                .card_details
-                .as_ref()
-                .map(|d| d.type_line.as_str())
-                .unwrap_or("");
-            let set_info = if let Some(set_code) = &card.set_code {
-                set_code.clone()
+            println!();
+            println!("{}x {}", card.quantity, card.name);
+
+            if let Some(details) = &card.card_details {
+                // Mana cost and type line
+                if let Some(mana_cost) = &details.mana_cost {
+                    if !mana_cost.is_empty() {
+                        println!("Mana Cost: {mana_cost}");
+                    }
+                }
+                println!("Type: {}", details.type_line);
+
+                // Power/Toughness for creatures
+                if let (Some(power), Some(toughness)) = (&details.power, &details.toughness) {
+                    println!("Power/Toughness: {power}/{toughness}");
+                }
+
+                // Loyalty for planeswalkers
+                if let Some(loyalty) = &details.loyalty {
+                    println!("Loyalty: {loyalty}");
+                }
+
+                // Oracle text
+                if let Some(oracle_text) = &details.oracle_text {
+                    if !oracle_text.is_empty() {
+                        println!("Oracle Text:");
+                        // Format oracle text with proper line breaks
+                        for line in oracle_text.lines() {
+                            println!("  {line}");
+                        }
+                    }
+                }
+
+                // Flavor text
+                if let Some(flavor_text) = &details.flavor_text {
+                    if !flavor_text.is_empty() {
+                        println!("Flavor Text:");
+                        for line in flavor_text.lines() {
+                            println!("  \"{line}\"");
+                        }
+                    }
+                }
+
+                // Set information
+                println!("Set: {} ({})", details.set_name, details.set);
+
+                // Rarity
+                println!("Rarity: {}", details.rarity);
             } else {
-                card.card_details
-                    .as_ref()
-                    .map(|d| d.set.clone())
-                    .unwrap_or_default()
-            };
+                println!("(Card details not available)");
+            }
 
-            sb_table.add_row(Row::new(vec![
-                Cell::new(&card.quantity.to_string()),
-                Cell::new(&card.name),
-                Cell::new(mana_cost),
-                Cell::new(type_line),
-                Cell::new(&set_info),
-            ]));
+            println!("{}", "-".repeat(40));
         }
-
-        sb_table.printstd();
     }
 
     Ok(())
@@ -704,7 +739,7 @@ pub async fn analyze_deck_list_mcp(deck_content: &str, global: crate::Global) ->
 
         for (mv, count) in sorted_curve {
             let percentage = (*count as f64 / stats.main_deck_cards as f64) * 100.0;
-            output.push_str(&format!("  {}: {} cards ({:.1}%)\n", mv, count, percentage));
+            output.push_str(&format!("  {mv}: {count} cards ({percentage:.1}%)\n"));
         }
         output.push('\n');
     }
@@ -718,8 +753,7 @@ pub async fn analyze_deck_list_mcp(deck_content: &str, global: crate::Global) ->
         for (card_type, count) in sorted_types {
             let percentage = (*count as f64 / stats.main_deck_cards as f64) * 100.0;
             output.push_str(&format!(
-                "  {}: {} cards ({:.1}%)\n",
-                card_type, count, percentage
+                "  {card_type}: {count} cards ({percentage:.1}%)\n",
             ));
         }
         output.push('\n');

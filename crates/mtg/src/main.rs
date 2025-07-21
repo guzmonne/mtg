@@ -153,8 +153,7 @@ async fn handle_sets_command(command: SetCommands, global: Global) -> Result<()>
                     Some(t) => Some(t),
                     None => {
                         eprintln!(
-                            "Invalid set type: {}. Use 'mtg sets types' to see available types.",
-                            type_str
+                            "Invalid set type: {type_str}. Use 'mtg sets types' to see available types."
                         );
                         return Ok(());
                     }
@@ -231,7 +230,7 @@ fn display_sets_table(sets_list: &sets::ScryfallSetList) -> Result<()> {
         eprintln!();
         eprintln!("⚠️  Warnings:");
         for warning in warnings {
-            eprintln!("   • {}", warning);
+            eprintln!("   • {warning}");
         }
     }
 

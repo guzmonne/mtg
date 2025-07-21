@@ -265,7 +265,7 @@ pub async fn list_sets(params: SetListParams, global: crate::Global) -> Result<S
 
     if global.verbose {
         println!("Cache miss, fetching sets from API");
-        println!("Request URL: {}", url);
+        println!("Request URL: {url}");
     }
 
     let response = client.get(url).send().await?;
@@ -319,7 +319,7 @@ pub async fn get_set_by_code(code: &str, global: crate::Global) -> Result<Scryfa
 
     if global.verbose {
         println!("Cache miss, fetching set from API");
-        println!("Request URL: {}", url);
+        println!("Request URL: {url}");
     }
 
     let response = client.get(&url).send().await?;

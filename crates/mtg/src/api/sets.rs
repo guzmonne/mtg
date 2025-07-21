@@ -86,7 +86,7 @@ impl SetsCommand {
 }
 
 async fn list_sets(client: reqwest::Client, base_url: &str, options: ListOptions) -> Result<()> {
-    let url = f!("{}/sets", base_url);
+    let url = f!("{base_url}/sets");
     let mut request = client
         .get(&url)
         .query(&[("page", &options.page.to_string())])

@@ -31,7 +31,7 @@ fn format_scryfall_search_results(
         let pt_loyalty = if let Some(loyalty) = &card.loyalty {
             loyalty.clone()
         } else if let (Some(power), Some(toughness)) = (&card.power, &card.toughness) {
-            format!("{}/{}", power, toughness)
+            format!("{power}/{toughness}")
         } else {
             "-".to_string()
         };
@@ -55,7 +55,7 @@ fn format_scryfall_search_results(
 
     // Add summary information
     let total_cards = response.total_cards.unwrap_or(response.data.len() as u32) as usize;
-    output.push_str(&format!("\nFound {} cards", total_cards));
+    output.push_str(&format!("\nFound {total_cards} cards"));
     if response.data.len() < total_cards {
         output.push_str(&format!(" (showing {} on this page)", response.data.len()));
     }
@@ -64,7 +64,7 @@ fn format_scryfall_search_results(
     if let Some(warnings) = &response.warnings {
         output.push_str("\n\n⚠️  Warnings:\n");
         for warning in warnings {
-            output.push_str(&format!("   • {}\n", warning));
+            output.push_str(&format!("   • {warning}\n"));
         }
     }
 
@@ -114,7 +114,7 @@ fn format_single_card_details(card: &crate::scryfall::ScryfallCard) -> Result<St
     if let (Some(power), Some(toughness)) = (&card.power, &card.toughness) {
         table.add_row(Row::new(vec![
             Cell::new("Power/Toughness"),
-            Cell::new(&format!("{}/{}", power, toughness)),
+            Cell::new(&format!("{power}/{toughness}")),
         ]));
     }
 
@@ -220,7 +220,7 @@ fn format_gatherer_search_results(response: &serde_json::Value) -> Result<String
                 item.get("power").and_then(|v| v.as_str()),
                 item.get("toughness").and_then(|v| v.as_str()),
             ) {
-                format!("{}/{}", power, toughness)
+                format!("{power}/{toughness}")
             } else {
                 "-".to_string()
             };
@@ -247,7 +247,7 @@ fn format_gatherer_search_results(response: &serde_json::Value) -> Result<String
             .get("totalItems")
             .and_then(|v| v.as_u64())
             .unwrap_or(items.len() as u64);
-        output.push_str(&format!("\nFound {} cards", total_items));
+        output.push_str(&format!("\nFound {total_items} cards"));
         if items.len() < total_items as usize {
             output.push_str(&format!(" (showing {} on this page)", items.len()));
         }
@@ -432,7 +432,7 @@ impl ScryfallIdTool {
                 let args = request.arguments.as_ref().unwrap_or(&empty_args);
 
                 if let Some(id) = args.get("id").and_then(|v| v.as_str()) {
-                    let url = format!("https://api.scryfall.com/cards/{}", id);
+                    let url = format!("https://api.scryfall.com/cards/{id}");
 
                     let client = reqwest::Client::builder()
                         .user_agent("mtg-cli/1.0")
@@ -547,8 +547,7 @@ impl ScryfallCollectorTool {
                 ) {
                     let lang = args.get("lang").and_then(|v| v.as_str()).unwrap_or("en");
                     let url = format!(
-                        "https://api.scryfall.com/cards/{}/{}/{}?format=json",
-                        set_code, collector_number, lang
+                        "https://api.scryfall.com/cards/{set_code}/{collector_number}/{lang}?format=json"
                     );
 
                     let client = reqwest::Client::builder()
@@ -816,8 +815,7 @@ impl ScryfallAutocompleteTool {
                                                     .collect();
 
                                                 let mut output = format!(
-                                                    "Card name suggestions for '{}':\n\n",
-                                                    query
+                                                    "Card name suggestions for '{query}':\n\n",
                                                 );
                                                 for (i, suggestion) in
                                                     suggestions.iter().enumerate()
@@ -939,7 +937,7 @@ pub async fn run_mcp_server(global: crate::Global) -> Result<()> {
 }
 
 pub async fn run_sse_server(global: crate::Global, host: String, port: u16) -> Result<()> {
-    log::info!("Starting MTG MCP Server (SSE) on {}:{}", host, port);
+    log::info!("Starting MTG MCP Server (SSE) on {host}:{port}");
 
     let server_protocol = Server::builder(
         "mtg-mcp-server".to_string(),
@@ -983,7 +981,7 @@ impl GathererSearchTool {
                         "description": "Card name to search for (partial matching allowed)"
                     },
                     "rules": {
-                        "type": "string", 
+                        "type": "string",
                         "description": "Rules text to search for"
                     },
                     "card_type": {

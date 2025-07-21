@@ -101,7 +101,7 @@ impl CacheManager {
     }
 
     pub fn get_cache_path(&self, hash: &str) -> PathBuf {
-        self.cache_dir.join(format!("{}.json", hash))
+        self.cache_dir.join(format!("{hash}.json"))
     }
 
     pub async fn get(&self, hash: &str) -> Result<Option<CachedResponse>> {

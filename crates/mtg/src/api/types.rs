@@ -60,7 +60,7 @@ impl TypesCommand {
 }
 
 async fn list_types(client: reqwest::Client, base_url: &str) -> Result<()> {
-    let url = f!("{}/types", base_url);
+    let url = f!("{base_url}/types");
     let response = client.get(&url).send().await?;
     let json: serde_json::Value = response.json().await?;
 
@@ -87,7 +87,7 @@ async fn list_types(client: reqwest::Client, base_url: &str) -> Result<()> {
 }
 
 async fn list_subtypes(client: reqwest::Client, base_url: &str) -> Result<()> {
-    let url = f!("{}/subtypes", base_url);
+    let url = f!("{base_url}/subtypes");
     let response = client.get(&url).send().await?;
     let json: serde_json::Value = response.json().await?;
 
@@ -109,7 +109,7 @@ async fn list_subtypes(client: reqwest::Client, base_url: &str) -> Result<()> {
 }
 
 async fn list_supertypes(client: reqwest::Client, base_url: &str) -> Result<()> {
-    let url = f!("{}/supertypes", base_url);
+    let url = f!("{base_url}/supertypes");
     let response = client.get(&url).send().await?;
     let json: serde_json::Value = response.json().await?;
 
@@ -136,7 +136,7 @@ async fn list_supertypes(client: reqwest::Client, base_url: &str) -> Result<()> 
 }
 
 async fn list_formats(client: reqwest::Client, base_url: &str) -> Result<()> {
-    let url = f!("{}/formats", base_url);
+    let url = f!("{base_url}/formats");
     let response = client.get(&url).send().await?;
     let json: serde_json::Value = response.json().await?;
 

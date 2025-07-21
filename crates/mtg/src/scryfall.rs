@@ -590,43 +590,43 @@ pub fn build_advanced_query(params: &AdvancedSearchParams) -> String {
     }
 
     if let Some(card_type) = &params.card_type {
-        query_parts.push(format!("type:{}", card_type));
+        query_parts.push(format!("type:{card_type}"));
     }
 
     if let Some(colors) = &params.colors {
-        query_parts.push(format!("color:{}", colors));
+        query_parts.push(format!("color:{colors}"));
     }
 
     if let Some(identity) = &params.identity {
-        query_parts.push(format!("identity:{}", identity));
+        query_parts.push(format!("identity:{identity}"));
     }
 
     if let Some(mana) = &params.mana {
-        query_parts.push(format!("mana:{}", mana));
+        query_parts.push(format!("mana:{mana}"));
     }
 
     if let Some(mv) = &params.mv {
-        query_parts.push(format!("manavalue:{}", mv));
+        query_parts.push(format!("manavalue:{mv}"));
     }
 
     if let Some(power) = &params.power {
-        query_parts.push(format!("power:{}", power));
+        query_parts.push(format!("power:{power}"));
     }
 
     if let Some(toughness) = &params.toughness {
-        query_parts.push(format!("toughness:{}", toughness));
+        query_parts.push(format!("toughness:{toughness}"));
     }
 
     if let Some(loyalty) = &params.loyalty {
-        query_parts.push(format!("loyalty:{}", loyalty));
+        query_parts.push(format!("loyalty:{loyalty}"));
     }
 
     if let Some(set) = &params.set {
-        query_parts.push(format!("set:{}", set));
+        query_parts.push(format!("set:{set}"));
     }
 
     if let Some(rarity) = &params.rarity {
-        query_parts.push(format!("rarity:{}", rarity));
+        query_parts.push(format!("rarity:{rarity}"));
     }
 
     if let Some(artist) = &params.artist {
@@ -638,11 +638,11 @@ pub fn build_advanced_query(params: &AdvancedSearchParams) -> String {
     }
 
     if let Some(format) = &params.format {
-        query_parts.push(format!("format:{}", format));
+        query_parts.push(format!("format:{format}"));
     }
 
     if let Some(language) = &params.language {
-        query_parts.push(format!("lang:{}", language));
+        query_parts.push(format!("lang:{language}"));
     }
 
     query_parts.join(" ")
@@ -665,7 +665,7 @@ fn display_pretty_results(response: &ScryfallSearchResponse, params: &SearchPara
         let pt_loyalty = if let Some(loyalty) = &card.loyalty {
             loyalty.clone()
         } else if let (Some(power), Some(toughness)) = (&card.power, &card.toughness) {
-            format!("{}/{}", power, toughness)
+            format!("{power}/{toughness}")
         } else {
             "-".to_string()
         };
@@ -698,10 +698,10 @@ fn display_pretty_results(response: &ScryfallSearchResponse, params: &SearchPara
         let mut base_cmd = format!("mtg scryfall search \"{}\"", params.query);
 
         if params.page > 1 {
-            eprintln!("Previous page: {} --page {}", base_cmd, params.page - 1);
+            eprintln!("Previous page: {base_cmd} --page {}", params.page - 1);
         }
-        eprintln!("Next page: {} --page {}", base_cmd, params.page + 1);
-        eprintln!("Jump to page: {} --page <PAGE_NUMBER>", base_cmd);
+        eprintln!("Next page: {base_cmd} --page {}", params.page + 1);
+        eprintln!("Jump to page: {base_cmd} --page <PAGE_NUMBER>");
     }
 
     Ok(())
@@ -727,7 +727,7 @@ fn display_advanced_pretty_results(
         let pt_loyalty = if let Some(loyalty) = &card.loyalty {
             loyalty.clone()
         } else if let (Some(power), Some(toughness)) = (&card.power, &card.toughness) {
-            format!("{}/{}", power, toughness)
+            format!("{power}/{toughness}")
         } else {
             "-".to_string()
         };
@@ -806,7 +806,7 @@ fn display_single_card_details(card: &ScryfallCard) -> Result<()> {
     if let (Some(power), Some(toughness)) = (&card.power, &card.toughness) {
         table.add_row(Row::new(vec![
             Cell::new("Power/Toughness"),
-            Cell::new(&format!("{}/{}", power, toughness)),
+            Cell::new(&format!("{power}/{toughness}")),
         ]));
     }
 
@@ -923,7 +923,7 @@ pub async fn search_cards_json(
         .map(|(k, v)| format!("{}={}", urlencoding::encode(k), urlencoding::encode(v)))
         .collect::<Vec<_>>()
         .join("&");
-    let full_url = format!("{}?{}", url, query_string);
+    let full_url = format!("{url}?{query_string}");
 
     let response = client.get(&full_url).send().await?;
 
@@ -1001,7 +1001,7 @@ pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result
 
     if global.verbose {
         println!("Search query: {}", params.query);
-        println!("Cache key: {}", cache_key);
+        println!("Cache key: {cache_key}");
     }
 
     // Check cache first
@@ -1029,10 +1029,10 @@ pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result
         .map(|(k, v)| format!("{}={}", urlencoding::encode(k), urlencoding::encode(v)))
         .collect::<Vec<_>>()
         .join("&");
-    let full_url = format!("{}?{}", url, query_string);
+    let full_url = format!("{url}?{query_string}");
 
     if global.verbose {
-        println!("Request URL: {}", full_url);
+        println!("Request URL: {full_url}");
     }
 
     let response = client.get(&full_url).send().await?;
@@ -1049,7 +1049,7 @@ pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result
 
     // Handle CSV response
     if params.csv {
-        println!("{}", response_text);
+        println!("{response_text}");
         return Ok(());
     }
 
@@ -1084,7 +1084,7 @@ async fn advanced_search(params: AdvancedSearchParams, global: crate::Global) ->
     }
 
     if global.verbose {
-        println!("Built query: {}", query);
+        println!("Built query: {query}");
     }
 
     let search_params = SearchParams {
@@ -1135,11 +1135,11 @@ async fn get_card_by_name(
     let cache_key = CacheManager::hash_request(&url);
 
     if global.verbose {
-        println!("Looking up card: {}", name);
+        println!("Looking up card: {name}");
         if let Some(set) = set_code {
-            println!("In set: {}", set);
+            println!("In set: {set}");
         }
-        println!("Cache key: {}", cache_key);
+        println!("Cache key: {cache_key}");
     }
 
     // Check cache first
@@ -1159,7 +1159,7 @@ async fn get_card_by_name(
 
     if global.verbose {
         println!("Cache miss, fetching from API");
-        println!("Request URL: {}", url);
+        println!("Request URL: {url}");
     }
 
     let response = client.get(&url).send().await?;
@@ -1199,14 +1199,14 @@ async fn get_card_by_id(id: &str, pretty: bool, global: crate::Global) -> Result
         .user_agent("mtg-cli/1.0")
         .build()?;
 
-    let url = format!("https://api.scryfall.com/cards/{}", id);
+    let url = format!("https://api.scryfall.com/cards/{id}");
 
     // Generate cache key
     let cache_key = CacheManager::hash_request(&url);
 
     if global.verbose {
-        println!("Looking up card by ID: {}", id);
-        println!("Cache key: {}", cache_key);
+        println!("Looking up card by ID: {id}");
+        println!("Cache key: {cache_key}");
     }
 
     // Check cache first
@@ -1226,7 +1226,7 @@ async fn get_card_by_id(id: &str, pretty: bool, global: crate::Global) -> Result
 
     if global.verbose {
         println!("Cache miss, fetching from API");
-        println!("Request URL: {}", url);
+        println!("Request URL: {url}");
     }
 
     let response = client.get(&url).send().await?;
@@ -1291,14 +1291,11 @@ async fn get_card_by_collector(
     let cache_key = CacheManager::hash_request(&url);
 
     if global.verbose {
-        println!(
-            "Looking up card by collector: {} #{}",
-            set_code, collector_number
-        );
+        println!("Looking up card by collector: {set_code} #{collector_number}",);
         if let Some(language) = lang {
-            println!("Language: {}", language);
+            println!("Language: {language}");
         }
-        println!("Cache key: {}", cache_key);
+        println!("Cache key: {cache_key}");
     }
 
     // Check cache first
@@ -1318,7 +1315,7 @@ async fn get_card_by_collector(
 
     if global.verbose {
         println!("Cache miss, fetching from API");
-        println!("Request URL: {}", url);
+        println!("Request URL: {url}");
     }
 
     let response = client.get(&url).send().await?;
@@ -1358,14 +1355,14 @@ async fn get_card_by_arena_id(arena_id: u32, pretty: bool, global: crate::Global
         .user_agent("mtg-cli/1.0")
         .build()?;
 
-    let url = format!("https://api.scryfall.com/cards/arena/{}", arena_id);
+    let url = format!("https://api.scryfall.com/cards/arena/{arena_id}");
 
     // Generate cache key
     let cache_key = CacheManager::hash_request(&url);
 
     if global.verbose {
-        println!("Looking up card by Arena ID: {}", arena_id);
-        println!("Cache key: {}", cache_key);
+        println!("Looking up card by Arena ID: {arena_id}");
+        println!("Cache key: {cache_key}");
     }
 
     // Check cache first
@@ -1385,7 +1382,7 @@ async fn get_card_by_arena_id(arena_id: u32, pretty: bool, global: crate::Global
 
     if global.verbose {
         println!("Cache miss, fetching from API");
-        println!("Request URL: {}", url);
+        println!("Request URL: {url}");
     }
 
     let response = client.get(&url).send().await?;
@@ -1425,14 +1422,14 @@ async fn get_card_by_mtgo_id(mtgo_id: u32, pretty: bool, global: crate::Global) 
         .user_agent("mtg-cli/1.0")
         .build()?;
 
-    let url = format!("https://api.scryfall.com/cards/mtgo/{}", mtgo_id);
+    let url = format!("https://api.scryfall.com/cards/mtgo/{mtgo_id}");
 
     // Generate cache key
     let cache_key = CacheManager::hash_request(&url);
 
     if global.verbose {
-        println!("Looking up card by MTGO ID: {}", mtgo_id);
-        println!("Cache key: {}", cache_key);
+        println!("Looking up card by MTGO ID: {mtgo_id}");
+        println!("Cache key: {cache_key}");
     }
 
     // Check cache first
@@ -1452,7 +1449,7 @@ async fn get_card_by_mtgo_id(mtgo_id: u32, pretty: bool, global: crate::Global) 
 
     if global.verbose {
         println!("Cache miss, fetching from API");
-        println!("Request URL: {}", url);
+        println!("Request URL: {url}");
     }
 
     let response = client.get(&url).send().await?;
@@ -1496,17 +1493,14 @@ async fn get_card_by_multiverse_id(
         .user_agent("mtg-cli/1.0")
         .build()?;
 
-    let url = format!(
-        "https://api.scryfall.com/cards/multiverse/{}",
-        multiverse_id
-    );
+    let url = format!("https://api.scryfall.com/cards/multiverse/{multiverse_id}",);
 
     // Generate cache key
     let cache_key = CacheManager::hash_request(&url);
 
     if global.verbose {
-        println!("Looking up card by Multiverse ID: {}", multiverse_id);
-        println!("Cache key: {}", cache_key);
+        println!("Looking up card by Multiverse ID: {multiverse_id}");
+        println!("Cache key: {cache_key}");
     }
 
     // Check cache first
@@ -1526,7 +1520,7 @@ async fn get_card_by_multiverse_id(
 
     if global.verbose {
         println!("Cache miss, fetching from API");
-        println!("Request URL: {}", url);
+        println!("Request URL: {url}");
     }
 
     let response = client.get(&url).send().await?;
@@ -1570,14 +1564,14 @@ async fn get_card_by_tcgplayer_id(
         .user_agent("mtg-cli/1.0")
         .build()?;
 
-    let url = format!("https://api.scryfall.com/cards/tcgplayer/{}", tcgplayer_id);
+    let url = format!("https://api.scryfall.com/cards/tcgplayer/{tcgplayer_id}");
 
     // Generate cache key
     let cache_key = CacheManager::hash_request(&url);
 
     if global.verbose {
-        println!("Looking up card by TCGPlayer ID: {}", tcgplayer_id);
-        println!("Cache key: {}", cache_key);
+        println!("Looking up card by TCGPlayer ID: {tcgplayer_id}");
+        println!("Cache key: {cache_key}");
     }
 
     // Check cache first
@@ -1597,7 +1591,7 @@ async fn get_card_by_tcgplayer_id(
 
     if global.verbose {
         println!("Cache miss, fetching from API");
-        println!("Request URL: {}", url);
+        println!("Request URL: {url}");
     }
 
     let response = client.get(&url).send().await?;
@@ -1641,17 +1635,14 @@ async fn get_card_by_cardmarket_id(
         .user_agent("mtg-cli/1.0")
         .build()?;
 
-    let url = format!(
-        "https://api.scryfall.com/cards/cardmarket/{}",
-        cardmarket_id
-    );
+    let url = format!("https://api.scryfall.com/cards/cardmarket/{cardmarket_id}",);
 
     // Generate cache key
     let cache_key = CacheManager::hash_request(&url);
 
     if global.verbose {
-        println!("Looking up card by Cardmarket ID: {}", cardmarket_id);
-        println!("Cache key: {}", cache_key);
+        println!("Looking up card by Cardmarket ID: {cardmarket_id}");
+        println!("Cache key: {cache_key}");
     }
 
     // Check cache first
@@ -1671,7 +1662,7 @@ async fn get_card_by_cardmarket_id(
 
     if global.verbose {
         println!("Cache miss, fetching from API");
-        println!("Request URL: {}", url);
+        println!("Request URL: {url}");
     }
 
     let response = client.get(&url).send().await?;
@@ -1721,9 +1712,9 @@ async fn get_random_card(query: Option<&str>, pretty: bool, global: crate::Globa
     if global.verbose {
         println!("Getting random card");
         if let Some(q) = query {
-            println!("With query: {}", q);
+            println!("With query: {q}");
         }
-        println!("Request URL: {}", url);
+        println!("Request URL: {url}");
     }
 
     let response = client.get(&url).send().await?;
@@ -1773,8 +1764,8 @@ async fn get_autocomplete(query: &str, include_extras: bool, global: crate::Glob
     let cache_key = CacheManager::hash_request(&url);
 
     if global.verbose {
-        println!("Getting autocomplete for: {}", query);
-        println!("Cache key: {}", cache_key);
+        println!("Getting autocomplete for: {query}");
+        println!("Cache key: {cache_key}");
     }
 
     // Check cache first
@@ -1785,7 +1776,7 @@ async fn get_autocomplete(query: &str, include_extras: bool, global: crate::Glob
 
         let autocomplete: AutocompleteResponse = serde_json::from_value(cached_response.data)?;
         for suggestion in &autocomplete.data {
-            println!("{}", suggestion);
+            println!("{suggestion}");
         }
 
         if global.verbose {
@@ -1796,7 +1787,7 @@ async fn get_autocomplete(query: &str, include_extras: bool, global: crate::Glob
 
     if global.verbose {
         println!("Cache miss, fetching from API");
-        println!("Request URL: {}", url);
+        println!("Request URL: {url}");
     }
 
     let response = client.get(&url).send().await?;
@@ -1820,7 +1811,7 @@ async fn get_autocomplete(query: &str, include_extras: bool, global: crate::Glob
     }
 
     for suggestion in &autocomplete.data {
-        println!("{}", suggestion);
+        println!("{suggestion}");
     }
 
     if global.verbose {
