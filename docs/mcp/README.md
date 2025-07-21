@@ -75,10 +75,11 @@ Add to your Claude Desktop configuration:
 
 ### Interactive Tools
 
-- **7 Comprehensive Tools**: Complete card lookup and search functionality
+- **8 Comprehensive Tools**: Complete card lookup, search, and deck analysis functionality
 - **Direct Card Lookup**: Get cards by name, ID, collector number, or random selection
 - **Advanced Search**: Find cards using Gatherer or Scryfall APIs with 15+ sort options
 - **Autocomplete**: Get card name suggestions for partial queries
+- **Deck Analysis**: Comprehensive deck statistics including mana curve, type distribution, format legality
 - **Advanced Filtering**: Power, toughness, loyalty, artist, flavor text, price data
 - **Format Legality**: Search by tournament format legality
 - **Pagination Support**: Handle large result sets efficiently

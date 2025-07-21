@@ -295,7 +295,7 @@ pub type ScryfallSearchResponse = ScryfallList<ScryfallCard>;
 //     details: String,
 // }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScryfallCard {
     object: String,
     id: String,
@@ -322,7 +322,7 @@ pub struct ScryfallCard {
     pub toughness: Option<String>,
     pub loyalty: Option<String>,
     colors: Option<Vec<String>>,
-    color_identity: Vec<String>,
+    pub color_identity: Vec<String>,
     keywords: Option<Vec<String>>,
     pub legalities: Value,
     games: Vec<String>,

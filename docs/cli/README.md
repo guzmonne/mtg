@@ -8,6 +8,7 @@ The MTG CLI provides a powerful command-line interface for interacting with Magi
 - [Card Commands](./cards.md) - Search and retrieve card information
 - [Set Commands](./sets.md) - Browse sets and generate booster packs
 - [Type Commands](./types.md) - Access card types and format information
+- [Deck Analysis](./deck.md) - Analyze deck lists with comprehensive statistics
 - [Gatherer Commands](./gatherer.md) - Search using Wizards' official Gatherer database
 - [Scryfall Commands](./scryfall.md) - Search using Scryfall's powerful search engine
 - [Workflow Guide](./workflow.md) - Common workflows and interactive tools
@@ -16,7 +17,7 @@ The MTG CLI provides a powerful command-line interface for interacting with Magi
 
 ## Overview
 
-The MTG CLI is built around five main command categories:
+The MTG CLI is built around six main command categories:
 
 ### API
 
@@ -37,6 +38,15 @@ Search using Scryfall's powerful and flexible search engine with:
 - **Enhanced filtering** - Individual filter options for precise searches
 - **Autocomplete** - Get card name suggestions
 - **Random cards** - Discover cards with optional filtering
+
+### Deck Analysis
+
+Analyze Magic: The Gathering deck lists with comprehensive statistics:
+- **Mana curve analysis** - Understand your deck's speed and consistency
+- **Type distribution** - Breakdown by card types (creatures, spells, lands)
+- **Color analysis** - Color identity and mana requirements
+- **Format legality** - Check legality across all major formats
+- **Complete statistics** - Card counts, averages, and detailed breakdowns
 
 ### Completions
 
@@ -69,6 +79,12 @@ mtg scryfall random --query "t:legendary" --pretty
 
 # Get autocomplete suggestions
 mtg scryfall autocomplete "lightning"
+
+# Analyze a deck list
+mtg deck stats --file my_deck.txt
+
+# Analyze deck from stdin
+echo "Deck\n4 Lightning Bolt\n4 Mountain" | mtg deck stats -
 
 # List recent sets
 mtg api sets list --page-size 10

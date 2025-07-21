@@ -1,0 +1,340 @@
+# Deck Analysis
+
+Analyze Magic: The Gathering deck lists to get comprehensive statistics including mana curve, type distribution, format legality, and more.
+
+## Usage
+
+```bash
+mtg deck stats [OPTIONS] [DECK_LIST]
+```
+
+## Options
+
+- `[DECK_LIST]` - Deck list input (use '-' for stdin, provide deck list as string, or omit to read from stdin)
+- `-f, --file <FILE>` - Read deck list from file
+- `--format <FORMAT>` - Output format (pretty table or JSON) [default: pretty]
+
+## Input Methods
+
+The tool supports multiple ways to provide deck lists:
+
+1. **From file**: `mtg deck stats --file deck.txt`
+2. **From stdin (pipe)**: `cat deck.txt | mtg deck stats`
+3. **From stdin (explicit)**: `mtg deck stats -`
+4. **From stdin (default)**: `mtg deck stats` (reads from stdin if no other input)
+5. **As argument**: `mtg deck stats "4 Lightning Bolt\n4 Mountain"`
+
+## Deck List Format
+
+The deck list should follow the standard format used by most MTG deck building tools:
+
+```
+Deck
+4 Lightning Bolt (M21) 162
+4 Mountain (ANB) 114
+2 Shock (M21) 159
+
+Sideboard
+2 Counterspell (M21) 46
+1 Negate (M21) 52
+```
+
+### Format Rules
+
+- **Section Headers**: Use `Deck` and `Sideboard` to separate sections (case-insensitive)
+- **Card Lines**: Must start with a number: `quantity cardname (set_code) collector_number`
+- **Set Code**: Optional 3-letter set code in parentheses
+- **Collector Number**: Optional collector number after set code
+- **Ignored Lines**: Any line not starting with a number, "Deck", or "Sideboard" is ignored
+- **Comments**: Lines starting with text (not numbers) are automatically ignored
+
+### Supported Formats
+
+The parser is flexible and supports various common formats:
+
+```bash
+# With set codes and collector numbers
+4 Lightning Bolt (M21) 162
+
+# With set codes only
+4 Lightning Bolt (M21)
+
+# Card name only
+4 Lightning Bolt
+
+# Mixed formats in same deck
+4 Lightning Bolt (M21) 162
+4 Mountain
+2 Shock (ANB) 84
+```
+
+## Examples
+
+### Basic Usage
+
+```bash
+# Analyze deck from file
+mtg deck stats --file my_deck.txt
+
+# Analyze deck from stdin (pipe)
+cat my_deck.txt | mtg deck stats
+
+# Analyze deck from stdin (explicit)
+mtg deck stats -
+
+# Analyze deck from command line
+mtg deck stats "Deck
+4 Lightning Bolt
+4 Mountain"
+
+# With comments and metadata (ignored lines)
+echo "// My Burn Deck
+Deck
+4 Lightning Bolt (M21) 162
+// This is a comment
+4 Mountain
+Sideboard
+2 Counterspell" | mtg deck stats
+```
+
+### Output Formats
+
+#### Pretty Table (Default)
+
+```bash
+mtg deck stats --file deck.txt
+```
+
+Output:
+```
+=== DECK ANALYSIS ===
+
+Basic Statistics:
+ Metric              Value 
+ Total Cards         60 
+ Main Deck           60 
+ Sideboard           0 
+ Unique Cards        8 
+ Average Mana Value  1.85 
+
+Mana Curve:
+ Mana Value  Cards  Percentage 
+ 0           20     33.3% 
+ 1           24     40.0% 
+ 2           8      13.3% 
+ 3           8      13.3% 
+
+Card Types:
+ Type      Cards  Percentage 
+ Land      20     33.3% 
+ Creature  16     26.7% 
+ Instant   24     40.0% 
+
+Format Legality:
+ Format     Legal 
+ STANDARD   ✓ 
+ PIONEER    ✓ 
+ MODERN     ✓ 
+ LEGACY     ✓ 
+ VINTAGE    ✓ 
+ COMMANDER  ✓ 
+
+Main Deck (60 cards):
+ Qty  Name                 Mana Cost  Type                Set 
+ 4    Lightning Bolt       {R}        Instant             m21 
+ 4    Ghitu Lavarunner     {R}        Creature — Human    fdn 
+ 20   Mountain                        Basic Land — Mountain anb 
+```
+
+#### JSON Output
+
+```bash
+mtg deck stats --file deck.txt --format json
+```
+
+Output:
+```json
+{
+  "deck_list": {
+    "main_deck": [
+      {
+        "quantity": 4,
+        "name": "Lightning Bolt",
+        "set_code": "M21",
+        "collector_number": "162",
+        "card_details": { ... }
+      }
+    ],
+    "sideboard": []
+  },
+  "statistics": {
+    "total_cards": 60,
+    "main_deck_cards": 60,
+    "sideboard_cards": 0,
+    "unique_cards": 8,
+    "average_mana_value": 1.85,
+    "mana_curve": {
+      "0": 20,
+      "1": 24,
+      "2": 8,
+      "3": 8
+    },
+    "color_distribution": {
+      "R": 40
+    },
+    "type_distribution": {
+      "Land": 20,
+      "Creature": 16,
+      "Instant": 24
+    },
+    "format_legality": {
+      "standard": true,
+      "modern": true,
+      "legacy": true,
+      "vintage": true,
+      "commander": true
+    }
+  }
+}
+```
+
+## Statistics Provided
+
+### Basic Statistics
+- **Total Cards**: Combined main deck and sideboard count
+- **Main Deck Cards**: Number of cards in main deck
+- **Sideboard Cards**: Number of cards in sideboard
+- **Unique Cards**: Number of different card names
+- **Average Mana Value**: Average converted mana cost of non-land cards
+
+### Mana Curve Analysis
+- Distribution of cards by mana value
+- Percentage breakdown for curve analysis
+- Helps evaluate deck's speed and consistency
+
+### Type Distribution
+- Breakdown by card types (Creature, Instant, Sorcery, etc.)
+- Percentage of each type in the deck
+- Useful for understanding deck composition
+
+### Color Analysis
+- Color identity distribution
+- Multi-color vs single-color breakdown
+- Helps with mana base planning
+
+### Format Legality
+- Legal/illegal status in major formats
+- Covers Standard, Pioneer, Modern, Legacy, Vintage, Commander
+- Based on current card legality data from Scryfall
+
+## Use Cases
+
+### Deck Building
+
+Analyze your deck's mana curve and type distribution:
+
+```bash
+mtg deck stats --file aggro_deck.txt
+```
+
+Check if your deck is legal in specific formats before tournaments.
+
+### Collection Management
+
+Analyze high-value or vintage collections:
+
+```bash
+mtg deck stats --file vintage_collection.txt --format json
+```
+
+### Educational Analysis
+
+Study classic deck archetypes and understand mana curve principles:
+
+```bash
+mtg deck stats "Deck
+4 Lightning Bolt
+4 Monastery Swiftspear
+4 Lava Spike
+20 Mountain"
+```
+
+### Tournament Preparation
+
+Verify deck legality and analyze meta positioning:
+
+```bash
+mtg deck stats --file tournament_deck.txt | grep "Format Legality" -A 10
+```
+
+## Integration Examples
+
+### Shell Scripting
+
+```bash
+#!/bin/bash
+# Analyze multiple deck variants
+
+for deck_file in decks/*.txt; do
+    echo "Analyzing $deck_file:"
+    mtg deck stats --file "$deck_file" --format json | jq '.statistics.average_mana_value'
+done
+```
+
+### Data Processing
+
+```bash
+# Extract mana curve data
+mtg deck stats --file deck.txt --format json | jq '.statistics.mana_curve'
+
+# Check format legality
+mtg deck stats --file deck.txt --format json | jq '.statistics.format_legality.standard'
+
+# Get card count by type
+mtg deck stats --file deck.txt --format json | jq '.statistics.type_distribution'
+```
+
+## Error Handling
+
+The tool provides helpful error messages for common issues:
+
+```bash
+# Empty deck list
+echo "" | mtg deck stats
+# Error: Deck list is empty. Please provide a valid deck list.
+
+# No valid card lines
+echo "Just comments here" | mtg deck stats
+# Error: No valid card lines found. Make sure lines with cards start with a number (e.g., '4 Lightning Bolt').
+
+# Invalid card line format
+echo "4" | mtg deck stats
+# Error: Invalid card line format: '4'. Expected format: 'QUANTITY CARD_NAME [SET_INFO]'
+
+# File not found
+mtg deck stats --file nonexistent.txt
+# Error: Failed to read file 'nonexistent.txt': No such file or directory
+
+# Invalid quantity
+echo "zero Lightning Bolt" | mtg deck stats
+# Error: Invalid quantity 'zero' in line: 'zero Lightning Bolt'
+```
+
+## Performance Notes
+
+- **API Calls**: The tool fetches card details from Scryfall API for each unique card
+- **Rate Limiting**: Built-in rate limiting prevents API abuse
+- **Caching**: Consider using local caching for repeated analysis of the same cards
+- **Timeout**: Default 30-second timeout for API requests (configurable with `--timeout`)
+
+## Tips
+
+1. **Large Decks**: For decks with many unique cards, the analysis may take longer due to API calls
+2. **Offline Mode**: Currently requires internet connection for card details
+3. **Set Codes**: Including set codes helps ensure correct card versions are analyzed
+4. **Format Validation**: Use the format legality check before tournament play
+5. **JSON Output**: Use JSON format for programmatic processing and integration
+
+---
+
+Next: [Scryfall Commands](./scryfall.md) | Back: [Getting Started](./getting-started.md)

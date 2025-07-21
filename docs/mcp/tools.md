@@ -4,7 +4,7 @@ Tools provide AI assistants with interactive functions to search and analyze Mag
 
 ## Available Tools
 
-The MTG MCP server provides 7 comprehensive card tools:
+The MTG MCP server provides 8 comprehensive tools:
 
 | Tool                              | Purpose                           | API Source | Parameters                                    |
 | --------------------------------- | --------------------------------- | ---------- | --------------------------------------------- |
@@ -13,6 +13,7 @@ The MTG MCP server provides 7 comprehensive card tools:
 | **scryfall_get_card_by_collector** | Get card by set/collector number | Scryfall   | set_code, collector_number, lang (optional)  |
 | **scryfall_get_random_card**      | Get random card with filtering    | Scryfall   | query (optional)                             |
 | **scryfall_autocomplete_card_names** | Get card name suggestions      | Scryfall   | query, include_extras (optional)            |
+| **analyze_deck_list**             | Analyze deck statistics           | Scryfall   | deck_list                                    |
 | **gatherer_search_cards**         | Official Wizards database search | Gatherer   | name, rules, types, colors, mana, set, etc.  |
 | **scryfall_search_cards**         | Advanced third-party search      | Scryfall   | query, name, oracle, colors, format, etc.    |
 
@@ -137,6 +138,233 @@ Card name suggestions for 'light':
 ...
 
 Found 20 suggestions
+```
+
+## analyze_deck_list
+
+Analyze a Magic: The Gathering deck list and provide comprehensive statistics including mana curve, type distribution, format legality, and more.
+
+### Parameters
+
+```json
+{
+  "deck_list": "Deck\n4 Lightning Bolt\n4 Mountain\n\nSideboard\n2 Shock"  // Required: Deck list in standard format
+}
+```
+
+### Deck List Format
+
+The deck list should follow the standard format:
+
+```
+Deck
+4 Lightning Bolt (M21) 162
+4 Mountain (ANB) 114
+2 Shock (M21) 159
+
+Sideboard
+2 Counterspell (M21) 46
+1 Negate (M21) 52
+```
+
+**Format Rules:**
+- **Section Headers**: Use `Deck` and `Sideboard` to separate sections
+- **Card Lines**: `quantity cardname (set_code) collector_number`
+- **Set Code**: Optional 3-letter set code in parentheses
+- **Collector Number**: Optional collector number after set code
+- **Flexible Parsing**: Set codes and collector numbers are optional
+
+### Example
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "analyze_deck_list",
+    "arguments": {
+      "deck_list": "Deck\n4 Fanatical Firebrand (FDN) 195\n2 Reckless Lackey (OTJ) 140\n4 Boltwave (FDN) 79\n4 Burst Lightning (FDN) 192\n4 Ghitu Lavarunner (FDN) 623\n4 Lightning Strike (DMU) 137\n20 Mountain (ANB) 114\n\nSideboard\n4 Shock (ANB) 84\n2 Negate (M21) 52"
+    }
+  }
+}
+```
+
+**Response:**
+```
+=== DECK ANALYSIS ===
+
+Total Cards: 60
+Main Deck: 60
+Sideboard: 6
+Unique Cards: 9
+Average Mana Value: 1.85
+
+Mana Curve:
+  0: 20 cards (33.3%)
+  1: 24 cards (40.0%)
+  2: 8 cards (13.3%)
+  3: 8 cards (13.3%)
+
+Card Types:
+  Land: 20 cards (33.3%)
+  Creature: 16 cards (26.7%)
+  Instant: 24 cards (40.0%)
+
+Format Legality:
+  STANDARD: Legal
+  PIONEER: Legal
+  MODERN: Legal
+  LEGACY: Legal
+  VINTAGE: Legal
+  COMMANDER: Legal
+
+Main Deck (60 cards):
+  4x Fanatical Firebrand {R}
+  2x Reckless Lackey {1}{R}
+  4x Boltwave {R}
+  4x Burst Lightning {R}
+  4x Ghitu Lavarunner {R}
+  4x Lightning Strike {1}{R}
+  20x Mountain 
+
+Sideboard (6 cards):
+  4x Shock {R}
+  2x Negate {1}{U}
+```
+
+### Statistics Provided
+
+The tool provides comprehensive deck analysis including:
+
+#### **Basic Statistics**
+- **Total Cards**: Combined main deck and sideboard count
+- **Main Deck Cards**: Number of cards in main deck
+- **Sideboard Cards**: Number of cards in sideboard  
+- **Unique Cards**: Number of different card names
+- **Average Mana Value**: Average converted mana cost of non-land cards
+
+#### **Mana Curve Analysis**
+- Distribution of cards by mana value
+- Percentage breakdown for curve analysis
+- Helps evaluate deck's speed and consistency
+
+#### **Type Distribution**
+- Breakdown by card types (Creature, Instant, Sorcery, etc.)
+- Percentage of each type in the deck
+- Useful for understanding deck composition
+
+#### **Color Analysis**
+- Color identity distribution
+- Multi-color vs single-color breakdown
+- Helps with mana base planning
+
+#### **Format Legality**
+- Legal/illegal status in major formats
+- Covers Standard, Pioneer, Modern, Legacy, Vintage, Commander
+- Based on current card legality data
+
+#### **Complete Card List**
+- Organized main deck and sideboard listings
+- Includes mana costs for each card
+- Quantity and card details
+
+### Use Cases
+
+#### **Deck Building**
+```json
+{
+  "deck_list": "Deck\n4 Lightning Bolt\n4 Monastery Swiftspear\n4 Lava Spike\n4 Rift Bolt\n20 Mountain"
+}
+```
+- Analyze mana curve for aggro decks
+- Check format legality before tournaments
+- Optimize card type ratios
+
+#### **Collection Management**
+```json
+{
+  "deck_list": "Deck\n1 Black Lotus\n1 Ancestral Recall\n1 Time Walk\n..."
+}
+```
+- Evaluate vintage deck compositions
+- Check card legality across formats
+- Analyze high-value collections
+
+#### **Educational Analysis**
+```json
+{
+  "deck_list": "Deck\n4 Lightning Bolt\n4 Counterspell\n4 Swords to Plowshares\n..."
+}
+```
+- Study classic deck archetypes
+- Understand mana curve principles
+- Learn format-specific card choices
+
+#### **Tournament Preparation**
+```json
+{
+  "deck_list": "Deck\n4 Teferi, Time Raveler\n4 Supreme Verdict\n..."
+}
+```
+- Verify deck legality for events
+- Analyze meta positioning
+- Optimize sideboard choices
+
+### Error Handling
+
+The tool provides helpful error messages for common issues:
+
+```json
+// Invalid format
+{
+  "content": [
+    {
+      "type": "text", 
+      "text": "Failed to analyze deck: Invalid quantity in line: Lightning Bolt"
+    }
+  ]
+}
+
+// Card not found
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "=== DECK ANALYSIS ===\n\nNote: Some cards could not be found in the database and may not be included in statistics."
+    }
+  ]
+}
+```
+
+### Integration Tips
+
+#### **Batch Analysis**
+```python
+# Analyze multiple deck variants
+deck_variants = [
+    "Deck\n4 Lightning Bolt\n...",  # Aggro version
+    "Deck\n4 Counterspell\n...",   # Control version  
+    "Deck\n4 Birds of Paradise\n..." # Midrange version
+]
+
+for i, deck in enumerate(deck_variants):
+    result = call_tool("analyze_deck_list", {"deck_list": deck})
+    print(f"Variant {i+1} Analysis:", result)
+```
+
+#### **Format Validation**
+```python
+def validate_deck_for_format(deck_list, target_format):
+    analysis = call_tool("analyze_deck_list", {"deck_list": deck_list})
+    # Parse format legality from response
+    return is_legal_in_format(analysis, target_format)
+```
+
+#### **Mana Base Optimization**
+```python
+def suggest_mana_base(deck_list):
+    analysis = call_tool("analyze_deck_list", {"deck_list": deck_list})
+    # Analyze color requirements and curve
+    return generate_mana_suggestions(analysis)
 ```
 
 ## gatherer_search_cards
