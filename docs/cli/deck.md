@@ -22,15 +22,34 @@ mtg deck stats [OPTIONS] [DECK_LIST]
 
 Access tournament deck lists from official Magic: The Gathering events.
 
+#### List Command
+
 ```bash
 mtg deck ranked list [OPTIONS]
 ```
 
-#### Options
+##### Options
 
 - `-f, --format <FORMAT>` - Filter by format (e.g., alchemy, standard, modern)
 - `-l, --limit <LIMIT>` - Number of results to fetch [default: 20]
 - `-s, --skip <SKIP>` - Number of results to skip [default: 0]
+- `-p, --page <PAGE>` - Page number (1-based, automatically calculates skip based on limit)
+- `--output <OUTPUT>` - Output format (pretty table or JSON) [default: pretty]
+
+#### Show Command
+
+```bash
+mtg deck ranked show <ID_OR_URL> [OPTIONS]
+```
+
+Fetches and parses deck lists from a specific tournament article page.
+
+##### Arguments
+
+- `<ID_OR_URL>` - Either the ID from the list command or the full URL of the deck list article
+
+##### Options
+
 - `--output <OUTPUT>` - Output format (pretty table or JSON) [default: pretty]
 
 ## Input Methods
@@ -348,9 +367,9 @@ echo "zero Lightning Bolt" | mtg deck stats
 
 ## Ranked Deck Lists
 
-The `mtg deck ranked list` command fetches tournament deck lists from official Magic: The Gathering events hosted on magic.gg.
+The `mtg deck ranked` commands fetch and parse tournament deck lists from official Magic: The Gathering events hosted on magic.gg.
 
-### Examples
+### List Examples
 
 ```bash
 # List recent tournament deck lists
@@ -362,16 +381,32 @@ mtg deck ranked list --format alchemy
 # Get more results
 mtg deck ranked list --limit 50
 
-# Paginate through results
+# Paginate through results using skip
 mtg deck ranked list --skip 20 --limit 20
+
+# Paginate through results using page
+mtg deck ranked list --page 2 --limit 20
 
 # Output as JSON
 mtg deck ranked list --format standard --output json
 ```
 
+### Show Examples
+
+```bash
+# Show deck lists from a specific article using ID
+mtg deck ranked show a1b2c3d4e5f6g7h8
+
+# Show deck lists from a specific article using URL
+mtg deck ranked show "https://magic.gg/decklists/traditional-standard-ranked-decklists-july-21-2025"
+
+# Output as JSON
+mtg deck ranked show a1b2c3d4e5f6g7h8 --output json
+```
+
 ### Output Format
 
-#### Pretty Table (Default)
+#### List Command - Pretty Table (Default)
 
 ```bash
 mtg deck ranked list --format alchemy --limit 5
@@ -379,23 +414,75 @@ mtg deck ranked list --format alchemy --limit 5
 
 Output:
 ```
-=== TOURNAMENT DECK LISTS ===
+ Id               Title                                             Author                Published    Link 
+ a1b2c3d4e5f6g7h8 Neon Dynasty Championship Alchemy Decklists R-Z  Wizards of the Coast  2022-03-11   https://magic.wizards.com/en/content/neon-dynasty-championship-alchemy-decklists-4 
+ b2c3d4e5f6g7h8i9 Neon Dynasty Championship Alchemy Decklists L-P  Wizards of the Coast  2022-03-11   https://magic.wizards.com/en/content/neon-dynasty-championship-alchemy-decklists-3 
+ c3d4e5f6g7h8i9j0 Neon Dynasty Championship Alchemy Decklists G-K  Wizards of the Coast  2022-03-11   https://magic.wizards.com/en/content/neon-dynasty-championship-alchemy-decklists-2 
+ d4e5f6g7h8i9j0k1 Neon Dynasty Championship Alchemy Decklists A-F  Wizards of the Coast  2022-03-11   https://magic.wizards.com/en/content/neon-dynasty-championship-alchemy-decklists-1 
 
 Format: ALCHEMY
 Total Results: 4
 Showing: 1 - 4
 
- Title                                          Author                Published    Link 
- Neon Dynasty Championship Alchemy Decklists R-Z  Wizards of the Coast  2022-03-11   https://magic.wizards.com/en/content/neon-dynasty-championship-alchemy-decklists-4 
- Neon Dynasty Championship Alchemy Decklists L-P  Wizards of the Coast  2022-03-11   https://magic.wizards.com/en/content/neon-dynasty-championship-alchemy-decklists-3 
- Neon Dynasty Championship Alchemy Decklists G-K  Wizards of the Coast  2022-03-11   https://magic.wizards.com/en/content/neon-dynasty-championship-alchemy-decklists-2 
- Neon Dynasty Championship Alchemy Decklists A-F  Wizards of the Coast  2022-03-11   https://magic.wizards.com/en/content/neon-dynasty-championship-alchemy-decklists-1 
+Page 1 of 1
+```
 
-=== DESCRIPTIONS ===
+#### Show Command - Pretty Output
 
-Neon Dynasty Championship Alchemy Decklists R-Z
------------------------------------------------
-These are the Alchemy decks for players R to Z at the Neon Dynasty Championship.
+```bash
+mtg deck ranked show a1b2c3d4e5f6g7h8
+```
+
+Output:
+```
+=== DECK LISTS FROM https://magic.gg/decklists/traditional-standard-ranked-decklists-july-21-2025 ===
+
+Found 3 deck(s)
+
+Deck 1 - ID: x1y2z3a4b5c6d7e8
+================================================================================
+Title: Mono Red Aggro
+Subtitle: 7-0 Traditional Standard Ranked
+Event: Traditional Standard Ranked
+Date: 2025-07-21
+Format: standard
+
+Main Deck (60 cards):
+  4x Lightning Bolt
+  4x Monastery Swiftspear
+  4x Ghitu Lavarunner
+  4x Lava Spike
+  4x Rift Bolt
+  20x Mountain
+
+Sideboard (15 cards):
+  3x Smash to Smithereens
+  2x Roiling Vortex
+  4x Skullcrack
+  3x Searing Blood
+  3x Exquisite Firecraft
+
+Deck 2 - ID: y2z3a4b5c6d7e8f9
+================================================================================
+Title: Azorius Control
+Subtitle: 7-0 Traditional Standard Ranked
+Event: Traditional Standard Ranked
+Date: 2025-07-21
+Format: standard
+
+Main Deck (60 cards):
+  4x Counterspell
+  4x Memory Deluge
+  3x Teferi, Hero of Dominaria
+  24x Island
+  25x Plains
+
+Sideboard (15 cards):
+  2x Dovin's Veto
+  3x Rest in Peace
+  4x Mystical Dispute
+  3x Cleansing Nova
+  3x Narset, Parter of Veils
 ```
 
 #### JSON Output
@@ -412,6 +499,7 @@ The JSON output includes the full response from the Contentful API with all meta
 2. **Meta Analysis**: Track popular decks in specific formats
 3. **Deck Building Inspiration**: Find competitive deck ideas
 4. **Historical Research**: Access archived tournament results
+5. **Deck Collection**: Parse and cache actual deck lists from tournament articles
 
 ### Integration
 
@@ -424,7 +512,28 @@ for format in standard modern legacy; do
     count=$(mtg deck ranked list --format $format --output json | jq '.total')
     echo "$format: $count deck lists"
 done
+
+# Fetch and parse deck lists from a specific article
+mtg deck ranked show a1b2c3d4e5f6g7h8 --output json | jq '.decks[].title'
+
+# Extract all main deck cards from an article
+mtg deck ranked show a1b2c3d4e5f6g7h8 --output json | jq -r '.decks[].main_deck[] | "\(.quantity)x \(.name)"'
+
+# Get deck IDs for further analysis
+mtg deck ranked show "https://magic.gg/decklists/some-tournament" --output json | jq -r '.decks[].id'
 ```
+
+### Caching
+
+Both commands utilize caching to improve performance:
+
+1. **List Command**: Caches each tournament article metadata with a unique ID
+2. **Show Command**: 
+   - Can retrieve article URLs from cached IDs
+   - Caches each parsed deck with its own unique ID
+   - Cached decks can be retrieved later for analysis
+
+The cache is stored in `~/.local/share/mtg/cache/` with each item having a 16-character hash ID.
 
 ## Tips
 
@@ -433,7 +542,9 @@ done
 3. **Set Codes**: Including set codes helps ensure correct card versions are analyzed
 4. **Format Validation**: Use the format legality check before tournament play
 5. **JSON Output**: Use JSON format for programmatic processing and integration
-6. **Tournament Data**: The ranked list command provides links to official deck lists, not the actual card lists
+6. **Tournament Data**: Use `ranked list` to find articles, then `ranked show` to parse actual deck lists
+7. **Cached IDs**: The ID shown in `ranked list` can be used with `ranked show` to avoid re-fetching URLs
+8. **Pagination**: Use `--page` for easier navigation or `--skip` for precise control
 
 ---
 

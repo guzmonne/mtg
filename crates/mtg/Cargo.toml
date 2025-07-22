@@ -33,6 +33,7 @@ dirs = "6.0"
 sha2 = "0.10"
 urlencoding = "2.1"
 regex = "1.10"
+scraper = "0.23"
 
 [dev-dependencies]
 tempfile = "3.6.0"
