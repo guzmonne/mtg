@@ -61,6 +61,8 @@ The tool supports multiple ways to provide deck lists:
 3. **From stdin (explicit)**: `mtg deck stats -`
 4. **From stdin (default)**: `mtg deck stats` (reads from stdin if no other input)
 5. **As argument**: `mtg deck stats "4 Lightning Bolt\n4 Mountain"`
+6. **From cached deck ID**: `mtg deck stats 7d1d96bc86e2185c`
+7. **From article ID**: `mtg deck stats 6b9a732534c4294a` (analyzes first deck, shows others)
 
 ## Deck List Format
 
@@ -133,6 +135,15 @@ Deck
 4 Mountain
 Sideboard
 2 Counterspell" | mtg deck stats
+
+# Analyze a cached deck using its ID
+mtg deck stats 7d1d96bc86e2185c
+
+# Analyze using an article ID (will fetch and analyze first deck)
+mtg deck stats 6b9a732534c4294a
+
+# Workflow: Fetch tournament decks and analyze them
+mtg deck ranked show 6b9a732534c4294a --output json | jq -r '.decks[0].id' | xargs mtg deck stats
 ```
 
 ### Output Formats
@@ -521,19 +532,60 @@ mtg deck ranked show a1b2c3d4e5f6g7h8 --output json | jq -r '.decks[].main_deck[
 
 # Get deck IDs for further analysis
 mtg deck ranked show "https://magic.gg/decklists/some-tournament" --output json | jq -r '.decks[].id'
+
+# Complete workflow: List tournaments, fetch decks, and analyze them
+# 1. Get tournament article ID
+ARTICLE_ID=$(mtg deck ranked list --limit 1 --output json | jq -r '.items[0].id')
+
+# 2. Option A: Analyze first deck directly with article ID
+mtg deck stats $ARTICLE_ID
+
+# 2. Option B: Get specific deck ID and analyze
+DECK_ID=$(mtg deck ranked show $ARTICLE_ID --output json | jq -r '.decks[0].id')
+mtg deck stats $DECK_ID
+
+# Batch analyze all decks from a tournament
+mtg deck ranked show $ARTICLE_ID --output json | jq -r '.decks[].id' | while read deck_id; do
+    echo "Analyzing deck: $deck_id"
+    mtg deck stats $deck_id --format json | jq '.statistics.average_mana_value'
+done
 ```
 
 ### Caching
 
-Both commands utilize caching to improve performance:
+All deck commands utilize caching to improve performance:
 
 1. **List Command**: Caches each tournament article metadata with a unique ID
 2. **Show Command**: 
    - Can retrieve article URLs from cached IDs
    - Caches each parsed deck with its own unique ID
    - Cached decks can be retrieved later for analysis
+3. **Stats Command**:
+   - Can analyze decks directly from their cached ID
+   - Avoids re-parsing deck lists for repeated analysis
+   - Still fetches fresh card details from Scryfall API
 
 The cache is stored in `~/.local/share/mtg/cache/` with each item having a 16-character hash ID.
+
+#### ID Formats
+
+The stats command accepts two types of IDs:
+
+1. **Deck ID**: 16-character hexadecimal string (e.g., `7d1d96bc86e2185c`)
+   - Generated from the SHA-256 hash of the deck's content
+   - Directly retrieves a specific deck from cache
+   - Obtained from `decks ranked show` output
+
+2. **Article ID**: 16-character hexadecimal string (e.g., `6b9a732534c4294a`)
+   - Generated from tournament article metadata
+   - Fetches all decks from the article if not cached
+   - Analyzes the first deck and lists others with their IDs
+   - Obtained from `decks ranked list` output
+
+The command automatically determines the ID type and handles it appropriately:
+- If it's a cached deck ID, it uses it directly
+- If it's an article ID, it fetches the article and analyzes the first deck
+- If the ID is not found in either category, it returns an error
 
 ## Tips
 

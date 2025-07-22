@@ -3,7 +3,7 @@ use prettytable::{format, Cell, Row, Table};
 
 use super::{
     utils::{calculate_deck_stats, fetch_card_details, parse_deck_list},
-    DeckList, DeckStats,
+    DeckCard, DeckList, DeckStats,
 };
 use crate::prelude::*;
 
@@ -36,8 +36,52 @@ pub async fn run(
         ));
     }
 
-    // Parse deck list
-    let deck_list = parse_deck_list(&deck_content)?;
+    // Check if the input is a deck ID (16 character hex string)
+    let deck_list = if is_deck_id(&deck_content) {
+        // Try to fetch deck from cache
+        match fetch_deck_from_cache(&deck_content).await {
+            Ok(deck) => deck,
+            Err(_) => {
+                // If not found as deck, try as article ID
+                let decks = crate::decks::ranked::fetch_decks_from_article(&deck_content, &global)
+                    .await
+                    .map_err(|_| {
+                        eyre!(
+                            "ID '{}' not found as deck or article ID",
+                            deck_content.trim()
+                        )
+                    })?;
+
+                if decks.is_empty() {
+                    return Err(eyre!("No decks found in article"));
+                }
+
+                // If multiple decks, inform user and use the first one
+                if decks.len() > 1 {
+                    eprintln!(
+                        "Note: Article contains {} decks. Analyzing the first deck (ID: {})",
+                        decks.len(),
+                        decks[0].id
+                    );
+                    eprintln!("To analyze other decks, use their specific IDs:");
+                    for (i, deck) in decks.iter().enumerate().skip(1) {
+                        let title = deck.title.as_deref().unwrap_or("Untitled");
+                        eprintln!("  {} - {} ({})", i + 1, deck.id, title);
+                    }
+                    eprintln!();
+                }
+
+                // Convert ParsedDeck to DeckList
+                DeckList {
+                    main_deck: decks[0].main_deck.clone(),
+                    sideboard: decks[0].sideboard.clone(),
+                }
+            }
+        }
+    } else {
+        // Parse deck list normally
+        parse_deck_list(&deck_content)?
+    };
 
     // Fetch card details
     let deck_with_details = fetch_card_details(deck_list, global).await?;
@@ -53,6 +97,94 @@ pub async fn run(
     }
 
     Ok(())
+}
+
+fn is_deck_id(input: &str) -> bool {
+    let trimmed = input.trim();
+    trimmed.len() == 16 && trimmed.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+async fn fetch_deck_from_cache(deck_id: &str) -> Result<DeckList> {
+    let cache_manager = crate::cache::CacheManager::new()?;
+
+    // First try to get it as a deck ID
+    if let Ok(Some(cached_deck)) = cache_manager.get(deck_id.trim()).await {
+        // Check if this is a deck (has main_deck field)
+        if cached_deck.data.get("main_deck").is_some() {
+            // Extract deck data from cached JSON
+            let main_deck = cached_deck
+                .data
+                .get("main_deck")
+                .and_then(|v| v.as_array())
+                .ok_or_else(|| eyre!("Invalid deck data: missing main_deck"))?;
+
+            let sideboard = cached_deck
+                .data
+                .get("sideboard")
+                .and_then(|v| v.as_array())
+                .ok_or_else(|| eyre!("Invalid deck data: missing sideboard"))?;
+
+            // Convert JSON arrays to DeckCard vectors
+            let main_deck_cards: Vec<DeckCard> = main_deck
+                .iter()
+                .filter_map(|card| {
+                    let quantity = card.get("quantity")?.as_u64()? as u32;
+                    let name = card.get("name")?.as_str()?.to_string();
+                    let set_code = card
+                        .get("set_code")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
+                    let collector_number = card
+                        .get("collector_number")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
+
+                    Some(DeckCard {
+                        quantity,
+                        name,
+                        set_code,
+                        collector_number,
+                        card_details: None,
+                    })
+                })
+                .collect();
+
+            let sideboard_cards: Vec<DeckCard> = sideboard
+                .iter()
+                .filter_map(|card| {
+                    let quantity = card.get("quantity")?.as_u64()? as u32;
+                    let name = card.get("name")?.as_str()?.to_string();
+                    let set_code = card
+                        .get("set_code")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
+                    let collector_number = card
+                        .get("collector_number")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
+
+                    Some(DeckCard {
+                        quantity,
+                        name,
+                        set_code,
+                        collector_number,
+                        card_details: None,
+                    })
+                })
+                .collect();
+
+            return Ok(DeckList {
+                main_deck: main_deck_cards,
+                sideboard: sideboard_cards,
+            });
+        }
+    }
+
+    // If not found as a deck, try as an article ID
+    Err(eyre!(
+        "ID '{}' not found in cache. It might be an article ID - fetching from article...",
+        deck_id
+    ))
 }
 
 fn output_pretty(deck_list: &DeckList, stats: &DeckStats) -> Result<()> {

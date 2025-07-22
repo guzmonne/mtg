@@ -25,8 +25,8 @@ pub enum Commands {
     /// Analyze deck statistics from a deck list
     #[clap(name = "stats")]
     Stats {
-        /// Deck list input (use '-' for stdin, provide deck list as string, or omit to read from stdin)
-        #[clap(value_name = "DECK_LIST")]
+        /// Deck list input (use '-' for stdin, provide deck list as string, deck ID, or omit to read from stdin)
+        #[clap(value_name = "DECK_LIST_OR_ID")]
         input: Option<MaybeStdin<String>>,
 
         /// Read deck list from file

@@ -3,6 +3,8 @@ use crate::prelude::*;
 mod list;
 mod show;
 
+pub use show::fetch_decks_from_article;
+
 #[derive(Debug, clap::Subcommand)]
 pub enum Commands {
     /// List tournament deck lists
