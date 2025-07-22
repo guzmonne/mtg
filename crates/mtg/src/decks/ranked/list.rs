@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use prettytable::{format, Cell, Row, Table};
+use prettytable::{Cell, Row};
 use serde::{Deserialize, Serialize};
 
 // Extended item with ID for display
@@ -205,8 +205,7 @@ fn output_ranked_pretty_with_ids(
     }
 
     // Create a table for the deck lists
-    let mut table = Table::new();
-    table.set_format(*format::consts::FORMAT_CLEAN);
+    let mut table = new_table();
     table.add_row(Row::new(vec![
         Cell::new("Id"),
         Cell::new("Title"),

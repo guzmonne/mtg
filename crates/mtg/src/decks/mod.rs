@@ -1,7 +1,8 @@
 use clap_stdin::MaybeStdin;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+mod compare;
 mod mcp;
 mod ranked;
 mod stats;
@@ -43,9 +44,12 @@ pub enum Commands {
         #[command(subcommand)]
         command: ranked::Commands,
     },
+    /// Compare two deck lists
+    #[clap(name = "compare")]
+    Compare(compare::CompareArgs),
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeckCard {
     pub quantity: u32,
     pub name: String,
@@ -54,13 +58,13 @@ pub struct DeckCard {
     pub card_details: Option<crate::scryfall::ScryfallCard>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeckList {
     pub main_deck: Vec<DeckCard>,
     pub sideboard: Vec<DeckCard>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParsedDeck {
     pub id: String,
     pub title: Option<String>,
@@ -95,6 +99,7 @@ impl App {
                 format,
             } => stats::run(input, file, format, global).await,
             Commands::Ranked { command } => ranked::run(command, global).await,
+            Commands::Compare(args) => args.run().await,
         }
     }
 }

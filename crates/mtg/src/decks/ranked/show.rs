@@ -96,7 +96,10 @@ pub async fn run(identifier: String, output: String, global: crate::Global) -> R
 
         // Cache the parsed deck
         let cache_manager = crate::cache::CacheManager::new()?;
-        cache_manager.set(&deck_hash, deck_data.clone()).await?;
+        // Add ID to the deck data before caching
+        let mut deck_data_with_id = deck_data.clone();
+        deck_data_with_id["id"] = serde_json::json!(deck_hash.clone());
+        cache_manager.set(&deck_hash, deck_data_with_id).await?;
 
         parsed_decks.push(ParsedDeck {
             id: deck_hash,
@@ -275,7 +278,10 @@ pub async fn fetch_decks_from_article(
 
         // Cache the parsed deck
         let cache_manager = crate::cache::CacheManager::new()?;
-        cache_manager.set(&deck_hash, deck_data.clone()).await?;
+        // Add ID to the deck data before caching
+        let mut deck_data_with_id = deck_data.clone();
+        deck_data_with_id["id"] = serde_json::json!(deck_hash.clone());
+        cache_manager.set(&deck_hash, deck_data_with_id).await?;
 
         parsed_decks.push(ParsedDeck {
             id: deck_hash,

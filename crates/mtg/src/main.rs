@@ -1,5 +1,6 @@
 #![allow(clippy::large_enum_variant)]
 #![allow(clippy::uninlined_format_args)]
+use prettytable::{format, Cell, Row};
 
 use crate::prelude::*;
 use clap::Parser;
@@ -199,10 +200,7 @@ async fn handle_sets_command(command: SetCommands, global: Global) -> Result<()>
 }
 
 fn display_sets_table(sets_list: &sets::ScryfallSetList) -> Result<()> {
-    use prettytable::{format, Cell, Row, Table};
-
-    let mut table = Table::new();
-    table.set_format(*format::consts::FORMAT_CLEAN);
+    let mut table = new_table();
     table.add_row(Row::new(vec![
         Cell::new("Code"),
         Cell::new("Name"),
@@ -241,9 +239,7 @@ fn display_sets_table(sets_list: &sets::ScryfallSetList) -> Result<()> {
 }
 
 fn display_set_details(set: &sets::ScryfallSet) -> Result<()> {
-    use prettytable::{format, Cell, Row, Table};
-
-    let mut table = Table::new();
+    let mut table = new_table();
     table.set_format(*format::consts::FORMAT_CLEAN);
 
     table.add_row(Row::new(vec![Cell::new("Property"), Cell::new("Value")]));

@@ -1,4 +1,4 @@
-use prettytable::{format, Cell, Row, Table};
+use prettytable::{Cell, Row};
 
 use crate::prelude::*;
 
@@ -6,8 +6,7 @@ use crate::prelude::*;
 pub fn format_scryfall_search_results(
     response: &crate::scryfall::ScryfallSearchResponse,
 ) -> Result<String> {
-    let mut table = Table::new();
-    table.set_format(*format::consts::FORMAT_CLEAN);
+    let mut table = new_table();
     table.add_row(Row::new(vec![
         Cell::new("Name"),
         Cell::new("Cost"),
@@ -64,8 +63,7 @@ pub fn format_scryfall_search_results(
 
 // Helper function to format single card details as pretty table
 pub fn format_single_card_details(card: &crate::scryfall::ScryfallCard) -> Result<String> {
-    let mut table = Table::new();
-    table.set_format(*format::consts::FORMAT_CLEAN);
+    let mut table = new_table();
 
     // Card name
     table.add_row(Row::new(vec![Cell::new("Name"), Cell::new(&card.name)]));

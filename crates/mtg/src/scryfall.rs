@@ -1,6 +1,6 @@
 use crate::cache::CacheManager;
 use crate::prelude::*;
-use prettytable::{format, Cell, Row, Table};
+use prettytable::{Cell, Row};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -1927,8 +1927,7 @@ pub fn build_advanced_query(params: &AdvancedSearchParams) -> String {
 }
 
 fn display_pretty_results(response: &ScryfallSearchResponse, params: &SearchParams) -> Result<()> {
-    let mut table = Table::new();
-    table.set_format(*format::consts::FORMAT_CLEAN);
+    let mut table = new_table();
     table.add_row(Row::new(vec![
         Cell::new("Name"),
         Cell::new("Cost"),
@@ -1986,8 +1985,7 @@ fn display_pretty_results(response: &ScryfallSearchResponse, params: &SearchPara
 }
 
 fn display_single_card_details(card: &ScryfallCard) -> Result<()> {
-    let mut table = Table::new();
-    table.set_format(*format::consts::FORMAT_CLEAN);
+    let mut table = new_table();
 
     // Card name
     table.add_row(Row::new(vec![Cell::new("Name"), Cell::new(&card.name)]));

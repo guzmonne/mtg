@@ -9,7 +9,7 @@ Analyze Magic: The Gathering deck lists to get comprehensive statistics includin
 Analyze deck statistics from a deck list.
 
 ```bash
-mtg deck stats [OPTIONS] [DECK_LIST]
+mtg decks stats [OPTIONS] [DECK_LIST]
 ```
 
 #### Options
@@ -25,7 +25,7 @@ Access tournament deck lists from official Magic: The Gathering events.
 #### List Command
 
 ```bash
-mtg deck ranked list [OPTIONS]
+mtg decks ranked list [OPTIONS]
 ```
 
 ##### Options
@@ -39,7 +39,7 @@ mtg deck ranked list [OPTIONS]
 #### Show Command
 
 ```bash
-mtg deck ranked show <ID_OR_URL> [OPTIONS]
+mtg decks ranked show <ID_OR_URL> [OPTIONS]
 ```
 
 Fetches and parses deck lists from a specific tournament article page.
@@ -52,17 +52,37 @@ Fetches and parses deck lists from a specific tournament article page.
 
 - `--output <OUTPUT>` - Output format (pretty table or JSON) [default: pretty]
 
+### Compare Command
+
+```bash
+mtg decks compare <DECK1> <DECK2>
+```
+
+Compares two deck lists to find similarities and differences.
+
+##### Arguments
+
+- `<DECK1>` - First deck ID or article ID (if article ID, uses the first deck)
+- `<DECK2>` - Second deck ID or article ID (if article ID, uses the first deck)
+
+##### Features
+
+- Shows shared cards between both decks with quantity differences
+- Lists cards unique to each deck
+- Displays main deck and sideboard counts separately
+- Provides summary statistics
+
 ## Input Methods
 
 The tool supports multiple ways to provide deck lists:
 
-1. **From file**: `mtg deck stats --file deck.txt`
-2. **From stdin (pipe)**: `cat deck.txt | mtg deck stats`
-3. **From stdin (explicit)**: `mtg deck stats -`
-4. **From stdin (default)**: `mtg deck stats` (reads from stdin if no other input)
-5. **As argument**: `mtg deck stats "4 Lightning Bolt\n4 Mountain"`
-6. **From cached deck ID**: `mtg deck stats 7d1d96bc86e2185c`
-7. **From article ID**: `mtg deck stats 6b9a732534c4294a` (analyzes first deck, shows others)
+1. **From file**: `mtg decks stats --file deck.txt`
+2. **From stdin (pipe)**: `cat deck.txt | mtg decks stats`
+3. **From stdin (explicit)**: `mtg decks stats -`
+4. **From stdin (default)**: `mtg decks stats` (reads from stdin if no other input)
+5. **As argument**: `mtg decks stats "4 Lightning Bolt\n4 Mountain"`
+6. **From cached deck ID**: `mtg decks stats 7d1d96bc86e2185c`
+7. **From article ID**: `mtg decks stats 6b9a732534c4294a` (analyzes first deck, shows others)
 
 ## Deck List Format
 
@@ -114,16 +134,16 @@ The parser is flexible and supports various common formats:
 
 ```bash
 # Analyze deck from file
-mtg deck stats --file my_deck.txt
+mtg decks stats --file my_deck.txt
 
 # Analyze deck from stdin (pipe)
-cat my_deck.txt | mtg deck stats
+cat my_deck.txt | mtg decks stats
 
 # Analyze deck from stdin (explicit)
-mtg deck stats -
+mtg decks stats -
 
 # Analyze deck from command line
-mtg deck stats "Deck
+mtg decks stats "Deck
 4 Lightning Bolt
 4 Mountain"
 
@@ -134,16 +154,16 @@ Deck
 // This is a comment
 4 Mountain
 Sideboard
-2 Counterspell" | mtg deck stats
+2 Counterspell" | mtg decks stats
 
 # Analyze a cached deck using its ID
-mtg deck stats 7d1d96bc86e2185c
+mtg decks stats 7d1d96bc86e2185c
 
 # Analyze using an article ID (will fetch and analyze first deck)
-mtg deck stats 6b9a732534c4294a
+mtg decks stats 6b9a732534c4294a
 
 # Workflow: Fetch tournament decks and analyze them
-mtg deck ranked show 6b9a732534c4294a --output json | jq -r '.decks[0].id' | xargs mtg deck stats
+mtg decks ranked show 6b9a732534c4294a --output json | jq -r '.decks[0].id' | xargs mtg decks stats
 ```
 
 ### Output Formats
@@ -151,7 +171,7 @@ mtg deck ranked show 6b9a732534c4294a --output json | jq -r '.decks[0].id' | xar
 #### Pretty Table (Default)
 
 ```bash
-mtg deck stats --file deck.txt
+mtg decks stats --file deck.txt
 ```
 
 Output:
@@ -198,7 +218,7 @@ Main Deck (60 cards):
 #### JSON Output
 
 ```bash
-mtg deck stats --file deck.txt --format json
+mtg decks stats --file deck.txt --format json
 ```
 
 Output:
@@ -283,7 +303,7 @@ Output:
 Analyze your deck's mana curve and type distribution:
 
 ```bash
-mtg deck stats --file aggro_deck.txt
+mtg decks stats --file aggro_deck.txt
 ```
 
 Check if your deck is legal in specific formats before tournaments.
@@ -293,7 +313,7 @@ Check if your deck is legal in specific formats before tournaments.
 Analyze high-value or vintage collections:
 
 ```bash
-mtg deck stats --file vintage_collection.txt --format json
+mtg decks stats --file vintage_collection.txt --format json
 ```
 
 ### Educational Analysis
@@ -301,7 +321,7 @@ mtg deck stats --file vintage_collection.txt --format json
 Study classic deck archetypes and understand mana curve principles:
 
 ```bash
-mtg deck stats "Deck
+mtg decks stats "Deck
 4 Lightning Bolt
 4 Monastery Swiftspear
 4 Lava Spike
@@ -313,7 +333,7 @@ mtg deck stats "Deck
 Verify deck legality and analyze meta positioning:
 
 ```bash
-mtg deck stats --file tournament_deck.txt | grep "Format Legality" -A 10
+mtg decks stats --file tournament_deck.txt | grep "Format Legality" -A 10
 ```
 
 ## Integration Examples
@@ -326,7 +346,7 @@ mtg deck stats --file tournament_deck.txt | grep "Format Legality" -A 10
 
 for deck_file in decks/*.txt; do
     echo "Analyzing $deck_file:"
-    mtg deck stats --file "$deck_file" --format json | jq '.statistics.average_mana_value'
+    mtg decks stats --file "$deck_file" --format json | jq '.statistics.average_mana_value'
 done
 ```
 
@@ -334,13 +354,13 @@ done
 
 ```bash
 # Extract mana curve data
-mtg deck stats --file deck.txt --format json | jq '.statistics.mana_curve'
+mtg decks stats --file deck.txt --format json | jq '.statistics.mana_curve'
 
 # Check format legality
-mtg deck stats --file deck.txt --format json | jq '.statistics.format_legality.standard'
+mtg decks stats --file deck.txt --format json | jq '.statistics.format_legality.standard'
 
 # Get card count by type
-mtg deck stats --file deck.txt --format json | jq '.statistics.type_distribution'
+mtg decks stats --file deck.txt --format json | jq '.statistics.type_distribution'
 ```
 
 ## Error Handling
@@ -349,23 +369,23 @@ The tool provides helpful error messages for common issues:
 
 ```bash
 # Empty deck list
-echo "" | mtg deck stats
+echo "" | mtg decks stats
 # Error: Deck list is empty. Please provide a valid deck list.
 
 # No valid card lines
-echo "Just comments here" | mtg deck stats
+echo "Just comments here" | mtg decks stats
 # Error: No valid card lines found. Make sure lines with cards start with a number (e.g., '4 Lightning Bolt').
 
 # Invalid card line format
-echo "4" | mtg deck stats
+echo "4" | mtg decks stats
 # Error: Invalid card line format: '4'. Expected format: 'QUANTITY CARD_NAME [SET_INFO]'
 
 # File not found
-mtg deck stats --file nonexistent.txt
+mtg decks stats --file nonexistent.txt
 # Error: Failed to read file 'nonexistent.txt': No such file or directory
 
 # Invalid quantity
-echo "zero Lightning Bolt" | mtg deck stats
+echo "zero Lightning Bolt" | mtg decks stats
 # Error: Invalid quantity 'zero' in line: 'zero Lightning Bolt'
 ```
 
@@ -378,41 +398,41 @@ echo "zero Lightning Bolt" | mtg deck stats
 
 ## Ranked Deck Lists
 
-The `mtg deck ranked` commands fetch and parse tournament deck lists from official Magic: The Gathering events hosted on magic.gg.
+The `mtg decks ranked` commands fetch and parse tournament deck lists from official Magic: The Gathering events hosted on magic.gg.
 
 ### List Examples
 
 ```bash
 # List recent tournament deck lists
-mtg deck ranked list
+mtg decks ranked list
 
 # Filter by format (e.g., alchemy)
-mtg deck ranked list --format alchemy
+mtg decks ranked list --format alchemy
 
 # Get more results
-mtg deck ranked list --limit 50
+mtg decks ranked list --limit 50
 
 # Paginate through results using skip
-mtg deck ranked list --skip 20 --limit 20
+mtg decks ranked list --skip 20 --limit 20
 
 # Paginate through results using page
-mtg deck ranked list --page 2 --limit 20
+mtg decks ranked list --page 2 --limit 20
 
 # Output as JSON
-mtg deck ranked list --format standard --output json
+mtg decks ranked list --format standard --output json
 ```
 
 ### Show Examples
 
 ```bash
 # Show deck lists from a specific article using ID
-mtg deck ranked show a1b2c3d4e5f6g7h8
+mtg decks ranked show a1b2c3d4e5f6g7h8
 
 # Show deck lists from a specific article using URL
-mtg deck ranked show "https://magic.gg/decklists/traditional-standard-ranked-decklists-july-21-2025"
+mtg decks ranked show "https://magic.gg/decklists/traditional-standard-ranked-decklists-july-21-2025"
 
 # Output as JSON
-mtg deck ranked show a1b2c3d4e5f6g7h8 --output json
+mtg decks ranked show a1b2c3d4e5f6g7h8 --output json
 ```
 
 ### Output Format
@@ -420,7 +440,7 @@ mtg deck ranked show a1b2c3d4e5f6g7h8 --output json
 #### List Command - Pretty Table (Default)
 
 ```bash
-mtg deck ranked list --format alchemy --limit 5
+mtg decks ranked list --format alchemy --limit 5
 ```
 
 Output:
@@ -441,7 +461,7 @@ Page 1 of 1
 #### Show Command - Pretty Output
 
 ```bash
-mtg deck ranked show a1b2c3d4e5f6g7h8
+mtg decks ranked show a1b2c3d4e5f6g7h8
 ```
 
 Output:
@@ -499,7 +519,7 @@ Sideboard (15 cards):
 #### JSON Output
 
 ```bash
-mtg deck ranked list --format alchemy --output json --limit 2
+mtg decks ranked list --format alchemy --output json --limit 2
 ```
 
 The JSON output includes the full response from the Contentful API with all metadata.
@@ -516,39 +536,49 @@ The JSON output includes the full response from the Contentful API with all meta
 
 ```bash
 # Get all Standard deck lists and extract URLs
-mtg deck ranked list --format standard --output json | jq -r '.items[].fields.outbound_link'
+mtg decks ranked list --format standard --output json | jq -r '.items[].fields.outbound_link'
 
 # Count deck lists by format
 for format in standard modern legacy; do
-    count=$(mtg deck ranked list --format $format --output json | jq '.total')
+    count=$(mtg decks ranked list --format $format --output json | jq '.total')
     echo "$format: $count deck lists"
 done
 
 # Fetch and parse deck lists from a specific article
-mtg deck ranked show a1b2c3d4e5f6g7h8 --output json | jq '.decks[].title'
+mtg decks ranked show a1b2c3d4e5f6g7h8 --output json | jq '.decks[].title'
 
 # Extract all main deck cards from an article
-mtg deck ranked show a1b2c3d4e5f6g7h8 --output json | jq -r '.decks[].main_deck[] | "\(.quantity)x \(.name)"'
+mtg decks ranked show a1b2c3d4e5f6g7h8 --output json | jq -r '.decks[].main_deck[] | "\(.quantity)x \(.name)"'
 
 # Get deck IDs for further analysis
-mtg deck ranked show "https://magic.gg/decklists/some-tournament" --output json | jq -r '.decks[].id'
+mtg decks ranked show "https://magic.gg/decklists/some-tournament" --output json | jq -r '.decks[].id'
 
 # Complete workflow: List tournaments, fetch decks, and analyze them
 # 1. Get tournament article ID
-ARTICLE_ID=$(mtg deck ranked list --limit 1 --output json | jq -r '.items[0].id')
+ARTICLE_ID=$(mtg decks ranked list --limit 1 --output json | jq -r '.items[0].id')
 
 # 2. Option A: Analyze first deck directly with article ID
-mtg deck stats $ARTICLE_ID
+mtg decks stats $ARTICLE_ID
 
 # 2. Option B: Get specific deck ID and analyze
-DECK_ID=$(mtg deck ranked show $ARTICLE_ID --output json | jq -r '.decks[0].id')
-mtg deck stats $DECK_ID
+DECK_ID=$(mtg decks ranked show $ARTICLE_ID --output json | jq -r '.decks[0].id')
+mtg decks stats $DECK_ID
 
 # Batch analyze all decks from a tournament
-mtg deck ranked show $ARTICLE_ID --output json | jq -r '.decks[].id' | while read deck_id; do
+mtg decks ranked show $ARTICLE_ID --output json | jq -r '.decks[].id' | while read deck_id; do
     echo "Analyzing deck: $deck_id"
-    mtg deck stats $deck_id --format json | jq '.statistics.average_mana_value'
+    mtg decks stats $deck_id --format json | jq '.statistics.average_mana_value'
 done
+
+# Compare two decks from the same tournament
+DECK1=$(mtg decks ranked show $ARTICLE_ID --output json | jq -r '.decks[0].id')
+DECK2=$(mtg decks ranked show $ARTICLE_ID --output json | jq -r '.decks[1].id')
+mtg decks compare $DECK1 $DECK2
+
+# Compare decks from different tournaments
+ARTICLE1=$(mtg decks ranked list --limit 1 --skip 0 --output json | jq -r '.items[0].id')
+ARTICLE2=$(mtg decks ranked list --limit 1 --skip 1 --output json | jq -r '.items[0].id')
+mtg decks compare $ARTICLE1 $ARTICLE2
 ```
 
 ### Caching
@@ -587,6 +617,55 @@ The command automatically determines the ID type and handles it appropriately:
 - If it's an article ID, it fetches the article and analyzes the first deck
 - If the ID is not found in either category, it returns an error
 
+### Compare Examples
+
+```bash
+# Compare two specific deck IDs
+mtg decks compare 7d1d96bc86e2185c a2b3c4d5e6f7g8h9
+
+# Compare using article IDs (uses first deck from each article)
+mtg decks compare 6b9a732534c4294a 8c9d0e1f2a3b4c5d
+
+# Compare decks from the same tournament
+ARTICLE_ID="6b9a732534c4294a"
+DECK1=$(mtg decks ranked show $ARTICLE_ID --output json | jq -r '.decks[0].id')
+DECK2=$(mtg decks ranked show $ARTICLE_ID --output json | jq -r '.decks[1].id')
+mtg decks compare $DECK1 $DECK2
+```
+
+#### Sample Output
+
+```
+Deck Comparison
+Deck 1: Mono Red Aggro
+Deck 2: Boros Burn
+
+Summary
+Shared cards: 5
+Unique to Deck 1: 8
+Unique to Deck 2: 10
+
+Shared Cards
+ Card Name             Deck 1 (Main/Side)  Deck 2 (Main/Side)  Difference 
+ Lightning Bolt        4/0                 4/0                 = 
+ Monastery Swiftspear  4/0                 4/0                 = 
+ Lava Spike           4/0                 3/0                 ±1 
+ Mountain             20/0                10/0                ±10 
+ Skullcrack           0/4                 0/3                 ±1 
+
+Unique to Mono Red Aggro
+ Card Name          Main  Side  Total 
+ Ghitu Lavarunner   4     0     4 
+ Rift Bolt          4     0     4 
+ Searing Blood      0     3     3 
+
+Unique to Boros Burn
+ Card Name          Main  Side  Total 
+ Sacred Foundry     4     0     4 
+ Boros Charm        4     0     4 
+ Path to Exile      0     2     2 
+```
+
 ## Tips
 
 1. **Large Decks**: For decks with many unique cards, the analysis may take longer due to API calls
@@ -597,6 +676,7 @@ The command automatically determines the ID type and handles it appropriately:
 6. **Tournament Data**: Use `ranked list` to find articles, then `ranked show` to parse actual deck lists
 7. **Cached IDs**: The ID shown in `ranked list` can be used with `ranked show` to avoid re-fetching URLs
 8. **Pagination**: Use `--page` for easier navigation or `--skip` for precise control
+9. **Deck Comparison**: Use `compare` to quickly identify differences between similar decks or track meta evolution
 
 ---
 

@@ -1,5 +1,5 @@
 use clap_stdin::MaybeStdin;
-use prettytable::{format, Cell, Row, Table};
+use prettytable::{Cell, Row};
 
 use super::{
     utils::{calculate_deck_stats, fetch_card_details, parse_deck_list},
@@ -191,8 +191,7 @@ fn output_pretty(deck_list: &DeckList, stats: &DeckStats) -> Result<()> {
     println!("=== DECK ANALYSIS ===\n");
 
     // Basic stats
-    let mut basic_table = Table::new();
-    basic_table.set_format(*format::consts::FORMAT_CLEAN);
+    let mut basic_table = new_table();
     basic_table.add_row(Row::new(vec![Cell::new("Metric"), Cell::new("Value")]));
     basic_table.add_row(Row::new(vec![
         Cell::new("Total Cards"),
@@ -222,8 +221,7 @@ fn output_pretty(deck_list: &DeckList, stats: &DeckStats) -> Result<()> {
     // Mana curve
     if !stats.mana_curve.is_empty() {
         println!("Mana Curve:");
-        let mut curve_table = Table::new();
-        curve_table.set_format(*format::consts::FORMAT_CLEAN);
+        let mut curve_table = new_table();
         curve_table.add_row(Row::new(vec![
             Cell::new("Mana Value"),
             Cell::new("Cards"),
@@ -249,8 +247,7 @@ fn output_pretty(deck_list: &DeckList, stats: &DeckStats) -> Result<()> {
     // Type distribution
     if !stats.type_distribution.is_empty() {
         println!("Card Types:");
-        let mut type_table = Table::new();
-        type_table.set_format(*format::consts::FORMAT_CLEAN);
+        let mut type_table = new_table();
         type_table.add_row(Row::new(vec![
             Cell::new("Type"),
             Cell::new("Cards"),
@@ -276,8 +273,7 @@ fn output_pretty(deck_list: &DeckList, stats: &DeckStats) -> Result<()> {
     // Color distribution
     if !stats.color_distribution.is_empty() {
         println!("Color Distribution:");
-        let mut color_table = Table::new();
-        color_table.set_format(*format::consts::FORMAT_CLEAN);
+        let mut color_table = new_table();
         color_table.add_row(Row::new(vec![
             Cell::new("Color"),
             Cell::new("Cards"),
@@ -303,8 +299,7 @@ fn output_pretty(deck_list: &DeckList, stats: &DeckStats) -> Result<()> {
     // Format legality
     if !stats.format_legality.is_empty() {
         println!("Format Legality:");
-        let mut format_table = Table::new();
-        format_table.set_format(*format::consts::FORMAT_CLEAN);
+        let mut format_table = new_table();
         format_table.add_row(Row::new(vec![Cell::new("Format"), Cell::new("Legal")]));
 
         let key_formats = [

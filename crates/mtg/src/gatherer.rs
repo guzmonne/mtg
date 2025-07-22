@@ -1,6 +1,6 @@
 use crate::cache::CacheManager;
 use crate::prelude::*;
-use prettytable::{format, Cell, Row, Table};
+use prettytable::{Cell, Row};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -293,8 +293,7 @@ fn display_pretty_results(data: &Value, params: &SearchParams) -> Result<()> {
         .unwrap_or(0);
 
     // Create table with clean format (space-separated columns)
-    let mut table = Table::new();
-    table.set_format(*format::consts::FORMAT_CLEAN);
+    let mut table = new_table();
     table.add_row(Row::new(vec![
         Cell::new("Name"),
         Cell::new("Type"),
@@ -611,8 +610,7 @@ async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()>
 }
 
 fn display_single_card_details(card: &serde_json::Value) -> Result<()> {
-    let mut table = Table::new();
-    table.set_format(*format::consts::FORMAT_CLEAN);
+    let mut table = new_table();
 
     // Card name
     if let Some(name) = card.get("instanceName").and_then(|v| v.as_str()) {
