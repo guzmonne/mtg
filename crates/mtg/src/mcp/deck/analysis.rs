@@ -41,7 +41,7 @@ impl Mcp {
                         timeout: 30,
                     };
 
-                    match crate::deck::analyze_deck_list_mcp(deck_list, global).await {
+                    match crate::decks::analyze_deck_list_mcp(deck_list, global).await {
                         Ok(analysis) => tool_text_response!(analysis),
                         Err(e) => tool_text_response!(format!("Failed to analyze deck: {}", e)),
                     }

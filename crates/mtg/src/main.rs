@@ -7,7 +7,7 @@ use clap::Parser;
 mod api;
 mod cache;
 mod completions;
-mod deck;
+mod decks;
 mod error;
 mod gatherer;
 mod mcp;
@@ -129,7 +129,7 @@ pub enum SubCommands {
     Completions(crate::completions::App),
 
     /// Analyze Magic: The Gathering deck lists
-    Decks(crate::deck::App),
+    Decks(crate::decks::App),
 
     /// Start Model Context Protocol server for AI integration (defaults to STDIO)
     Mcp {
@@ -315,7 +315,7 @@ async fn main() -> Result<()> {
         SubCommands::Scryfall(sub_app) => crate::scryfall::run(sub_app, app.global).await,
         SubCommands::Sets { command } => handle_sets_command(command, app.global).await,
         SubCommands::Completions(sub_app) => crate::completions::run(sub_app, app.global).await,
-        SubCommands::Decks(sub_app) => crate::deck::run(sub_app, app.global).await,
+        SubCommands::Decks(sub_app) => crate::decks::run(sub_app, app.global).await,
         SubCommands::Mcp { command } => match command {
             Some(McpCommands::Stdio) | None => crate::mcp::run_mcp_server(app.global).await,
             Some(McpCommands::Sse { host, port }) => {

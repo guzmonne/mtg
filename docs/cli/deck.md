@@ -1,18 +1,37 @@
 # Deck Analysis
 
-Analyze Magic: The Gathering deck lists to get comprehensive statistics including mana curve, type distribution, format legality, and more.
+Analyze Magic: The Gathering deck lists to get comprehensive statistics including mana curve, type distribution, format legality, and more. Also access tournament deck lists from official events.
 
-## Usage
+## Commands
+
+### Deck Stats
+
+Analyze deck statistics from a deck list.
 
 ```bash
 mtg deck stats [OPTIONS] [DECK_LIST]
 ```
 
-## Options
+#### Options
 
 - `[DECK_LIST]` - Deck list input (use '-' for stdin, provide deck list as string, or omit to read from stdin)
 - `-f, --file <FILE>` - Read deck list from file
 - `--format <FORMAT>` - Output format (pretty table or JSON) [default: pretty]
+
+### Ranked Deck Lists
+
+Access tournament deck lists from official Magic: The Gathering events.
+
+```bash
+mtg deck ranked list [OPTIONS]
+```
+
+#### Options
+
+- `-f, --format <FORMAT>` - Filter by format (e.g., alchemy, standard, modern)
+- `-l, --limit <LIMIT>` - Number of results to fetch [default: 20]
+- `-s, --skip <SKIP>` - Number of results to skip [default: 0]
+- `--output <OUTPUT>` - Output format (pretty table or JSON) [default: pretty]
 
 ## Input Methods
 
@@ -327,6 +346,86 @@ echo "zero Lightning Bolt" | mtg deck stats
 - **Caching**: Consider using local caching for repeated analysis of the same cards
 - **Timeout**: Default 30-second timeout for API requests (configurable with `--timeout`)
 
+## Ranked Deck Lists
+
+The `mtg deck ranked list` command fetches tournament deck lists from official Magic: The Gathering events hosted on magic.gg.
+
+### Examples
+
+```bash
+# List recent tournament deck lists
+mtg deck ranked list
+
+# Filter by format (e.g., alchemy)
+mtg deck ranked list --format alchemy
+
+# Get more results
+mtg deck ranked list --limit 50
+
+# Paginate through results
+mtg deck ranked list --skip 20 --limit 20
+
+# Output as JSON
+mtg deck ranked list --format standard --output json
+```
+
+### Output Format
+
+#### Pretty Table (Default)
+
+```bash
+mtg deck ranked list --format alchemy --limit 5
+```
+
+Output:
+```
+=== TOURNAMENT DECK LISTS ===
+
+Format: ALCHEMY
+Total Results: 4
+Showing: 1 - 4
+
+ Title                                          Author                Published    Link 
+ Neon Dynasty Championship Alchemy Decklists R-Z  Wizards of the Coast  2022-03-11   https://magic.wizards.com/en/content/neon-dynasty-championship-alchemy-decklists-4 
+ Neon Dynasty Championship Alchemy Decklists L-P  Wizards of the Coast  2022-03-11   https://magic.wizards.com/en/content/neon-dynasty-championship-alchemy-decklists-3 
+ Neon Dynasty Championship Alchemy Decklists G-K  Wizards of the Coast  2022-03-11   https://magic.wizards.com/en/content/neon-dynasty-championship-alchemy-decklists-2 
+ Neon Dynasty Championship Alchemy Decklists A-F  Wizards of the Coast  2022-03-11   https://magic.wizards.com/en/content/neon-dynasty-championship-alchemy-decklists-1 
+
+=== DESCRIPTIONS ===
+
+Neon Dynasty Championship Alchemy Decklists R-Z
+-----------------------------------------------
+These are the Alchemy decks for players R to Z at the Neon Dynasty Championship.
+```
+
+#### JSON Output
+
+```bash
+mtg deck ranked list --format alchemy --output json --limit 2
+```
+
+The JSON output includes the full response from the Contentful API with all metadata.
+
+### Use Cases
+
+1. **Tournament Preparation**: Research recent tournament-winning deck lists
+2. **Meta Analysis**: Track popular decks in specific formats
+3. **Deck Building Inspiration**: Find competitive deck ideas
+4. **Historical Research**: Access archived tournament results
+
+### Integration
+
+```bash
+# Get all Standard deck lists and extract URLs
+mtg deck ranked list --format standard --output json | jq -r '.items[].fields.outbound_link'
+
+# Count deck lists by format
+for format in standard modern legacy; do
+    count=$(mtg deck ranked list --format $format --output json | jq '.total')
+    echo "$format: $count deck lists"
+done
+```
+
 ## Tips
 
 1. **Large Decks**: For decks with many unique cards, the analysis may take longer due to API calls
@@ -334,6 +433,7 @@ echo "zero Lightning Bolt" | mtg deck stats
 3. **Set Codes**: Including set codes helps ensure correct card versions are analyzed
 4. **Format Validation**: Use the format legality check before tournament play
 5. **JSON Output**: Use JSON format for programmatic processing and integration
+6. **Tournament Data**: The ranked list command provides links to official deck lists, not the actual card lists
 
 ---
 
