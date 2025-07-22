@@ -7,25 +7,26 @@ A powerful command-line interface for Magic: The Gathering card data with AI int
 
 ## Overview
 
-MTG CLI is a comprehensive command-line tool that provides access to Magic: The Gathering card data through the [MTG API](https://magicthegathering.io/). Built with Rust for performance and reliability, it offers both traditional CLI functionality and modern AI integration through the Model Context Protocol (MCP).
+MTG CLI is a comprehensive command-line tool that provides access to Magic: The Gathering card data through multiple APIs. Built with Rust for performance and reliability, it offers both traditional CLI functionality and modern AI integration through the Model Context Protocol (MCP).
 
 ## Features
 
 ### Core Functionality
 
-- **Card Search**: Advanced search with multiple filters (name, colors, type, rarity, set, mana cost)
+- **Multiple Search Engines**: Support for MTG API, Wizards' Gatherer, and Scryfall APIs
+- **Advanced Card Search**: Search with filters for name, colors, type, rarity, set, mana cost, and more
 - **Set Browsing**: Explore Magic sets and generate virtual booster packs
 - **Type Information**: Access comprehensive card types, subtypes, supertypes, and game formats
-- **Multiple Search Engines**: Support for both Wizards' Gatherer and Scryfall APIs with comprehensive lookup methods
 - **Shell Completions**: Auto-completion support for Bash, Zsh, Fish, PowerShell, and Elvish
 - **High Performance**: Async operations with built-in caching and timeout controls
 
-### AI Integration
+### AI Integration (MCP)
 
 - **MCP Server**: Model Context Protocol server for seamless AI assistant integration
 - **Rich Data Access**: 20,000+ Magic cards with full details and metadata
-- **Interactive Tools**: Card analysis, deck building assistance, and booster pack simulation
+- **Interactive Tools**: 8 comprehensive tools for card lookup, search, and deck analysis
 - **Pre-built Prompts**: Templates for common Magic-related AI tasks
+- **Multiple Transports**: STDIO and SSE support for different integration needs
 
 ### Output & Usability
 
@@ -36,33 +37,35 @@ MTG CLI is a comprehensive command-line tool that provides access to Magic: The 
 
 ## Installation
 
-### Prerequisites
+### Pre-built Binaries
 
-- **Rust** (1.70 or later) - [Install Rust](https://rustup.rs/)
-- **Git** - For cloning the repository
+Download pre-built binaries for your operating system from [GitHub Releases](https://github.com/cloudbridgeuy/mtg/releases). Binaries are available for:
+
+- Linux (x86_64, ARM64)
+- macOS (Intel, Apple Silicon)
+- Windows (x86_64)
 
 ### Build from Source
 
-1. **Clone the repository:**
+**Prerequisites:**
+- Rust (1.70 or later) - [Install Rust](https://rustup.rs/)
+- Git
 
+**Steps:**
+
+1. **Clone and build:**
    ```bash
    git clone https://github.com/cloudbridgeuy/mtg.git
    cd mtg
-   ```
-
-2. **Build the project:**
-
-   ```bash
    cargo build --bin mtg --release
    ```
 
-3. **Install globally (optional):**
-
+2. **Install globally (optional):**
    ```bash
    cargo install --bin mtg --path crates/mtg
    ```
 
-4. **Verify installation:**
+3. **Verify installation:**
    ```bash
    ./target/release/mtg --version
    # or if installed globally:
@@ -71,32 +74,33 @@ MTG CLI is a comprehensive command-line tool that provides access to Magic: The 
 
 ## Quick Start
 
+### Command Overview
+
+The CLI provides access to three main APIs:
+
+- **`api`** - MTG API for basic card, set, and type queries
+- **`scryfall`** - Scryfall API for advanced search with flexible syntax
+- **`gatherer`** - Wizards' Gatherer database for official card data
+
 ### Basic Usage
 
 ```bash
-# Search for a specific card
+# MTG API - Basic card search
 mtg api cards search "Lightning Bolt"
-
-# List recent Magic sets
 mtg api sets list --page-size 10
-
-# Get all card types
 mtg api types list
+
+# Scryfall API - Advanced search
+mtg scryfall search "c:blue t:instant mv<=3" --pretty
+mtg scryfall named "Lightning Bolt" --pretty
+mtg scryfall collector ktk 96 --pretty
+
+# Gatherer API - Official Wizards data
+mtg gatherer search --name "Lightning Bolt" --rarity "Common"
+mtg gatherer search --colors "Red" --type "Instant"
 
 # Generate booster pack
 mtg api sets booster "KTK"
-
-# Search using Scryfall
-mtg scryfall search "c:blue t:instant mv<=3" --pretty
-
-# Get specific card by name
-mtg scryfall named "Lightning Bolt" --pretty
-
-# Get card by set and collector number
-mtg scryfall collector ktk 96 --pretty
-
-# Get random card
-mtg scryfall random --query "t:legendary" --pretty
 ```
 
 ### Set Up Shell Completions
@@ -115,11 +119,14 @@ mtg completions generate fish > ~/.config/fish/completions/mtg.fish
 mtg completions generate powershell >> $PROFILE
 ```
 
-### Start MCP Server for AI Integration
+### MCP Server for AI Integration
 
 ```bash
-# Start MCP server
+# Start MCP server (STDIO transport)
 mtg mcp
+
+# Start with SSE transport for web applications
+mtg mcp sse --host 127.0.0.1 --port 3000
 
 # With custom configuration
 mtg --api-base-url https://api.magicthegathering.io/v1 --timeout 60 mcp
@@ -209,9 +216,18 @@ mtg completions generate powershell
 mtg completions generate elvish
 ```
 
-## AI Integration with MCP
+## MCP Server for AI Integration
 
-The MTG CLI includes a Model Context Protocol (MCP) server that enables AI assistants to access Magic: The Gathering data seamlessly.
+The MTG CLI includes a powerful Model Context Protocol (MCP) server that enables AI assistants to access Magic: The Gathering data seamlessly.
+
+### Key Features
+
+- **Rich Data Access**: 20,000+ Magic cards with full details and metadata
+- **Interactive Tools**: 8 comprehensive tools for card lookup, search, and deck analysis
+- **Multiple APIs**: Access to MTG API, Scryfall, and Gatherer through unified interface
+- **Advanced Search**: Complex queries with 15+ sort options and filtering
+- **Deck Analysis**: Comprehensive statistics including mana curve and format legality
+- **Multiple Transports**: STDIO (default) and SSE support for different integration needs
 
 ### Claude Desktop Integration
 
@@ -231,7 +247,7 @@ Add to your Claude Desktop configuration:
 }
 ```
 
-### Available MCP Features
+### Available MCP Components
 
 - **Resources**: Access to complete card, set, and type databases
 - **Tools**: Interactive functions for searching, analysis, and booster generation
@@ -279,33 +295,7 @@ mtg api types subtypes | grep -i "warrior\|wizard\|goblin"
 mtg api types formats
 ```
 
-## Configuration
 
-### Configuration Files
-
-Create persistent configuration:
-
-```bash
-# ~/.mtg-config
-export MTG_API_BASE_URL="https://api.magicthegathering.io/v1"
-export MTG_TIMEOUT=60
-export MTG_VERBOSE=1
-
-# Load with: source ~/.mtg-config
-```
-
-### Network Configuration
-
-For corporate environments:
-
-```bash
-# Proxy settings
-export HTTP_PROXY="http://proxy.company.com:8080"
-export HTTPS_PROXY="http://proxy.company.com:8080"
-
-# Custom timeout for slow connections
-export MTG_TIMEOUT=120
-```
 
 ## Development
 
@@ -354,14 +344,21 @@ Key dependencies include:
 
 Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
+### CLI Usage
 - [Getting Started](docs/cli/getting-started.md) - Installation and basic usage
-- [Card Commands](docs/cli/cards.md) - Advanced card search techniques
+- [Card Commands](docs/cli/cards.md) - MTG API card search techniques
 - [Set Commands](docs/cli/sets.md) - Set browsing and booster generation
 - [Type Commands](docs/cli/types.md) - Type system and format queries
 - [Gatherer Commands](docs/cli/gatherer.md) - Official Wizards search functionality
 - [Scryfall Commands](docs/cli/scryfall.md) - Powerful Scryfall search engine
 - [Shell Completions](docs/cli/completions.md) - Completion setup for all shells
-- [MCP Integration](docs/mcp/overview.md) - AI assistant integration guide
+
+### MCP Integration
+- [MCP Overview](docs/mcp/overview.md) - AI assistant integration guide
+- [Setup & Installation](docs/mcp/setup.md) - Getting the MCP server running
+- [Tools](docs/mcp/tools.md) - Interactive card search tools for AI assistants
+- [Resources](docs/mcp/resources.md) - Available data resources
+- [Prompts](docs/mcp/prompts.md) - Pre-built prompt templates
 
 ## Troubleshooting
 
