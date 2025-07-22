@@ -55,7 +55,7 @@ pub struct DeckCard {
     pub name: String,
     pub set_code: Option<String>,
     pub collector_number: Option<String>,
-    pub card_details: Option<crate::scryfall::ScryfallCard>,
+    pub card_details: Option<crate::scryfall::Card>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -103,7 +103,7 @@ impl Mcp {
                                             } else {
                                                 // Parse as card response
                                                 match serde_json::from_value::<
-                                                    crate::scryfall::ScryfallCard,
+                                                    crate::scryfall::Card,
                                                 >(
                                                     json_value
                                                 ) {

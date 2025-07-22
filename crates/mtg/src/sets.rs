@@ -221,7 +221,7 @@ impl SetType {
 }
 
 /// Type alias for set lists
-pub type ScryfallSetList = crate::scryfall::ScryfallList<ScryfallSet>;
+pub type ScryfallSetList = crate::scryfall::List<ScryfallSet>;
 
 /// Parameters for set listing
 #[derive(Debug, Clone)]

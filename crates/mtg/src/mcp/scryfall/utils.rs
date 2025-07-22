@@ -4,7 +4,7 @@ use crate::prelude::*;
 
 // Helper function to format Scryfall search results as pretty table
 pub fn format_scryfall_search_results(
-    response: &crate::scryfall::ScryfallSearchResponse,
+    response: &crate::scryfall::search::Response,
 ) -> Result<String> {
     let mut table = new_table();
     table.add_row(Row::new(vec![
@@ -62,7 +62,7 @@ pub fn format_scryfall_search_results(
 }
 
 // Helper function to format single card details as pretty table
-pub fn format_single_card_details(card: &crate::scryfall::ScryfallCard) -> Result<String> {
+pub fn format_single_card_details(card: &crate::scryfall::Card) -> Result<String> {
     let mut table = new_table();
 
     // Card name

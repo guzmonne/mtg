@@ -86,7 +86,7 @@ impl Mcp {
                                             error_msg
                                         ))
                                     } else {
-                                        match serde_json::from_value::<crate::scryfall::ScryfallCard>(
+                                        match serde_json::from_value::<crate::scryfall::Card>(
                                             json_value,
                                         ) {
                                             Ok(card) => {

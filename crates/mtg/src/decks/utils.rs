@@ -174,7 +174,7 @@ async fn fetch_single_card(
     name: &str,
     set_code: Option<&str>,
     global: &crate::Global,
-) -> Result<crate::scryfall::ScryfallCard> {
+) -> Result<crate::scryfall::Card> {
     let mut url = format!(
         "https://api.scryfall.com/cards/named?exact={}",
         urlencoding::encode(name)
@@ -204,7 +204,7 @@ async fn fetch_single_card(
         }
     }
 
-    let card: crate::scryfall::ScryfallCard = serde_json::from_value(json_value)?;
+    let card: crate::scryfall::Card = serde_json::from_value(json_value)?;
     Ok(card)
 }
 

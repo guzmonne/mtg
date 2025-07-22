@@ -146,7 +146,7 @@ impl Mcp {
                         tool_text_response!("Error: Query parameter cannot be empty. Please provide a valid Scryfall search query.")
                     } else {
                         // Direct query search
-                        let search_params = crate::scryfall::SearchParams {
+                        let search_params = crate::scryfall::search::Params {
                             query: query.to_string(),
                             pretty: true,
                             page: args.get("page").and_then(|v| v.as_u64()).unwrap_or(1) as u32,
@@ -163,7 +163,7 @@ impl Mcp {
                             csv: false,
                         };
 
-                        match crate::scryfall::search_cards_json(search_params, global).await {
+                        match crate::scryfall::search::json(search_params, global).await {
                             Ok(search_response) => {
                                 if search_response.data.is_empty() {
                                     tool_text_response!("No cards found matching the search query.")
@@ -188,7 +188,7 @@ impl Mcp {
                     }
                 } else {
                     // Advanced search using individual parameters
-                    let advanced_params = crate::scryfall::AdvancedSearchParams {
+                    let advanced_params = crate::scryfall::search::AdvancedParams {
                         name: args
                             .get("name")
                             .and_then(|v| v.as_str())
@@ -288,7 +288,8 @@ impl Mcp {
                     if !has_advanced_params {
                         tool_text_response!("Error: No search parameters provided. Please specify either a 'query' parameter or at least one advanced search parameter such as 'name', 'card_type', 'colors', etc.")
                     } else {
-                        match crate::scryfall::advanced_search_json(advanced_params, global).await {
+                        match crate::scryfall::search::advanced_json(advanced_params, global).await
+                        {
                             Ok(search_response) => {
                                 if search_response.data.is_empty() {
                                     tool_text_response!(
