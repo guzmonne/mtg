@@ -6,22 +6,27 @@ Prompts provide AI assistants with pre-built templates for common Magic: The Gat
 
 The MTG MCP server provides three specialized prompts:
 
-| Prompt            | Purpose                                   | Arguments             |
-| ----------------- | ----------------------------------------- | --------------------- |
-| **analyze_card**  | Card power level and competitive analysis | card_name, format     |
-| **build_deck**    | Deck construction guidance                | theme, format, budget |
-| **compare_cards** | Multi-card comparison and evaluation      | cards, criteria       |
+| Prompt              | Purpose                                   | Arguments                    |
+| ------------------- | ----------------------------------------- | ---------------------------- |
+| **deck_builder**    | Interactive deck building assistant       | format, archetype, budget    |
+| **card_searcher**   | Advanced card search with natural language| description, format          |
+| **synergy_finder**  | Find cards that synergize with existing cards | cards, format           |
 
-## analyze_card
+## Current Implementation Status
 
-Comprehensive card analysis for competitive play evaluation.
+**Note**: The prompts are currently implemented as data structures with proper MCP protocol support. The server advertises prompt capabilities (`"prompts":{}`) but the current version of mcp-core (0.1.50) may not fully support prompt registration. The prompt definitions are ready for when full prompt support is available.
+
+## deck_builder
+
+Interactive deck building assistant for Magic: The Gathering.
 
 ### Arguments
 
 ```json
 {
-  "card_name": "Lightning Bolt", // Required: Card name to analyze
-  "format": "Modern" // Optional: Format context (default: "Modern")
+  "format": "standard",        // Required: Target format (standard, modern, legacy, commander, etc.)
+  "archetype": "aggro",        // Optional: Deck archetype (aggro, control, midrange, combo)
+  "budget": "200"              // Optional: Budget constraint in USD
 }
 ```
 
@@ -31,198 +36,37 @@ Comprehensive card analysis for competitive play evaluation.
 {
   "method": "prompts/get",
   "params": {
-    "name": "analyze_card",
+    "name": "deck_builder",
     "arguments": {
-      "card_name": "Lightning Bolt",
-      "format": "Modern"
+      "format": "modern",
+      "archetype": "burn",
+      "budget": "150"
     }
   }
 }
 ```
 
-### Generated Prompt
+### Description
 
-The prompt generates a comprehensive analysis request including:
-
-````
-Please analyze the Magic: The Gathering card "Lightning Bolt" for competitive play in the Modern format.
-
-Card Data:
-```json
-{
-  "id": "409574",
-  "name": "Lightning Bolt",
-  "manaCost": "{R}",
-  "cmc": 1,
-  "colors": ["Red"],
-  "type": "Instant",
-  "rarity": "Common",
-  "text": "Lightning Bolt deals 3 damage to any target.",
-  "legalities": [
-    {"format": "Modern", "legality": "Legal"},
-    {"format": "Legacy", "legality": "Legal"},
-    {"format": "Vintage", "legality": "Legal"}
-  ]
-}
-````
-
-Please provide a comprehensive analysis covering:
-
-1. **Power Level Assessment**
-
-   - Rate the card's overall power level (1-10)
-   - Compare to similar cards in the format
-   - Identify key strengths and weaknesses
-
-2. **Competitive Viability**
-
-   - Current meta relevance in Modern
-   - Deck archetypes that would play this card
-   - Matchup considerations
-
-3. **Synergies and Combos**
-
-   - Cards that work well with Lightning Bolt
-   - Potential combo interactions
-   - Build-around strategies
-
-4. **Meta Considerations**
-
-   - How the current meta affects this card's value
-   - Sideboard considerations
-   - Future meta predictions
-
-5. **Historical Context**
-   - Card's impact on Magic history
-   - Previous meta positions
-   - Design significance
-
-````
-
-### Use Cases
-
-- **Deck Building**: Evaluate cards for inclusion
-- **Meta Analysis**: Understand card positioning
-- **Educational**: Learn about card evaluation
-- **Content Creation**: Generate analysis content
-
-### Supported Formats
-
-- Standard
-- Pioneer
-- Modern
-- Legacy
-- Vintage
-- Commander
-- Pauper
-- Historic
-
-## build_deck
-
-Comprehensive deck building guidance and strategy development.
-
-### Arguments
-
-```json
-{
-  "theme": "Burn",                   // Required: Deck theme or strategy
-  "format": "Modern",                // Required: Target format
-  "budget": "Budget"                 // Optional: Budget constraints
-}
-````
-
-### Example Usage
-
-```json
-{
-  "method": "prompts/get",
-  "params": {
-    "name": "build_deck",
-    "arguments": {
-      "theme": "Tribal Goblins",
-      "format": "Modern",
-      "budget": "$200"
-    }
-  }
-}
-```
-
-### Generated Prompt
-
-```
-Help me build a Magic: The Gathering deck with the following specifications:
-
-**Deck Theme**: Tribal Goblins
-**Format**: Modern
-**Budget**: $200
-
-Please provide comprehensive deck building guidance covering:
-
-1. **Core Strategy**
-   - Primary win conditions
-   - Key synergies and interactions
-   - Typical game plan
-
-2. **Card Recommendations**
-   - Essential cards for the strategy
-   - Budget alternatives for expensive cards
-   - Flexible slots and meta considerations
-
-3. **Mana Base**
-   - Land recommendations
-   - Mana curve considerations
-   - Color requirements
-
-4. **Sideboard Strategy**
-   - Key matchups to prepare for
-   - Sideboard card recommendations
-   - Sideboarding guide
-
-5. **Upgrade Path**
-   - Priority upgrades within budget
-   - Long-term improvement suggestions
-   - Meta adaptation strategies
-
-6. **Sample Decklist**
-   - Provide a complete 60-card main deck
-   - Include 15-card sideboard
-   - Estimate total cost
-
-Please focus on cards legal in Modern format and consider the $200 budget constraint when making recommendations.
-```
-
-### Budget Categories
-
-- **Budget**: Under $100
-- **Mid-range**: $100-$300
-- **Competitive**: $300-$800
-- **Premium**: $800+
-
-### Popular Themes
-
-- **Aggro**: Burn, Affinity, Humans
-- **Midrange**: Jund, Abzan, Sultai
-- **Control**: UW Control, Jeskai Control
-- **Combo**: Storm, Ad Nauseam, Amulet Titan
-- **Tribal**: Goblins, Elves, Merfolk, Spirits
+This prompt helps users build Magic: The Gathering decks by providing comprehensive guidance based on format, archetype, and budget constraints. It's designed to assist both new and experienced players in creating competitive and fun decks.
 
 ### Use Cases
 
 - **New Player Guidance**: Learn deck building fundamentals
-- **Format Entry**: Build first deck in new format
+- **Format Entry**: Build first deck in new format  
 - **Budget Optimization**: Maximize power within constraints
 - **Meta Adaptation**: Adjust existing strategies
 
-## compare_cards
+## card_searcher
 
-Multi-card comparison and evaluation for deck building decisions.
+Advanced card search with natural language queries.
 
 ### Arguments
 
 ```json
 {
-  "cards": "Lightning Bolt,Shock,Lava Spike", // Required: Comma-separated card names
-  "criteria": "mana efficiency" // Optional: Specific comparison criteria
+  "description": "red creatures with haste",  // Required: Natural language description of desired card
+  "format": "standard"                        // Optional: Format legality requirement
 }
 ```
 
@@ -232,324 +76,165 @@ Multi-card comparison and evaluation for deck building decisions.
 {
   "method": "prompts/get",
   "params": {
-    "name": "compare_cards",
+    "name": "card_searcher",
     "arguments": {
-      "cards": "Lightning Bolt,Shock,Lava Spike",
-      "criteria": "burn deck inclusion"
+      "description": "cheap removal spells that can hit creatures and planeswalkers",
+      "format": "modern"
     }
   }
 }
 ```
 
-### Generated Prompt
+### Description
 
-````
-Please compare the following Magic: The Gathering cards for burn deck inclusion:
-
-**Cards to Compare**: Lightning Bolt, Shock, Lava Spike
-
-**Card Data**:
-
-Lightning Bolt:
-```json
-{
-  "name": "Lightning Bolt",
-  "manaCost": "{R}",
-  "cmc": 1,
-  "type": "Instant",
-  "text": "Lightning Bolt deals 3 damage to any target.",
-  "rarity": "Common"
-}
-````
-
-Shock:
-
-```json
-{
-  "name": "Shock",
-  "manaCost": "{R}",
-  "cmc": 1,
-  "type": "Instant",
-  "text": "Shock deals 2 damage to any target.",
-  "rarity": "Common"
-}
-```
-
-Lava Spike:
-
-```json
-{
-  "name": "Lava Spike",
-  "manaCost": "{R}",
-  "cmc": 1,
-  "type": "Sorcery",
-  "text": "Lava Spike deals 3 damage to target player or planeswalker.",
-  "rarity": "Common"
-}
-```
-
-Please provide a detailed comparison focusing on burn deck inclusion:
-
-1. **Direct Comparison**
-
-   - Damage per mana efficiency
-   - Targeting flexibility
-   - Speed and timing considerations
-
-2. **Deck Building Implications**
-
-   - Which cards fit best in aggressive strategies
-   - Situational advantages of each option
-   - Meta considerations
-
-3. **Ranking and Recommendations**
-
-   - Rank the cards for the specified criteria
-   - Explain the reasoning behind rankings
-   - Suggest optimal combinations
-
-4. **Alternative Considerations**
-   - Similar cards worth considering
-   - Format-specific implications
-   - Budget considerations
-
-````
-
-### Comparison Criteria
-
-- **Mana Efficiency**: Cost-to-effect ratio
-- **Versatility**: Multiple use cases
-- **Power Level**: Raw strength comparison
-- **Meta Relevance**: Current format positioning
-- **Synergy**: Combo potential
-- **Budget**: Cost considerations
+This prompt enables natural language card searches, making it easier for users to find cards based on descriptions rather than exact names or complex query syntax.
 
 ### Use Cases
 
-- **Deck Optimization**: Choose between similar effects
-- **Meta Decisions**: Adapt to format changes
-- **Educational**: Learn card evaluation
-- **Brewing**: Explore alternative options
+- **Deck Building**: Find cards that fit specific roles
+- **Learning**: Discover new cards through descriptions
+- **Brewing**: Explore cards for creative strategies
+- **Research**: Find cards with specific characteristics
 
-## Prompt Integration Patterns
+## synergy_finder
 
-### Chaining Prompts
+Find cards that synergize with your existing cards.
 
-AI assistants can use prompts in sequence:
+### Arguments
 
-```python
-# 1. Analyze key cards
-analysis = get_prompt("analyze_card", {
-    "card_name": "Lightning Bolt",
-    "format": "Modern"
-})
-
-# 2. Build deck around analyzed card
-deck_guide = get_prompt("build_deck", {
-    "theme": "Burn",
-    "format": "Modern",
-    "budget": "$150"
-})
-
-# 3. Compare card options
-comparison = get_prompt("compare_cards", {
-    "cards": "Lightning Bolt,Lava Spike,Rift Bolt",
-    "criteria": "burn deck efficiency"
-})
-````
-
-### Dynamic Data Integration
-
-Prompts automatically fetch current card data:
-
-```python
-def analyze_with_current_data(card_name, format):
-    # Prompt automatically fetches latest card data
-    prompt = get_prompt("analyze_card", {
-        "card_name": card_name,
-        "format": format
-    })
-
-    # Data includes current legality, errata, etc.
-    return prompt
+```json
+{
+  "cards": "Lightning Bolt,Monastery Swiftspear",  // Required: Comma-separated list of card names
+  "format": "modern"                               // Optional: Format constraint
+}
 ```
 
-## Prompt Customization
-
-### Format-Specific Analysis
-
-Each format gets tailored analysis:
-
-- **Standard**: Rotation considerations, current meta
-- **Modern**: Historical context, power level comparison
-- **Legacy**: Combo potential, efficiency requirements
-- **Commander**: Multiplayer dynamics, political considerations
-- **Pauper**: Rarity restrictions, budget optimization
-
-### Budget-Aware Recommendations
-
-Deck building prompts consider budget constraints:
-
-- **Ultra Budget** (<$50): Basic lands, commons/uncommons
-- **Budget** ($50-$150): Some rares, budget mana base
-- **Mid-range** ($150-$400): Competitive core, good mana
-- **High-end** ($400+): Optimal builds, premium cards
-
-## Advanced Usage
-
-### Custom Analysis Criteria
+### Example Usage
 
 ```json
 {
   "method": "prompts/get",
   "params": {
-    "name": "compare_cards",
+    "name": "synergy_finder",
     "arguments": {
-      "cards": "Tarmogoyf,Scavenging Ooze,Grim Flayer",
-      "criteria": "midrange creature evaluation for current meta"
+      "cards": "Tarmogoyf,Lightning Bolt,Thoughtseize",
+      "format": "modern"
     }
   }
 }
 ```
 
-### Multi-Format Analysis
+### Description
+
+This prompt analyzes existing cards and suggests other cards that work well together, helping users discover synergies and build more cohesive decks.
+
+### Use Cases
+
+- **Deck Optimization**: Find cards that work well with existing choices
+- **Synergy Discovery**: Learn about card interactions
+- **Brewing**: Build around specific card combinations
+- **Educational**: Understand how cards work together
+
+## Implementation Details
+
+### Data Structures
+
+The prompts are implemented as Rust functions that return `Prompt` structs with the following structure:
+
+```rust
+pub fn deck_building_prompt() -> Prompt {
+    Prompt {
+        name: "deck_builder".to_string(),
+        description: Some("Interactive deck building assistant for Magic: The Gathering".to_string()),
+        arguments: Some(vec![
+            PromptArgument {
+                name: "format".to_string(),
+                description: Some("Target format (standard, modern, legacy, commander, etc.)".to_string()),
+                required: Some(true),
+            },
+            PromptArgument {
+                name: "archetype".to_string(),
+                description: Some("Deck archetype (aggro, control, midrange, combo)".to_string()),
+                required: Some(false),
+            },
+            PromptArgument {
+                name: "budget".to_string(),
+                description: Some("Budget constraint in USD".to_string()),
+                required: Some(false),
+            },
+        ]),
+    }
+}
+```
+
+### Server Capabilities
+
+The MCP server advertises prompt capabilities in its initialization response:
 
 ```json
 {
-  "method": "prompts/get",
-  "params": {
-    "name": "analyze_card",
-    "arguments": {
-      "card_name": "Brainstorm",
-      "format": "Legacy vs Vintage comparison"
-    }
+  "capabilities": {
+    "prompts": {},
+    "tools": {}
   }
 }
 ```
 
-### Comprehensive Deck Analysis
+### Future Enhancements
 
+When full prompt support becomes available in mcp-core, the following features will be implemented:
+
+1. **Dynamic Prompt Generation**: Prompts that adapt based on current meta and card data
+2. **Prompt Chaining**: Ability to use multiple prompts in sequence
+3. **Custom Templates**: User-defined prompt templates
+4. **Context Awareness**: Prompts that remember previous interactions
+
+## Testing
+
+To test the prompt data structures:
+
+```bash
+# Build the project
+cargo build
+
+# Test MCP server initialization (should show prompts capability)
+echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0.0"}}}' | ./target/debug/mtg mcp stdio
+```
+
+Expected response should include:
 ```json
 {
-  "method": "prompts/get",
-  "params": {
-    "name": "build_deck",
-    "arguments": {
-      "theme": "Control deck with win condition flexibility",
-      "format": "Pioneer",
-      "budget": "Competitive but not premium"
-    }
+  "capabilities": {
+    "prompts": {},
+    "tools": {}
   }
 }
 ```
 
-## Integration Examples
+## Integration with AI Assistants
 
-### Card Evaluation Workflow
+Once full prompt support is available, AI assistants will be able to:
 
-```python
-def comprehensive_card_evaluation(card_name):
-    # Step 1: Detailed analysis
-    analysis = get_prompt("analyze_card", {
-        "card_name": card_name,
-        "format": "Modern"
-    })
+1. **List Available Prompts**: Discover what prompts are available
+2. **Get Prompt Templates**: Retrieve prompt templates with arguments
+3. **Execute Prompts**: Run prompts with specific arguments to get tailored responses
 
-    # Step 2: Find similar cards for comparison
-    similar_cards = find_similar_cards(card_name)
-    comparison = get_prompt("compare_cards", {
-        "cards": f"{card_name},{','.join(similar_cards)}",
-        "criteria": "competitive viability"
-    })
-
-    return {
-        "analysis": analysis,
-        "comparison": comparison
-    }
-```
-
-### Deck Building Assistant
+### Example Integration Flow
 
 ```python
-def build_deck_with_analysis(theme, format, budget):
-    # Step 1: Get deck building guidance
-    deck_guide = get_prompt("build_deck", {
-        "theme": theme,
-        "format": format,
-        "budget": budget
-    })
+# 1. List available prompts
+prompts = client.list_prompts()
 
-    # Step 2: Analyze key cards mentioned
-    key_cards = extract_key_cards(deck_guide)
-    card_analyses = []
+# 2. Get specific prompt template
+deck_prompt = client.get_prompt("deck_builder", {
+    "format": "modern",
+    "archetype": "control", 
+    "budget": "300"
+})
 
-    for card in key_cards:
-        analysis = get_prompt("analyze_card", {
-            "card_name": card,
-            "format": format
-        })
-        card_analyses.append(analysis)
-
-    return {
-        "deck_guide": deck_guide,
-        "card_analyses": card_analyses
-    }
+# 3. Use prompt to guide deck building conversation
+response = ai_assistant.chat(deck_prompt.content)
 ```
-
-### Meta Analysis Tool
-
-```python
-def analyze_format_meta(format_name):
-    # Get top cards in format
-    top_cards = get_format_staples(format_name)
-
-    # Analyze each card
-    analyses = []
-    for card in top_cards:
-        analysis = get_prompt("analyze_card", {
-            "card_name": card,
-            "format": format_name
-        })
-        analyses.append(analysis)
-
-    # Compare similar cards
-    comparisons = []
-    card_groups = group_similar_cards(top_cards)
-
-    for group in card_groups:
-        comparison = get_prompt("compare_cards", {
-            "cards": ",".join(group),
-            "criteria": f"{format_name} meta positioning"
-        })
-        comparisons.append(comparison)
-
-    return {
-        "format": format_name,
-        "card_analyses": analyses,
-        "comparisons": comparisons
-    }
-```
-
-## Performance and Caching
-
-### Response Times
-
-- **analyze_card**: 200-500ms (includes data fetch)
-- **build_deck**: 100-300ms (template generation)
-- **compare_cards**: 300-800ms (multiple card fetch)
-
-### Caching Strategy
-
-- **Templates**: Cached indefinitely (static)
-- **Card Data**: Fetched fresh for each prompt
-- **Generated Content**: Not cached (dynamic)
-
-### Optimization Tips
-
-1. **Batch Requests**: Use multiple prompts in sequence
-2. **Specific Criteria**: Provide detailed comparison criteria
-3. **Format Focus**: Specify exact format for better analysis
-4. **Budget Clarity**: Be specific about budget constraints
 
 ---
 

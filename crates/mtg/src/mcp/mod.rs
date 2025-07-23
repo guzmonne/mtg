@@ -1,13 +1,14 @@
 use mcp_core::{
     server::Server,
     transport::{ServerSseTransport, ServerStdioTransport},
-    types::{ServerCapabilities, ToolCapabilities},
+    types::{ServerCapabilities, ToolCapabilities, PromptCapabilities},
 };
 
 use crate::prelude::*;
 
 mod deck;
 mod scryfall;
+mod prompts;
 
 pub async fn run_mcp_server(_global: crate::Global) -> Result<()> {
     log::info!("Starting MTG MCP Server (STDIO)");
@@ -19,6 +20,7 @@ pub async fn run_mcp_server(_global: crate::Global) -> Result<()> {
     )
     .set_capabilities(ServerCapabilities {
         tools: Some(ToolCapabilities::default()),
+        prompts: Some(PromptCapabilities::default()),
         ..Default::default()
     })
     .register_tool(scryfall::named::Mcp::tool(), scryfall::named::Mcp::call())
@@ -50,6 +52,7 @@ pub async fn run_sse_server(_global: crate::Global, host: String, port: u16) -> 
     )
     .set_capabilities(ServerCapabilities {
         tools: Some(ToolCapabilities::default()),
+        prompts: Some(PromptCapabilities::default()),
         ..Default::default()
     })
     .register_tool(scryfall::named::Mcp::tool(), scryfall::named::Mcp::call())
