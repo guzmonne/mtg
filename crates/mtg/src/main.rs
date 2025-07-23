@@ -7,6 +7,7 @@ use clap::Parser;
 
 mod api;
 mod cache;
+mod companion;
 mod completions;
 mod decks;
 mod error;
@@ -137,6 +138,9 @@ pub enum SubCommands {
         #[command(subcommand)]
         command: Option<McpCommands>,
     },
+
+    /// Track and analyze MTG Arena log files
+    Companion(crate::companion::App),
 }
 
 async fn handle_sets_command(command: SetCommands, global: Global) -> Result<()> {
@@ -318,6 +322,7 @@ async fn main() -> Result<()> {
                 crate::mcp::run_sse_server(app.global, host, port).await
             }
         },
+        SubCommands::Companion(sub_app) => crate::companion::run(sub_app, app.global).await,
     }
     .map_err(|err: color_eyre::eyre::Report| eyre!(err))
 }
