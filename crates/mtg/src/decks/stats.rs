@@ -43,7 +43,7 @@ pub async fn run(
         aeprintln!("Detected MTG Arena deck ID: {}", deck_content.trim());
 
         // Try to fetch Arena deck from cache
-        match fetch_arena_deck_from_cache(&deck_content.trim()).await {
+        match fetch_arena_deck_from_cache(deck_content.trim()).await {
             Ok((arena_deck, deck_name)) => {
                 aeprintln!("Found Arena deck: {}", deck_name);
 
