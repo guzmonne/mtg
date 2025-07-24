@@ -31,12 +31,17 @@ pub enum CompanionCommands {
 
     /// Parse and analyze existing log files
     Parse {
-        /// Path to the log file to parse
+        /// Path to the log file to parse (defaults to newest log file)
+        #[clap(default_value = "latest")]
         file: String,
 
-        /// Type of analysis to perform
+        /// Type of analysis to perform (inventory, decks, full)
         #[clap(long)]
-        analysis: Option<String>,
+        analyze: Option<String>,
+
+        /// Display output in pretty format instead of JSON
+        #[clap(long)]
+        pretty: bool,
     },
 }
 
@@ -54,8 +59,8 @@ pub async fn run(app: App, _global: crate::Global) -> Result<()> {
             })
             .await
         }
-        CompanionCommands::Parse { file, analysis } => {
-            parse::run(parse::Params { file, analysis }).await
+        CompanionCommands::Parse { file, analyze, pretty } => {
+            parse::run(parse::Params { file, analyze, pretty }).await
         }
     }
 }
