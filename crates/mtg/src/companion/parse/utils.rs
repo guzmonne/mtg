@@ -2,6 +2,29 @@ use crate::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[cfg(target_os = "windows")]
+pub fn get_default_log_path() -> Result<PathBuf> {
+    let userprofile = std::env::var("USERPROFILE")
+        .map_err(|_| eyre!("Could not find USERPROFILE environment variable"))?;
+    let log_path = PathBuf::from(userprofile)
+        .join("AppData")
+        .join("LocalLow")
+        .join("Wizards Of The Coast")
+        .join("MTGA")
+        .join("Logs")
+        .join("Logs");
+
+    if !log_path.exists() {
+        return Err(eyre!(
+            "MTG Arena log directory not found at: {:?}",
+            log_path
+        ));
+    }
+
+    Ok(log_path)
+}
+
+#[cfg(target_os = "macos")]
 pub fn get_default_log_path() -> Result<PathBuf> {
     let home = dirs::home_dir().ok_or_else(|| eyre!("Could not find home directory"))?;
     let log_path = home
