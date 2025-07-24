@@ -13,3 +13,5 @@ Cargo.lock
 /archive/
 
 .DS_Store
+
+.bacon-locations
