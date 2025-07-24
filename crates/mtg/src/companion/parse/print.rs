@@ -93,7 +93,11 @@ pub fn combined_decks(
     decks: &HashMap<String, Deck>,
 ) -> Vec<CombinedDeckInfo> {
     println!("\n=== Decks ===");
-    println!("Found {} deck summaries and {} deck definitions\n", summaries.len(), decks.len());
+    println!(
+        "Found {} deck summaries and {} deck definitions\n",
+        summaries.len(),
+        decks.len()
+    );
 
     let mut table = new_table();
     let mut combined_decks = Vec::new();
@@ -122,28 +126,29 @@ pub fn combined_decks(
             .unwrap_or("Unknown");
 
         // Get deck content info
-        let (main_count, side_count, sample_cards_str) = if let Some(deck) = decks.get(&summary.deck_id) {
-            let main = deck.main_deck.len();
-            let side = deck.sideboard.as_ref().map(|s| s.len()).unwrap_or(0);
-            
-            // Show first few cards
-            let sample_cards: Vec<String> = deck
-                .main_deck
-                .iter()
-                .take(3)
-                .map(|card| format!("{}×{}", card.card_id, card.quantity))
-                .collect();
+        let (main_count, side_count, sample_cards_str) =
+            if let Some(deck) = decks.get(&summary.deck_id) {
+                let main = deck.main_deck.len();
+                let side = deck.sideboard.as_ref().map(|s| s.len()).unwrap_or(0);
 
-            let cards_display = if deck.main_deck.len() > 3 {
-                format!("{} ...", sample_cards.join(", "))
+                // Show first few cards
+                let sample_cards: Vec<String> = deck
+                    .main_deck
+                    .iter()
+                    .take(3)
+                    .map(|card| format!("{}×{}", card.card_id, card.quantity))
+                    .collect();
+
+                let cards_display = if deck.main_deck.len() > 3 {
+                    format!("{} ...", sample_cards.join(", "))
+                } else {
+                    sample_cards.join(", ")
+                };
+
+                (main, side, cards_display)
             } else {
-                sample_cards.join(", ")
+                (0, 0, "N/A".to_string())
             };
-            
-            (main, side, cards_display)
-        } else {
-            (0, 0, "N/A".to_string())
-        };
 
         // Get legal format abbreviations
         let legal_formats = if let Some(legalities) = &summary.format_legalities {

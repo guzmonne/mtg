@@ -59,8 +59,17 @@ pub async fn run(app: App, _global: crate::Global) -> Result<()> {
             })
             .await
         }
-        CompanionCommands::Parse { file, analyze, pretty } => {
-            parse::run(parse::Params { file, analyze, pretty }).await
+        CompanionCommands::Parse {
+            file,
+            analyze,
+            pretty,
+        } => {
+            parse::run(parse::Params {
+                file,
+                analyze,
+                pretty,
+            })
+            .await
         }
     }
 }

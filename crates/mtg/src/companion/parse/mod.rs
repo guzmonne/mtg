@@ -198,10 +198,12 @@ fn get_all_log_files_sorted(dir: &Path) -> Result<Vec<PathBuf>> {
 
     // Sort by modification time, newest first
     log_files.sort_by(|a, b| {
-        let a_time = a.metadata()
+        let a_time = a
+            .metadata()
             .and_then(|m| m.modified())
             .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
-        let b_time = b.metadata()
+        let b_time = b
+            .metadata()
             .and_then(|m| m.modified())
             .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
         b_time.cmp(&a_time)
@@ -242,21 +244,24 @@ fn extract_timestamp_from_line(line: &str) -> SystemTime {
         if let Some(space_pos) = after_bracket.find(' ') {
             let date_part = &after_bracket[..space_pos];
             let time_part = &after_bracket[space_pos + 1..];
-            
+
             // Try to parse the timestamp
             if let Some(dot_pos) = time_part.find('.') {
                 let time_without_ms = &time_part[..dot_pos];
                 let datetime_str = format!("{} {}", date_part, time_without_ms);
-                
+
                 // Try to parse as a standard datetime format
-                if let Ok(parsed_time) = chrono::NaiveDateTime::parse_from_str(&datetime_str, "%Y-%m-%d %H:%M:%S") {
+                if let Ok(parsed_time) =
+                    chrono::NaiveDateTime::parse_from_str(&datetime_str, "%Y-%m-%d %H:%M:%S")
+                {
                     let utc_time = parsed_time.and_utc().timestamp();
-                    return SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(utc_time as u64);
+                    return SystemTime::UNIX_EPOCH
+                        + std::time::Duration::from_secs(utc_time as u64);
                 }
             }
         }
     }
-    
+
     // Fallback to current time if parsing fails
     SystemTime::now()
 }
@@ -265,10 +270,10 @@ fn parse_all_inventory_entries_from_file(file_path: &Path) -> Result<Vec<Invento
     let file = fs::File::open(file_path)?;
     let reader = BufReader::new(file);
     let mut entries = Vec::new();
-    
+
     for (line_number, line) in reader.lines().enumerate() {
         let line = line?;
-        
+
         if let Some(data) = parse_json_from_line(&line) {
             // Only collect entries that have inventory info
             if data.inventory_info.is_some() {
@@ -281,10 +286,10 @@ fn parse_all_inventory_entries_from_file(file_path: &Path) -> Result<Vec<Invento
             }
         }
     }
-    
+
     // Sort by timestamp, newest first
     entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-    
+
     Ok(entries)
 }
 
@@ -299,31 +304,36 @@ fn has_deck_information(data: &ArenaData) -> bool {
 async fn find_deck_info_in_logs() -> Result<(ArenaData, PathBuf, usize)> {
     let log_dir = get_default_log_path()?;
     let log_files = get_all_log_files_sorted(&log_dir)?;
-    
-    aeprintln!("🔍 Searching for deck information across {} log files...", log_files.len());
-    
+
+    aeprintln!(
+        "🔍 Searching for deck information across {} log files...",
+        log_files.len()
+    );
+
     for (file_index, log_file) in log_files.iter().enumerate() {
-        aeprintln!("📁 Checking file {} of {}: {:?}", 
-            file_index + 1, 
-            log_files.len(), 
+        aeprintln!(
+            "📁 Checking file {} of {}: {:?}",
+            file_index + 1,
+            log_files.len(),
             log_file.file_name().unwrap()
         );
-        
+
         match parse_all_inventory_entries_from_file(log_file) {
             Ok(entries) => {
                 aeprintln!("   Found {} inventory entries in this file", entries.len());
-                
+
                 // Check each inventory entry for deck information
                 for (entry_index, entry) in entries.iter().enumerate() {
                     if has_deck_information(&entry.data) {
-                        aeprintln!("✅ Found deck information in inventory entry {} (line {})", 
-                            entry_index + 1, 
+                        aeprintln!(
+                            "✅ Found deck information in inventory entry {} (line {})",
+                            entry_index + 1,
                             entry.line_number
                         );
                         return Ok((entry.data.clone(), log_file.clone(), entry.line_number));
                     }
                 }
-                
+
                 aeprintln!("   No deck information found in any inventory entries");
             }
             Err(e) => {
@@ -331,27 +341,31 @@ async fn find_deck_info_in_logs() -> Result<(ArenaData, PathBuf, usize)> {
             }
         }
     }
-    
+
     Err(eyre!("No deck information found in any log files"))
 }
 
 async fn find_inventory_in_logs() -> Result<(ArenaData, PathBuf)> {
     let log_dir = get_default_log_path()?;
     let log_files = get_all_log_files_sorted(&log_dir)?;
-    
-    aeprintln!("Searching for inventory data across {} log files...", log_files.len());
-    
+
+    aeprintln!(
+        "Searching for inventory data across {} log files...",
+        log_files.len()
+    );
+
     for (index, log_file) in log_files.iter().enumerate() {
-        aeprintln!("Checking file {} of {}: {:?}", 
-            index + 1, 
-            log_files.len(), 
+        aeprintln!(
+            "Checking file {} of {}: {:?}",
+            index + 1,
+            log_files.len(),
             log_file.file_name().unwrap()
         );
-        
+
         let file = fs::File::open(log_file)?;
         let reader = BufReader::new(file);
         let mut last_arena_data: Option<ArenaData> = None;
-        
+
         for line in reader.lines() {
             let line = line?;
             if let Some(data) = parse_json_from_line(&line) {
@@ -361,15 +375,18 @@ async fn find_inventory_in_logs() -> Result<(ArenaData, PathBuf)> {
                 }
             }
         }
-        
+
         if let Some(data) = last_arena_data {
             if data.inventory_info.is_some() {
-                aeprintln!("✅ Found inventory data in: {:?}", log_file.file_name().unwrap());
+                aeprintln!(
+                    "✅ Found inventory data in: {:?}",
+                    log_file.file_name().unwrap()
+                );
                 return Ok((data, log_file.clone()));
             }
         }
     }
-    
+
     Err(eyre!("No inventory data found in any log files"))
 }
 
@@ -523,12 +540,18 @@ fn get_format_abbreviation(format: &str) -> &'static str {
 
 pub async fn run(params: Params) -> Result<()> {
     // Special handling for deck analysis
-    if params.analyze == Some("decks".to_string()) && (params.file.is_empty() || params.file == "latest") {
+    if params.analyze == Some("decks".to_string())
+        && (params.file.is_empty() || params.file == "latest")
+    {
         match find_deck_info_in_logs().await {
             Ok((data, log_file, line_number)) => {
                 println!("\n🎮 MTG Arena Deck Information\n");
-                println!("Source: {:?} (line {})\n", log_file.file_name().unwrap(), line_number);
-                
+                println!(
+                    "Source: {:?} (line {})\n",
+                    log_file.file_name().unwrap(),
+                    line_number
+                );
+
                 if let Some(decks) = &data.decks {
                     if let Some(summaries) = &data.deck_summaries_v2 {
                         if params.pretty {
@@ -539,7 +562,10 @@ pub async fn run(params: Params) -> Result<()> {
                     } else {
                         // We have decks but no summaries
                         if params.pretty {
-                            println!("Found {} deck definitions but no deck summaries", decks.len());
+                            println!(
+                                "Found {} deck definitions but no deck summaries",
+                                decks.len()
+                            );
                             for (id, deck) in decks {
                                 println!("\nDeck ID: {}", id);
                                 println!("Main deck cards: {}", deck.main_deck.len());
@@ -567,14 +593,16 @@ pub async fn run(params: Params) -> Result<()> {
             }
         }
     }
-    
+
     // Special handling for inventory analysis
-    if params.analyze == Some("inventory".to_string()) && (params.file.is_empty() || params.file == "latest") {
+    if params.analyze == Some("inventory".to_string())
+        && (params.file.is_empty() || params.file == "latest")
+    {
         match find_inventory_in_logs().await {
             Ok((data, log_file)) => {
                 println!("\n🎮 MTG Arena Inventory Data\n");
                 println!("Source: {:?}\n", log_file.file_name().unwrap());
-                
+
                 if let Some(inventory) = &data.inventory_info {
                     if params.pretty {
                         print::inventory(inventory);
@@ -591,7 +619,7 @@ pub async fn run(params: Params) -> Result<()> {
             }
         }
     }
-    
+
     let file_path = if params.file.is_empty() || params.file == "latest" {
         // Find the newest log file
         let log_dir = get_default_log_path()?;

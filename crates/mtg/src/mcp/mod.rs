@@ -1,14 +1,14 @@
 use mcp_core::{
     server::Server,
     transport::{ServerSseTransport, ServerStdioTransport},
-    types::{ServerCapabilities, ToolCapabilities, PromptCapabilities},
+    types::{PromptCapabilities, ServerCapabilities, ToolCapabilities},
 };
 
 use crate::prelude::*;
 
 mod deck;
-mod scryfall;
 mod prompts;
+mod scryfall;
 
 pub async fn run_mcp_server(_global: crate::Global) -> Result<()> {
     log::info!("Starting MTG MCP Server (STDIO)");
