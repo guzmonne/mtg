@@ -21,79 +21,49 @@ On macOS, the log files are located in the following directory:
 
 ### Windows
 
-On Windows, the log files are located in a similar path within the user's `AppData` folder:
+On Windows, the log files are located in a similar path within the user's
+`AppData` folder:
 
 ```
 %USERPROFILE%\AppData\LocalLow\Wizards Of The Coast\MTGA\Logs\Logs
 ```
 
-You can paste this path into the File Explorer address bar to access it directly.
-
 ### Identifying the Correct Log File
 
-Inside the `Logs` directory, you will find multiple files, typically named with a timestamp, like `UTC_Log - 07-23-2025 19.35.31.log`. To get real-time data, you need to identify and monitor the most recently modified file.
-
-You can do this from the command line:
-
-- **macOS/Linux:**
-  ```bash
-  ls -lt "/Users/guzmanmonne/Library/Application Support/com.wizards.mtga/Logs/Logs" | head -n 2
-  ```
-- **Windows (PowerShell):**
-  ```powershell
-  Get-ChildItem -Path "$env:USERPROFILE\AppData\LocalLow\Wizards Of The Coast\MTGA\Logs\Logs" | Sort-Object -Descending -Property LastWriteTime | Select-Object -First 1
-  ```
+Inside the `Logs` directory, you will find multiple files, typically named with
+a timestamp, like `UTC_Log - 07-23-2025 19.35.31.log`. To get real-time data,
+you need to identify and monitor the most recently modified file.
 
 ## 2. Tailing the Log File
 
-MTG Arena writes to its log files in real-time. To capture this data as it's generated, you should "tail" the log file rather than reading it all at once. Tailing a file means monitoring it for new lines as they are added.
-
-The `tail` command is the standard tool for this on macOS and Linux.
-
-```bash
-tail -f "/Users/guzmanmonne/Library/Application Support/com.wizards.mtga/Logs/Logs/UTC_Log - 07-23-2025 19.35.31.log"
-```
-
-For Windows, PowerShell provides a similar command:
-
-```powershell
-Get-Content -Path "C:\Users\YourUser\AppData\LocalLow\Wizards Of The Coast\MTGA\Logs\Logs\UTC_Log - 07-23-2025 19.35.31.log" -Wait
-```
+MTG Arena writes to its log files in real-time. To capture this data as it's
+generated, you should "tail" the log file rather than reading it all at once.
+Tailing a file means monitoring it for new lines as they are added.
 
 ## 3. Understanding the Log Data Structure
 
-The log files contain a mix of plain text and JSON objects. The most valuable data is encapsulated within these JSON objects. Each line in the log that contains a JSON object is a discrete, structured piece of information about an in-game event.
+The log files contain a mix of plain text and JSON objects. The most valuable
+data is encapsulated within these JSON objects. Each line in the log that
+contains a JSON object is a discrete, structured piece of information about an
+in-game event.
 
 The most important JSON objects are:
 
 - `MatchesV3`: Contains information about the match and the players.
 - `greToClientEvent`: Provides detailed, real-time updates on the game state.
-- `matchGameRoomStateChangedEvent`: Signals changes in the match's status, such as its completion.
-
-## 4. Extracting and Parsing JSON with `jq`
-
-To effectively work with the log data, you need to isolate the JSON objects from the rest of the log text and then parse them. The command-line tool `jq` is the ideal solution for this.
-
-### Installation
-
-- **macOS (using Homebrew):**
-  ```bash
-  brew install jq
-  ```
-- **Windows (using Chocolatey):**
-  ```bash
-  choco install jq
-  ```
+- `matchGameRoomStateChangedEvent`: Signals changes in the match's status, such
+  as its completion.
 
 ### Extraction Workflow
 
 The process for extracting and parsing the data is as follows:
 
-1.  **Tail the log file:** Use `tail -f` to get a continuous stream of log data.
-2.  **Filter for relevant lines:** Use `grep` to select only the lines containing the JSON objects you're interested in.
-3.  **Parse with `jq`:** Pipe the output to `jq` to extract and format the JSON.
+1.  **Tail the log file**
+2.  **Filter for relevant lines**
+3.  **Parse the JSON entries**
 
-Here is a command that combines these steps to extract `greToClientEvent` objects in real-time:
+Here is a command that combines these steps to extract `greToClientEvent`
+objects in real-time, if you were to do this in `bash`:
 
 ```bash
 tail -f "path/to/your/log/file.log" | grep "greToClientEvent" | jq .greToClientEvent
@@ -133,25 +103,36 @@ This object signals the end of a match.
 
 ## 6. Practical Example: Tracking a Card Being Played
 
-Let's walk through an example of how you would track a card being played from a player's hand to the battlefield.
+Let's walk through an example of how you would track a card being played from
+a player's hand to the battlefield.
+
+> We'll assume we are using `bash`.
 
 1.  **Monitor the log:**
 
     ```bash
-    tail -f "path/to/your/log/file.log" | grep "greToClientEvent" | jq .
+    tail -f "$LOG_FILE" | grep "greToClientEvent" | jq .
     ```
 
-2.  **Identify the "Play" action:** Look for a `gameStateMessage` where the `actions` array contains an action of type `ActionType_Play`.
+2.  **Identify the "Play" action:** Look for a `gameStateMessage` where the
+    `actions` array contains an action of type `ActionType_Play`.
 
 3.  **Track the card's movement:**
-    - In a `gameStateMessage` before the card is played, the card's `instanceId` will be in the `objectInstanceIds` array of the `Hand` zone for that player.
-    - After the card is played, a new `gameStateMessage` will show the card's `instanceId` has moved to the `objectInstanceIds` array of the `Battlefield` zone.
+    - In a `gameStateMessage` before the card is played, the card's
+      `instanceId` will be in the `objectInstanceIds` array of the `Hand` zone
+      for that player.
+    - After the card is played, a new `gameStateMessage` will show the card's
+      `instanceId` has moved to the `objectInstanceIds` array of the
+      `Battlefield` zone.
 
-By continuously parsing these messages, an application can maintain a complete and accurate representation of the current game state.
+By continuously parsing these messages, an application can maintain a complete
+and accurate representation of the current game state.
 
 ## 7. Automation and Scripting
 
-To build a robust companion application, you will want to automate this process. You can write a script in a language like Python, Node.js, or Go that:
+To build a robust companion application, you will want to automate this
+process. You can write a script in a language like Python, Node.js, Go, or Rust
+that:
 
 1.  Identifies the latest log file.
 2.  Creates a child process to tail the file.
@@ -159,4 +140,5 @@ To build a robust companion application, you will want to automate this process.
 4.  Filters for lines containing JSON.
 5.  Parses the JSON to update the application's internal state.
 
-This approach allows you to build a powerful, real-time tool that can provide invaluable insights to MTG Arena players.
+This approach allows you to build a powerful, real-time tool that can provide
+invaluable insights to MTG Arena players.

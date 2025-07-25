@@ -1000,6 +1000,46 @@ pub async fn by_multiverse_id(
     Ok(())
 }
 
+// TODO: Use this when we make the event parser async
+#[allow(dead_code)]
+pub async fn get_card_by_arena_id(arena_id: u32) -> Result<Card> {
+    let cache_manager = CacheManager::new()?;
+    let global = crate::Global {
+        api_base_url: "https://api.magicthegathering.io/v1".to_string(),
+        timeout: 30,
+        verbose: false,
+    };
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(global.timeout))
+        .user_agent("mtg-cli/1.0")
+        .build()?;
+
+    let url = format!("https://api.scryfall.com/cards/arena/{arena_id}");
+
+    // Generate cache key
+    let cache_key = CacheManager::hash_request(&url);
+
+    // Check cache first
+    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
+        let card: Card = serde_json::from_value(cached_response.data)?;
+        return Ok(card);
+    }
+
+    let response = client.get(&url).send().await?;
+    let response_text = response.text().await?;
+
+    // Parse the response
+    let card = parse_scryfall_card_response(&response_text)?;
+
+    // Cache the successful response
+    cache_manager
+        .set(&cache_key, serde_json::to_value(&card)?)
+        .await?;
+
+    Ok(card)
+}
+
 pub async fn commanders(
     identity: Option<String>,
     mana_value: Option<String>,

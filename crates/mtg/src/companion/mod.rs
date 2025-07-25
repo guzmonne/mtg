@@ -27,6 +27,14 @@ pub enum CompanionCommands {
         /// Output format (json, pretty, csv)
         #[clap(long, default_value = "pretty")]
         format: String,
+
+        /// Start watching from the beginning of the file instead of the end
+        #[clap(long)]
+        from_beginning: bool,
+
+        /// Show verbose debug output
+        #[clap(long)]
+        verbose: bool,
     },
 
     /// Parse and analyze existing log files
@@ -51,11 +59,15 @@ pub async fn run(app: App, _global: crate::Global) -> Result<()> {
             log_path,
             filter,
             format,
+            from_beginning,
+            verbose,
         } => {
             watch::run(watch::Params {
                 log_path,
                 filter,
                 format,
+                from_beginning,
+                verbose,
             })
             .await
         }
