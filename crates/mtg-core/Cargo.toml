@@ -1,0 +1,30 @@
+[package]
+name = "mtg-core"
+version = "0.0.0"
+homepage = "https://github.com/cloudbridgeuy/mtg-core"
+description = "MTG core library"
+autobins = false
+
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "mtg_core"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+color-eyre = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+futures = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+mcp-core = { workspace = true, features = ["sse"] }
+dirs = { workspace = true }
+sha2 = { workspace = true }
+urlencoding = { workspace = true }
+regex = { workspace = true }
+scraper = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }

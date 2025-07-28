@@ -15,3 +15,21 @@ debug = 0
 incremental = true
 # Set this to 1 or 2 to get more useful backtraces in debugger.
 debug = 0
+
+[workspace.dependencies]
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.132"
+color-eyre = "0.6.3"
+thiserror = "2.0.12"
+tracing = { version = "0.1" }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tokio = { version = "1.44.2", features = ["full"] }
+futures = "0.3.31"
+reqwest = { version = "0.12.9", features = ["json"] }
+mcp-core = { version = "0.1.50", features = ["sse"] }
+dirs = "6.0"
+sha2 = "0.10"
+urlencoding = "2.1"
+regex = "1.10"
+scraper = "0.23"
+chrono = { version = "0.4", features = ["serde"] }
