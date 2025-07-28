@@ -172,15 +172,24 @@ impl ScryfallClient {
     /// Apply rate limiting if configured
     async fn apply_rate_limit(&self) {
         if let Some(delay) = self.config.rate_limit_delay {
-            let last_request = self.last_request_time.lock().unwrap();
-            if let Some(last_time) = *last_request {
-                let elapsed = last_time.elapsed();
-                if elapsed < delay {
-                    let sleep_duration = delay - elapsed;
-                    drop(last_request); // Release the lock before sleeping
-                    tokio::time::sleep(sleep_duration).await;
+            let sleep_duration = {
+                let last_request = self.last_request_time.lock().unwrap();
+                if let Some(last_time) = *last_request {
+                    let elapsed = last_time.elapsed();
+                    if elapsed < delay {
+                        Some(delay - elapsed)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
                 }
+            };
+
+            if let Some(duration) = sleep_duration {
+                tokio::time::sleep(duration).await;
             }
+
             *self.last_request_time.lock().unwrap() = Some(std::time::Instant::now());
         }
     }
@@ -203,7 +212,7 @@ impl ScryfallClient {
         };
 
         if self.config.verbose {
-            println!("GET {}", url);
+            println!("GET {url}");
         }
 
         let response = self.client.get(&url).send().await?;
@@ -268,11 +277,11 @@ impl ScryfallClient {
         let url = if query_string.is_empty() {
             base_url
         } else {
-            format!("{}?{}", base_url, query_string)
+            format!("{base_url}?{query_string}")
         };
 
         if self.config.verbose {
-            println!("GET {}", url);
+            println!("GET {url}");
         }
 
         let response = self.client.get(&url).send().await?;
@@ -323,7 +332,7 @@ impl ScryfallClient {
         };
 
         if self.config.verbose {
-            println!("GET {} (raw)", url);
+            println!("GET {url} (raw)");
         }
 
         let response = self.client.get(&url).send().await?;
@@ -369,11 +378,11 @@ impl ScryfallClient {
         let url = if query_string.is_empty() {
             base_url
         } else {
-            format!("{}?{}", base_url, query_string)
+            format!("{base_url}?{query_string}")
         };
 
         if self.config.verbose {
-            println!("GET {} (raw)", url);
+            println!("GET {url} (raw)");
         }
 
         let response = self.client.get(&url).send().await?;

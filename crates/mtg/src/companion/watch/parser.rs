@@ -1174,7 +1174,7 @@ impl EventParser {
             if self
                 .current_match
                 .as_ref()
-                .map_or(true, |m| m.current_turn != turn as u32)
+                .is_none_or(|m| m.current_turn != turn as u32)
             {
                 if let Some(active_player) = turn_info.get("activePlayer").and_then(|v| v.as_u64())
                 {
