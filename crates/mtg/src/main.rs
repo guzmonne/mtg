@@ -456,4 +456,61 @@ mod tests {
         assert_eq!(global_new.cache_dir, global_default.cache_dir);
         assert_eq!(global_new.cache_ttl_hours, global_default.cache_ttl_hours);
     }
+
+    #[test]
+    fn test_scryfall_client_creation() {
+        let global = Global::new();
+        let client = global.create_scryfall_client();
+        assert!(client.is_ok());
+
+        let client = client.unwrap();
+        assert_eq!(client.base_url(), "https://api.scryfall.com");
+        assert!(!client.is_verbose()); // Default is false
+    }
+
+    #[test]
+    fn test_gatherer_client_creation() {
+        let global = Global::new();
+        let client = global.create_gatherer_client();
+        assert!(client.is_ok());
+
+        let client = client.unwrap();
+        assert!(!client.is_verbose()); // Default is false
+    }
+
+    #[tokio::test]
+    async fn test_scryfall_search_integration() {
+        use mtg_core::ScryfallSearchParams;
+
+        let global = Global::new();
+        let client = global
+            .create_scryfall_client()
+            .expect("Failed to create client");
+
+        // Test building an advanced query
+        let query = client.build_advanced_query(&mtg_core::ScryfallAdvancedSearchParams {
+            name: Some("Lightning Bolt".to_string()),
+            card_type: Some("instant".to_string()),
+            colors: Some("red".to_string()),
+            ..Default::default()
+        });
+
+        assert!(query.contains("\"Lightning Bolt\""));
+        assert!(query.contains("t:instant"));
+        assert!(query.contains("c:r"));
+
+        // Test search params creation
+        let search_params = ScryfallSearchParams {
+            q: query,
+            unique: Some("cards".to_string()),
+            order: Some("name".to_string()),
+            ..Default::default()
+        };
+
+        // We don't actually make the API call in tests to avoid rate limiting
+        // but we can verify the parameters are set correctly
+        assert!(search_params.q.contains("Lightning Bolt"));
+        assert_eq!(search_params.unique, Some("cards".to_string()));
+        assert_eq!(search_params.order, Some("name".to_string()));
+    }
 }

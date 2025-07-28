@@ -1,45 +1,26 @@
 use crate::prelude::*;
 
-use super::{display_single_card_details, parse_scryfall_card_response};
+use super::{convert_core_card_to_cli, display_single_card_details};
 
 pub async fn run(query: Option<&str>, pretty: bool, global: crate::Global) -> Result<()> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(global.timeout))
-        .user_agent("mtg-cli/1.0")
-        .build()?;
-
-    let url = if let Some(q) = query {
-        format!(
-            "https://api.scryfall.com/cards/random?q={}",
-            urlencoding::encode(q)
-        )
-    } else {
-        "https://api.scryfall.com/cards/random".to_string()
-    };
-
     if global.verbose {
         println!("Getting random card");
         if let Some(q) = query {
             println!("With query: {q}");
         }
-        println!("Request URL: {url}");
     }
 
-    let response = client.get(&url).send().await?;
+    // Create Scryfall client using the global client
+    let scryfall_client = global.create_scryfall_client()?;
 
-    if global.verbose {
-        println!("Response status: {}", response.status());
-    }
-
-    let response_text = response.text().await?;
-
-    // Parse the response
-    let card = parse_scryfall_card_response(&response_text)?;
+    // Get random card
+    let card = scryfall_client.get_random_card(query).await?;
+    let cli_card = convert_core_card_to_cli(&card);
 
     if pretty {
-        display_single_card_details(&card)?;
+        display_single_card_details(&cli_card)?;
     } else {
-        println!("{}", serde_json::to_string_pretty(&card)?);
+        println!("{}", serde_json::to_string_pretty(&cli_card)?);
     }
 
     Ok(())

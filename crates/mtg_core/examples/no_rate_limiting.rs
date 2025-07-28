@@ -24,11 +24,11 @@ async fn main() -> color_eyre::Result<()> {
         let request_start = std::time::Instant::now();
         let _sets: serde_json::Value = client.get("sets").await?;
         let request_elapsed = request_start.elapsed();
-        println!("Request {} took {:?}", i, request_elapsed);
+        println!("Request {i} took {request_elapsed:?}");
     }
 
     let total_elapsed = start.elapsed();
-    println!("Total time: {:?}", total_elapsed);
+    println!("Total time: {total_elapsed:?}");
     println!("Note: Requests were made as fast as possible without artificial delays");
 
     Ok(())

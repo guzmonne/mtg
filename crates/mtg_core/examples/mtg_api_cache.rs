@@ -52,12 +52,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 first_card.name, first_card.type_line
             );
             if let Some(mana_cost) = &first_card.mana_cost {
-                println!("Mana cost: {}", mana_cost);
+                println!("Mana cost: {mana_cost}");
             }
         }
     }
 
-    println!("First request took: {:?}", first_duration);
+    println!("First request took: {first_duration:?}");
 
     // Make the same request again - should be cached
     println!("\nMaking the same request again (should be cached)...");
@@ -65,7 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _cached_response = scryfall_client.get(search_url).await?;
     let cached_duration = start.elapsed();
 
-    println!("Cached request took: {:?}", cached_duration);
+    println!("Cached request took: {cached_duration:?}");
     println!(
         "Speed improvement: {:.1}x faster",
         first_duration.as_nanos() as f64 / cached_duration.as_nanos() as f64

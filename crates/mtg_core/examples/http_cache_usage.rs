@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let duration1 = start.elapsed();
 
     println!("Status: {}", response1.status_code());
-    println!("Response time: {:?}", duration1);
+    println!("Response time: {duration1:?}");
 
     // Parse the JSON response
     let post: JsonPlaceholderPost = response1.json()?;
@@ -46,11 +46,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let duration2 = start.elapsed();
 
     println!("Status: {}", response2.status_code());
-    println!("Response time: {:?}", duration2);
-    println!(
-        "Cached response is much faster: {:?} vs {:?}",
-        duration2, duration1
-    );
+    println!("Response time: {duration2:?}");
+    println!("Cached response is much faster: {duration2:?} vs {duration1:?}");
 
     // Verify the cached response has the same content
     let post2: JsonPlaceholderPost = response2.json()?;

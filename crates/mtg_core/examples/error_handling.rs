@@ -18,9 +18,9 @@ async fn main() -> color_eyre::Result<()> {
         Ok(set) => println!("Found set: {}", set.name),
         Err(e) => {
             if e.to_string().contains("Scryfall API error") {
-                println!("✓ API returned an error as expected: {}", e);
+                println!("✓ API returned an error as expected: {e}");
             } else {
-                println!("✓ Network or parsing error as expected: {}", e);
+                println!("✓ Network or parsing error as expected: {e}");
             }
         }
     }
@@ -29,7 +29,7 @@ async fn main() -> color_eyre::Result<()> {
     println!("\nAttempting to fetch a valid set...");
     match client.get::<ScryfallSet>("sets/lea").await {
         Ok(set) => println!("✓ Successfully found set: {} ({})", set.name, set.code),
-        Err(e) => println!("✗ Unexpected error: {}", e),
+        Err(e) => println!("✗ Unexpected error: {e}"),
     }
 
     Ok(())

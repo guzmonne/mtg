@@ -23,7 +23,7 @@ async fn main() -> color_eyre::Result<()> {
         let start = std::time::Instant::now();
         let _sets: serde_json::Value = client.get("sets").await?;
         let elapsed = start.elapsed();
-        println!("Request {} took {:?}", i, elapsed);
+        println!("Request {i} took {elapsed:?}");
     }
 
     println!("\nTotal time should be approximately 1 second (5 requests × 200ms delay)");

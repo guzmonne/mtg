@@ -1,11 +1,8 @@
-use crate::cache::CacheManager;
 use crate::prelude::*;
 use prettytable::{Cell, Row};
 
 use super::{
-    display_single_card_details, enhance_error_message, format_color_identity_query,
-    format_color_query, format_comparison, parse_scryfall_card_response, parse_scryfall_response,
-    Card, List,
+    convert_core_card_to_cli, convert_core_response_to_cli, display_single_card_details, Card, List,
 };
 
 /// Type alias for backward compatibility
@@ -52,101 +49,73 @@ pub struct AdvancedParams {
 }
 
 pub async fn run(params: Params, global: crate::Global) -> Result<()> {
-    let cache_manager = CacheManager::new()?;
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(global.timeout))
-        .user_agent("mtg-cli/1.0")
+    // Create mtg_core client with proper configuration
+    let client = mtg_core::scryfall::ScryfallClient::builder()
+        .timeout_secs(global.timeout)
+        .verbose(global.verbose)
         .build()?;
 
-    // Build URL with query parameters
-    let url = "https://api.scryfall.com/cards/search".to_string();
-    let mut query_params = vec![
-        ("q", params.query.clone()),
-        ("page", params.page.to_string()),
-        ("order", params.order.clone()),
-        ("dir", params.dir.clone()),
-        ("unique", params.unique.clone()),
-    ];
+    // Handle CSV response - use raw API call for CSV
+    if params.csv {
+        let mut query_params = vec![
+            ("q".to_string(), params.query.clone()),
+            ("page".to_string(), params.page.to_string()),
+            ("order".to_string(), params.order.clone()),
+            ("dir".to_string(), params.dir.clone()),
+            ("unique".to_string(), params.unique.clone()),
+            ("format".to_string(), "csv".to_string()),
+        ];
 
-    if params.include_extras {
-        query_params.push(("include_extras", "true".to_string()));
-    }
-    if params.include_multilingual {
-        query_params.push(("include_multilingual", "true".to_string()));
-    }
-    if params.include_variations {
-        query_params.push(("include_variations", "true".to_string()));
+        if params.include_extras {
+            query_params.push(("include_extras".to_string(), "true".to_string()));
+        }
+        if params.include_multilingual {
+            query_params.push(("include_multilingual".to_string(), "true".to_string()));
+        }
+        if params.include_variations {
+            query_params.push(("include_variations".to_string(), "true".to_string()));
+        }
+
+        let csv_response = client
+            .get_raw_with_params("cards/search", query_params)
+            .await?;
+        println!("{csv_response}");
+        return Ok(());
     }
 
-    // Generate cache key
-    let cache_key = CacheManager::hash_request(&(&url, &query_params));
+    // Build search parameters for mtg_core
+    let search_params = mtg_core::scryfall::SearchParams {
+        q: params.query.clone(),
+        unique: Some(params.unique.clone()),
+        order: Some(params.order.clone()),
+        dir: Some(params.dir.clone()),
+        include_extras: if params.include_extras {
+            Some(true)
+        } else {
+            None
+        },
+        include_multilingual: if params.include_multilingual {
+            Some(true)
+        } else {
+            None
+        },
+        include_variations: if params.include_variations {
+            Some(true)
+        } else {
+            None
+        },
+        page: Some(params.page),
+    };
 
     if global.verbose {
         println!("Search query: {}", params.query);
-        println!("Cache key: {cache_key}");
     }
 
-    // Check cache first
-    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
-        if global.verbose {
-            println!("Using cached response");
-        }
+    // Use mtg_core client to search
+    let core_response = client.search_cards(search_params).await?;
 
-        let response: Response = serde_json::from_value(cached_response.data)?;
-        if params.pretty {
-            display_pretty_results(&response, &params)?;
-        } else {
-            println!("{}", serde_json::to_string_pretty(&response)?);
-        }
-        return Ok(());
-    }
-
-    if global.verbose {
-        println!("Cache miss, fetching from API");
-    }
-
-    // Build the full URL with query parameters
-    let query_string = query_params
-        .iter()
-        .map(|(k, v)| format!("{}={}", urlencoding::encode(k), urlencoding::encode(v)))
-        .collect::<Vec<_>>()
-        .join("&");
-    let full_url = format!("{url}?{query_string}");
-
-    if global.verbose {
-        println!("Request URL: {full_url}");
-    }
-
-    let response = client.get(&full_url).send().await?;
-
-    if global.verbose {
-        println!("Response status: {}", response.status());
-    }
-
-    let response_text = response.text().await?;
-
-    if global.verbose {
-        println!("Response length: {} characters", response_text.len());
-    }
-
-    // Handle CSV response
-    if params.csv {
-        println!("{response_text}");
-        return Ok(());
-    }
-
-    // Parse the response
-    let search_response = parse_scryfall_response(&response_text)?;
-
-    // Cache the successful response
-    cache_manager
-        .set(&cache_key, serde_json::to_value(&search_response)?)
-        .await?;
-
-    if global.verbose {
-        println!("Response cached");
-    }
+    // Convert to CLI types
+    let search_response = convert_core_response_to_cli(&core_response);
 
     if params.pretty {
         display_pretty_results(&search_response, &params)?;
@@ -157,7 +126,7 @@ pub async fn run(params: Params, global: crate::Global) -> Result<()> {
     Ok(())
 }
 
-fn display_pretty_results(response: &Response, params: &Params) -> Result<()> {
+pub fn display_pretty_results(response: &Response, params: &Params) -> Result<()> {
     let mut table = new_table();
     table.add_row(Row::new(vec![
         Cell::new("Name"),
@@ -216,73 +185,43 @@ fn display_pretty_results(response: &Response, params: &Params) -> Result<()> {
 }
 
 pub async fn json(params: Params, global: crate::Global) -> Result<Response> {
-    let cache_manager = CacheManager::new()?;
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(global.timeout))
-        .user_agent("mtg-cli/1.0")
+    // Create mtg_core client with proper configuration
+    let client = mtg_core::scryfall::ScryfallClient::builder()
+        .timeout_secs(global.timeout)
+        .verbose(global.verbose)
         .build()?;
 
-    // Build URL with query parameters
-    let url = "https://api.scryfall.com/cards/search".to_string();
-    let mut query_params = vec![
-        ("q", params.query.clone()),
-        ("page", params.page.to_string()),
-        ("order", params.order.clone()),
-        ("dir", params.dir.clone()),
-        ("unique", params.unique.clone()),
-    ];
+    // Build search parameters for mtg_core
+    let search_params = mtg_core::scryfall::SearchParams {
+        q: params.query.clone(),
+        unique: Some(params.unique.clone()),
+        order: Some(params.order.clone()),
+        dir: Some(params.dir.clone()),
+        include_extras: if params.include_extras {
+            Some(true)
+        } else {
+            None
+        },
+        include_multilingual: if params.include_multilingual {
+            Some(true)
+        } else {
+            None
+        },
+        include_variations: if params.include_variations {
+            Some(true)
+        } else {
+            None
+        },
+        page: Some(params.page),
+    };
 
-    if params.include_extras {
-        query_params.push(("include_extras", "true".to_string()));
-    }
-    if params.include_multilingual {
-        query_params.push(("include_multilingual", "true".to_string()));
-    }
-    if params.include_variations {
-        query_params.push(("include_variations", "true".to_string()));
-    }
+    // Use mtg_core client to search
+    let core_response = client.search_cards(search_params).await?;
 
-    // Generate cache key
-    let cache_key = CacheManager::hash_request(&(&url, &query_params));
-
-    // Check cache first
-    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
-        let response: Response = serde_json::from_value(cached_response.data)?;
-        return Ok(response);
-    }
-
-    // Build the full URL with query parameters
-    let query_string = query_params
-        .iter()
-        .map(|(k, v)| format!("{}={}", urlencoding::encode(k), urlencoding::encode(v)))
-        .collect::<Vec<_>>()
-        .join("&");
-    let full_url = format!("{url}?{query_string}");
-
-    let response = client.get(&full_url).send().await?;
-
-    let response_text = response.text().await?;
-
-    // Parse the response
-    let search_response = parse_scryfall_response_with_query(&response_text, &params.query)?;
-
-    // Cache the successful response
-    cache_manager
-        .set(&cache_key, serde_json::to_value(&search_response)?)
-        .await?;
+    // Convert to CLI types
+    let search_response = convert_core_response_to_cli(&core_response);
 
     Ok(search_response)
-}
-
-fn parse_scryfall_response_with_query(response_text: &str, query: &str) -> Result<Response> {
-    match parse_scryfall_response(response_text) {
-        Ok(response) => Ok(response),
-        Err(e) => {
-            let enhanced_error = enhance_error_message(&e.to_string(), query);
-            Err(eyre!("{}", enhanced_error))
-        }
-    }
 }
 
 pub async fn advanced_json(params: AdvancedParams, global: crate::Global) -> Result<Response> {
@@ -420,77 +359,24 @@ pub async fn by_name(
     set_code: Option<&str>,
     global: crate::Global,
 ) -> Result<()> {
-    let cache_manager = CacheManager::new()?;
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(global.timeout))
-        .user_agent("mtg-cli/1.0")
+    // Create mtg_core client with proper configuration
+    let client = mtg_core::scryfall::ScryfallClient::builder()
+        .timeout_secs(global.timeout)
+        .verbose(global.verbose)
         .build()?;
-
-    // Build URL for named card lookup
-    let url = if let Some(set) = set_code {
-        format!(
-            "https://api.scryfall.com/cards/named?exact={}&set={}",
-            urlencoding::encode(name),
-            urlencoding::encode(set)
-        )
-    } else {
-        format!(
-            "https://api.scryfall.com/cards/named?exact={}",
-            urlencoding::encode(name)
-        )
-    };
-
-    // Generate cache key
-    let cache_key = CacheManager::hash_request(&url);
 
     if global.verbose {
         println!("Looking up card: {name}");
         if let Some(set) = set_code {
             println!("In set: {set}");
         }
-        println!("Cache key: {cache_key}");
     }
 
-    // Check cache first
-    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
-        if global.verbose {
-            println!("Using cached response");
-        }
+    // Use mtg_core client to get card by name
+    let core_card = client.get_card_named(name, set_code).await?;
 
-        let card: Card = serde_json::from_value(cached_response.data)?;
-        if pretty {
-            display_single_card_details(&card)?;
-        } else {
-            println!("{}", serde_json::to_string_pretty(&card)?);
-        }
-        return Ok(());
-    }
-
-    if global.verbose {
-        println!("Cache miss, fetching from API");
-        println!("Request URL: {url}");
-    }
-
-    let response = client.get(&url).send().await?;
-
-    if global.verbose {
-        println!("Response status: {}", response.status());
-    }
-
-    let response_text = response.text().await?;
-
-    // Parse the response
-    let card = parse_scryfall_card_response(&response_text)?;
-
-    // Cache the successful response
-    cache_manager
-        .set(&cache_key, serde_json::to_value(&card)?)
-        .await?;
-
-    if global.verbose {
-        println!("Response cached");
-    }
+    // Convert to CLI type
+    let card = convert_core_card_to_cli(&core_card);
 
     if pretty {
         display_single_card_details(&card)?;
@@ -508,78 +394,26 @@ pub async fn by_collector(
     pretty: bool,
     global: crate::Global,
 ) -> Result<()> {
-    let cache_manager = CacheManager::new()?;
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(global.timeout))
-        .user_agent("mtg-cli/1.0")
+    // Create mtg_core client with proper configuration
+    let client = mtg_core::scryfall::ScryfallClient::builder()
+        .timeout_secs(global.timeout)
+        .verbose(global.verbose)
         .build()?;
 
-    let url = if let Some(language) = lang {
-        format!(
-            "https://api.scryfall.com/cards/{}/{}/{}",
-            urlencoding::encode(set_code),
-            urlencoding::encode(collector_number),
-            urlencoding::encode(language)
-        )
-    } else {
-        format!(
-            "https://api.scryfall.com/cards/{}/{}",
-            urlencoding::encode(set_code),
-            urlencoding::encode(collector_number)
-        )
-    };
-
-    // Generate cache key
-    let cache_key = CacheManager::hash_request(&url);
-
     if global.verbose {
-        println!("Looking up card by collector: {set_code} #{collector_number}",);
+        println!("Looking up card by collector: {set_code} #{collector_number}");
         if let Some(language) = lang {
             println!("Language: {language}");
         }
-        println!("Cache key: {cache_key}");
     }
 
-    // Check cache first
-    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
-        if global.verbose {
-            println!("Using cached response");
-        }
-
-        let card: Card = serde_json::from_value(cached_response.data)?;
-        if pretty {
-            display_single_card_details(&card)?;
-        } else {
-            println!("{}", serde_json::to_string_pretty(&card)?);
-        }
-        return Ok(());
-    }
-
-    if global.verbose {
-        println!("Cache miss, fetching from API");
-        println!("Request URL: {url}");
-    }
-
-    let response = client.get(&url).send().await?;
-
-    if global.verbose {
-        println!("Response status: {}", response.status());
-    }
-
-    let response_text = response.text().await?;
-
-    // Parse the response
-    let card = parse_scryfall_card_response(&response_text)?;
-
-    // Cache the successful response
-    cache_manager
-        .set(&cache_key, serde_json::to_value(&card)?)
+    // Use mtg_core client to get card by collector number
+    let core_card = client
+        .get_card_by_collector(set_code, collector_number, lang)
         .await?;
 
-    if global.verbose {
-        println!("Response cached");
-    }
+    // Convert to CLI type
+    let card = convert_core_card_to_cli(&core_card);
 
     if pretty {
         display_single_card_details(&card)?;
@@ -591,62 +425,21 @@ pub async fn by_collector(
 }
 
 pub async fn by_arena_id(arena_id: u32, pretty: bool, global: crate::Global) -> Result<()> {
-    let cache_manager = CacheManager::new()?;
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(global.timeout))
-        .user_agent("mtg-cli/1.0")
+    // Create mtg_core client with proper configuration
+    let client = mtg_core::scryfall::ScryfallClient::builder()
+        .timeout_secs(global.timeout)
+        .verbose(global.verbose)
         .build()?;
-
-    let url = format!("https://api.scryfall.com/cards/arena/{arena_id}");
-
-    // Generate cache key
-    let cache_key = CacheManager::hash_request(&url);
 
     if global.verbose {
         println!("Looking up card by Arena ID: {arena_id}");
-        println!("Cache key: {cache_key}");
     }
 
-    // Check cache first
-    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
-        if global.verbose {
-            println!("Using cached response");
-        }
+    // Use mtg_core client to get card by Arena ID
+    let core_card = client.get_card_by_arena_id(arena_id).await?;
 
-        let card: Card = serde_json::from_value(cached_response.data)?;
-        if pretty {
-            display_single_card_details(&card)?;
-        } else {
-            println!("{}", serde_json::to_string_pretty(&card)?);
-        }
-        return Ok(());
-    }
-
-    if global.verbose {
-        println!("Cache miss, fetching from API");
-        println!("Request URL: {url}");
-    }
-
-    let response = client.get(&url).send().await?;
-
-    if global.verbose {
-        println!("Response status: {}", response.status());
-    }
-
-    let response_text = response.text().await?;
-
-    // Parse the response
-    let card = parse_scryfall_card_response(&response_text)?;
-
-    // Cache the successful response
-    cache_manager
-        .set(&cache_key, serde_json::to_value(&card)?)
-        .await?;
-
-    if global.verbose {
-        println!("Response cached");
-    }
+    // Convert to CLI type
+    let card = convert_core_card_to_cli(&core_card);
 
     if pretty {
         display_single_card_details(&card)?;
@@ -658,62 +451,21 @@ pub async fn by_arena_id(arena_id: u32, pretty: bool, global: crate::Global) -> 
 }
 
 pub async fn by_id(id: &str, pretty: bool, global: crate::Global) -> Result<()> {
-    let cache_manager = CacheManager::new()?;
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(global.timeout))
-        .user_agent("mtg-cli/1.0")
+    // Create mtg_core client with proper configuration
+    let client = mtg_core::scryfall::ScryfallClient::builder()
+        .timeout_secs(global.timeout)
+        .verbose(global.verbose)
         .build()?;
-
-    let url = format!("https://api.scryfall.com/cards/{id}");
-
-    // Generate cache key
-    let cache_key = CacheManager::hash_request(&url);
 
     if global.verbose {
         println!("Looking up card by ID: {id}");
-        println!("Cache key: {cache_key}");
     }
 
-    // Check cache first
-    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
-        if global.verbose {
-            println!("Using cached response");
-        }
+    // Use mtg_core client to get card by ID
+    let core_card = client.get_card_by_id(id).await?;
 
-        let card: Card = serde_json::from_value(cached_response.data)?;
-        if pretty {
-            display_single_card_details(&card)?;
-        } else {
-            println!("{}", serde_json::to_string_pretty(&card)?);
-        }
-        return Ok(());
-    }
-
-    if global.verbose {
-        println!("Cache miss, fetching from API");
-        println!("Request URL: {url}");
-    }
-
-    let response = client.get(&url).send().await?;
-
-    if global.verbose {
-        println!("Response status: {}", response.status());
-    }
-
-    let response_text = response.text().await?;
-
-    // Parse the response
-    let card = parse_scryfall_card_response(&response_text)?;
-
-    // Cache the successful response
-    cache_manager
-        .set(&cache_key, serde_json::to_value(&card)?)
-        .await?;
-
-    if global.verbose {
-        println!("Response cached");
-    }
+    // Convert to CLI type
+    let card = convert_core_card_to_cli(&core_card);
 
     if pretty {
         display_single_card_details(&card)?;
@@ -725,62 +477,21 @@ pub async fn by_id(id: &str, pretty: bool, global: crate::Global) -> Result<()> 
 }
 
 pub async fn by_mtgo_id(mtgo_id: u32, pretty: bool, global: crate::Global) -> Result<()> {
-    let cache_manager = CacheManager::new()?;
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(global.timeout))
-        .user_agent("mtg-cli/1.0")
+    // Create mtg_core client with proper configuration
+    let client = mtg_core::scryfall::ScryfallClient::builder()
+        .timeout_secs(global.timeout)
+        .verbose(global.verbose)
         .build()?;
-
-    let url = format!("https://api.scryfall.com/cards/mtgo/{mtgo_id}");
-
-    // Generate cache key
-    let cache_key = CacheManager::hash_request(&url);
 
     if global.verbose {
         println!("Looking up card by MTGO ID: {mtgo_id}");
-        println!("Cache key: {cache_key}");
     }
 
-    // Check cache first
-    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
-        if global.verbose {
-            println!("Using cached response");
-        }
+    // Use mtg_core client to get card by MTGO ID
+    let core_card = client.get_card_by_mtgo_id(mtgo_id).await?;
 
-        let card: Card = serde_json::from_value(cached_response.data)?;
-        if pretty {
-            display_single_card_details(&card)?;
-        } else {
-            println!("{}", serde_json::to_string_pretty(&card)?);
-        }
-        return Ok(());
-    }
-
-    if global.verbose {
-        println!("Cache miss, fetching from API");
-        println!("Request URL: {url}");
-    }
-
-    let response = client.get(&url).send().await?;
-
-    if global.verbose {
-        println!("Response status: {}", response.status());
-    }
-
-    let response_text = response.text().await?;
-
-    // Parse the response
-    let card = parse_scryfall_card_response(&response_text)?;
-
-    // Cache the successful response
-    cache_manager
-        .set(&cache_key, serde_json::to_value(&card)?)
-        .await?;
-
-    if global.verbose {
-        println!("Response cached");
-    }
+    // Convert to CLI type
+    let card = convert_core_card_to_cli(&core_card);
 
     if pretty {
         display_single_card_details(&card)?;
@@ -796,62 +507,21 @@ pub async fn by_cardmarket_id(
     pretty: bool,
     global: crate::Global,
 ) -> Result<()> {
-    let cache_manager = CacheManager::new()?;
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(global.timeout))
-        .user_agent("mtg-cli/1.0")
+    // Create mtg_core client with proper configuration
+    let client = mtg_core::scryfall::ScryfallClient::builder()
+        .timeout_secs(global.timeout)
+        .verbose(global.verbose)
         .build()?;
-
-    let url = format!("https://api.scryfall.com/cards/cardmarket/{cardmarket_id}",);
-
-    // Generate cache key
-    let cache_key = CacheManager::hash_request(&url);
 
     if global.verbose {
         println!("Looking up card by Cardmarket ID: {cardmarket_id}");
-        println!("Cache key: {cache_key}");
     }
 
-    // Check cache first
-    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
-        if global.verbose {
-            println!("Using cached response");
-        }
+    // Use mtg_core client to get card by Cardmarket ID
+    let core_card = client.get_card_by_cardmarket_id(cardmarket_id).await?;
 
-        let card: Card = serde_json::from_value(cached_response.data)?;
-        if pretty {
-            display_single_card_details(&card)?;
-        } else {
-            println!("{}", serde_json::to_string_pretty(&card)?);
-        }
-        return Ok(());
-    }
-
-    if global.verbose {
-        println!("Cache miss, fetching from API");
-        println!("Request URL: {url}");
-    }
-
-    let response = client.get(&url).send().await?;
-
-    if global.verbose {
-        println!("Response status: {}", response.status());
-    }
-
-    let response_text = response.text().await?;
-
-    // Parse the response
-    let card = parse_scryfall_card_response(&response_text)?;
-
-    // Cache the successful response
-    cache_manager
-        .set(&cache_key, serde_json::to_value(&card)?)
-        .await?;
-
-    if global.verbose {
-        println!("Response cached");
-    }
+    // Convert to CLI type
+    let card = convert_core_card_to_cli(&core_card);
 
     if pretty {
         display_single_card_details(&card)?;
@@ -863,62 +533,21 @@ pub async fn by_cardmarket_id(
 }
 
 pub async fn by_tcgplayer_id(tcgplayer_id: u32, pretty: bool, global: crate::Global) -> Result<()> {
-    let cache_manager = CacheManager::new()?;
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(global.timeout))
-        .user_agent("mtg-cli/1.0")
+    // Create mtg_core client with proper configuration
+    let client = mtg_core::scryfall::ScryfallClient::builder()
+        .timeout_secs(global.timeout)
+        .verbose(global.verbose)
         .build()?;
-
-    let url = format!("https://api.scryfall.com/cards/tcgplayer/{tcgplayer_id}");
-
-    // Generate cache key
-    let cache_key = CacheManager::hash_request(&url);
 
     if global.verbose {
         println!("Looking up card by TCGPlayer ID: {tcgplayer_id}");
-        println!("Cache key: {cache_key}");
     }
 
-    // Check cache first
-    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
-        if global.verbose {
-            println!("Using cached response");
-        }
+    // Use mtg_core client to get card by TCGPlayer ID
+    let core_card = client.get_card_by_tcgplayer_id(tcgplayer_id).await?;
 
-        let card: Card = serde_json::from_value(cached_response.data)?;
-        if pretty {
-            display_single_card_details(&card)?;
-        } else {
-            println!("{}", serde_json::to_string_pretty(&card)?);
-        }
-        return Ok(());
-    }
-
-    if global.verbose {
-        println!("Cache miss, fetching from API");
-        println!("Request URL: {url}");
-    }
-
-    let response = client.get(&url).send().await?;
-
-    if global.verbose {
-        println!("Response status: {}", response.status());
-    }
-
-    let response_text = response.text().await?;
-
-    // Parse the response
-    let card = parse_scryfall_card_response(&response_text)?;
-
-    // Cache the successful response
-    cache_manager
-        .set(&cache_key, serde_json::to_value(&card)?)
-        .await?;
-
-    if global.verbose {
-        println!("Response cached");
-    }
+    // Convert to CLI type
+    let card = convert_core_card_to_cli(&core_card);
 
     if pretty {
         display_single_card_details(&card)?;
@@ -934,62 +563,21 @@ pub async fn by_multiverse_id(
     pretty: bool,
     global: crate::Global,
 ) -> Result<()> {
-    let cache_manager = CacheManager::new()?;
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(global.timeout))
-        .user_agent("mtg-cli/1.0")
+    // Create mtg_core client with proper configuration
+    let client = mtg_core::scryfall::ScryfallClient::builder()
+        .timeout_secs(global.timeout)
+        .verbose(global.verbose)
         .build()?;
-
-    let url = format!("https://api.scryfall.com/cards/multiverse/{multiverse_id}",);
-
-    // Generate cache key
-    let cache_key = CacheManager::hash_request(&url);
 
     if global.verbose {
         println!("Looking up card by Multiverse ID: {multiverse_id}");
-        println!("Cache key: {cache_key}");
     }
 
-    // Check cache first
-    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
-        if global.verbose {
-            println!("Using cached response");
-        }
+    // Use mtg_core client to get card by Multiverse ID
+    let core_card = client.get_card_by_multiverse_id(multiverse_id).await?;
 
-        let card: Card = serde_json::from_value(cached_response.data)?;
-        if pretty {
-            display_single_card_details(&card)?;
-        } else {
-            println!("{}", serde_json::to_string_pretty(&card)?);
-        }
-        return Ok(());
-    }
-
-    if global.verbose {
-        println!("Cache miss, fetching from API");
-        println!("Request URL: {url}");
-    }
-
-    let response = client.get(&url).send().await?;
-
-    if global.verbose {
-        println!("Response status: {}", response.status());
-    }
-
-    let response_text = response.text().await?;
-
-    // Parse the response
-    let card = parse_scryfall_card_response(&response_text)?;
-
-    // Cache the successful response
-    cache_manager
-        .set(&cache_key, serde_json::to_value(&card)?)
-        .await?;
-
-    if global.verbose {
-        println!("Response cached");
-    }
+    // Convert to CLI type
+    let card = convert_core_card_to_cli(&core_card);
 
     if pretty {
         display_single_card_details(&card)?;
@@ -1003,35 +591,19 @@ pub async fn by_multiverse_id(
 // TODO: Use this when we make the event parser async
 #[allow(dead_code)]
 pub async fn get_card_by_arena_id(arena_id: u32) -> Result<Card> {
-    let cache_manager = CacheManager::new()?;
     let global = crate::Global::new();
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(global.timeout))
-        .user_agent("mtg-cli/1.0")
+    // Create mtg_core client with proper configuration
+    let client = mtg_core::scryfall::ScryfallClient::builder()
+        .timeout_secs(global.timeout)
+        .verbose(global.verbose)
         .build()?;
 
-    let url = format!("https://api.scryfall.com/cards/arena/{arena_id}");
+    // Use mtg_core client to get card by Arena ID
+    let core_card = client.get_card_by_arena_id(arena_id).await?;
 
-    // Generate cache key
-    let cache_key = CacheManager::hash_request(&url);
-
-    // Check cache first
-    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
-        let card: Card = serde_json::from_value(cached_response.data)?;
-        return Ok(card);
-    }
-
-    let response = client.get(&url).send().await?;
-    let response_text = response.text().await?;
-
-    // Parse the response
-    let card = parse_scryfall_card_response(&response_text)?;
-
-    // Cache the successful response
-    cache_manager
-        .set(&cache_key, serde_json::to_value(&card)?)
-        .await?;
+    // Convert to CLI type
+    let card = convert_core_card_to_cli(&core_card);
 
     Ok(card)
 }
@@ -1042,42 +614,46 @@ pub async fn commanders(
     pretty: bool,
     global: crate::Global,
 ) -> Result<()> {
-    let mut query_parts = vec![
-        "t:legendary".to_string(),
-        "t:creature".to_string(),
-        "is:commander".to_string(),
-    ];
-
-    if let Some(id) = identity {
-        query_parts.push(format_color_identity_query(&id));
-    }
-
-    if let Some(mv) = mana_value {
-        query_parts.push(format!("mv{}", format_comparison(&mv)));
-    }
-
-    let query = query_parts.join(" ");
+    // Create mtg_core client with proper configuration
+    let client = mtg_core::scryfall::ScryfallClient::builder()
+        .timeout_secs(global.timeout)
+        .verbose(global.verbose)
+        .build()?;
 
     if global.verbose {
-        aeprintln!("Generated commander search query: {query}");
+        aeprintln!(
+            "Searching for commanders with identity: {:?}, mana value: {:?}",
+            identity,
+            mana_value
+        );
     }
 
-    run(
-        Params {
-            query,
-            pretty,
-            page: 1,
-            order: "name".to_string(),
-            dir: "auto".to_string(),
-            include_extras: false,
-            include_multilingual: false,
-            include_variations: false,
-            unique: "cards".to_string(),
-            csv: false,
-        },
-        global,
-    )
-    .await
+    // Use mtg_core client to search commanders
+    let core_response = client.search_commanders(identity, mana_value).await?;
+
+    // Convert to CLI types
+    let search_response = convert_core_response_to_cli(&core_response);
+
+    let params = Params {
+        query: "commanders".to_string(), // For display purposes
+        pretty,
+        page: 1,
+        order: "name".to_string(),
+        dir: "auto".to_string(),
+        include_extras: false,
+        include_multilingual: false,
+        include_variations: false,
+        unique: "cards".to_string(),
+        csv: false,
+    };
+
+    if pretty {
+        display_pretty_results(&search_response, &params)?;
+    } else {
+        println!("{}", serde_json::to_string_pretty(&search_response)?);
+    }
+
+    Ok(())
 }
 
 pub async fn planeswalkers(
@@ -1087,42 +663,47 @@ pub async fn planeswalkers(
     pretty: bool,
     global: crate::Global,
 ) -> Result<()> {
-    let mut query_parts = vec!["t:planeswalker".to_string()];
-
-    if let Some(c) = color {
-        query_parts.push(format_color_query(&c));
-    }
-
-    if let Some(l) = loyalty {
-        query_parts.push(format!("loy{}", format_comparison(&l)));
-    }
-
-    if let Some(f) = format {
-        query_parts.push(format!("f:{f}"));
-    }
-
-    let query = query_parts.join(" ");
+    // Create mtg_core client with proper configuration
+    let client = mtg_core::scryfall::ScryfallClient::builder()
+        .timeout_secs(global.timeout)
+        .verbose(global.verbose)
+        .build()?;
 
     if global.verbose {
-        aeprintln!("Generated planeswalker search query: {query}");
+        aeprintln!(
+            "Searching for planeswalkers with color: {:?}, loyalty: {:?}, format: {:?}",
+            color,
+            loyalty,
+            format
+        );
     }
 
-    run(
-        Params {
-            query,
-            pretty,
-            page: 1,
-            order: "name".to_string(),
-            dir: "auto".to_string(),
-            include_extras: false,
-            include_multilingual: false,
-            include_variations: false,
-            unique: "cards".to_string(),
-            csv: false,
-        },
-        global,
-    )
-    .await
+    // Use mtg_core client to search planeswalkers
+    let core_response = client.search_planeswalkers(color, loyalty, format).await?;
+
+    // Convert to CLI types
+    let search_response = convert_core_response_to_cli(&core_response);
+
+    let params = Params {
+        query: "planeswalkers".to_string(), // For display purposes
+        pretty,
+        page: 1,
+        order: "name".to_string(),
+        dir: "auto".to_string(),
+        include_extras: false,
+        include_multilingual: false,
+        include_variations: false,
+        unique: "cards".to_string(),
+        csv: false,
+    };
+
+    if pretty {
+        display_pretty_results(&search_response, &params)?;
+    } else {
+        println!("{}", serde_json::to_string_pretty(&search_response)?);
+    }
+
+    Ok(())
 }
 
 pub async fn sorceries(
@@ -1132,42 +713,47 @@ pub async fn sorceries(
     pretty: bool,
     global: crate::Global,
 ) -> Result<()> {
-    let mut query_parts = vec!["t:sorcery".to_string()];
-
-    if let Some(c) = color {
-        query_parts.push(format_color_query(&c));
-    }
-
-    if let Some(mv) = mana_value {
-        query_parts.push(format!("mv{}", format_comparison(&mv)));
-    }
-
-    if let Some(f) = format {
-        query_parts.push(format!("f:{f}"));
-    }
-
-    let query = query_parts.join(" ");
+    // Create mtg_core client with proper configuration
+    let client = mtg_core::scryfall::ScryfallClient::builder()
+        .timeout_secs(global.timeout)
+        .verbose(global.verbose)
+        .build()?;
 
     if global.verbose {
-        aeprintln!("Generated sorcery search query: {query}");
+        aeprintln!(
+            "Searching for sorceries with color: {:?}, mana value: {:?}, format: {:?}",
+            color,
+            mana_value,
+            format
+        );
     }
 
-    run(
-        Params {
-            query,
-            pretty,
-            page: 1,
-            order: "name".to_string(),
-            dir: "auto".to_string(),
-            include_extras: false,
-            include_multilingual: false,
-            include_variations: false,
-            unique: "cards".to_string(),
-            csv: false,
-        },
-        global,
-    )
-    .await
+    // Use mtg_core client to search sorceries
+    let core_response = client.search_sorceries(color, mana_value, format).await?;
+
+    // Convert to CLI types
+    let search_response = convert_core_response_to_cli(&core_response);
+
+    let params = Params {
+        query: "sorceries".to_string(), // For display purposes
+        pretty,
+        page: 1,
+        order: "name".to_string(),
+        dir: "auto".to_string(),
+        include_extras: false,
+        include_multilingual: false,
+        include_variations: false,
+        unique: "cards".to_string(),
+        csv: false,
+    };
+
+    if pretty {
+        display_pretty_results(&search_response, &params)?;
+    } else {
+        println!("{}", serde_json::to_string_pretty(&search_response)?);
+    }
+
+    Ok(())
 }
 
 pub async fn instants(
@@ -1177,42 +763,47 @@ pub async fn instants(
     pretty: bool,
     global: crate::Global,
 ) -> Result<()> {
-    let mut query_parts = vec!["t:instant".to_string()];
-
-    if let Some(c) = color {
-        query_parts.push(format_color_query(&c));
-    }
-
-    if let Some(mv) = mana_value {
-        query_parts.push(format!("mv{}", format_comparison(&mv)));
-    }
-
-    if let Some(f) = format {
-        query_parts.push(format!("f:{f}"));
-    }
-
-    let query = query_parts.join(" ");
+    // Create mtg_core client with proper configuration
+    let client = mtg_core::scryfall::ScryfallClient::builder()
+        .timeout_secs(global.timeout)
+        .verbose(global.verbose)
+        .build()?;
 
     if global.verbose {
-        aeprintln!("Generated instant search query: {query}");
+        aeprintln!(
+            "Searching for instants with color: {:?}, mana value: {:?}, format: {:?}",
+            color,
+            mana_value,
+            format
+        );
     }
 
-    run(
-        Params {
-            query,
-            pretty,
-            page: 1,
-            order: "name".to_string(),
-            dir: "auto".to_string(),
-            include_extras: false,
-            include_multilingual: false,
-            include_variations: false,
-            unique: "cards".to_string(),
-            csv: false,
-        },
-        global,
-    )
-    .await
+    // Use mtg_core client to search instants
+    let core_response = client.search_instants(color, mana_value, format).await?;
+
+    // Convert to CLI types
+    let search_response = convert_core_response_to_cli(&core_response);
+
+    let params = Params {
+        query: "instants".to_string(), // For display purposes
+        pretty,
+        page: 1,
+        order: "name".to_string(),
+        dir: "auto".to_string(),
+        include_extras: false,
+        include_multilingual: false,
+        include_variations: false,
+        unique: "cards".to_string(),
+        csv: false,
+    };
+
+    if pretty {
+        display_pretty_results(&search_response, &params)?;
+    } else {
+        println!("{}", serde_json::to_string_pretty(&search_response)?);
+    }
+
+    Ok(())
 }
 
 pub async fn creatures(
@@ -1224,48 +815,43 @@ pub async fn creatures(
     pretty: bool,
     global: crate::Global,
 ) -> Result<()> {
-    let mut query_parts = vec!["t:creature".to_string()];
-
-    if let Some(c) = color {
-        query_parts.push(format_color_query(&c));
-    }
-
-    if let Some(p) = power {
-        query_parts.push(format!("pow{}", format_comparison(&p)));
-    }
-
-    if let Some(t) = toughness {
-        query_parts.push(format!("tou{}", format_comparison(&t)));
-    }
-
-    if let Some(mv) = mana_value {
-        query_parts.push(format!("mv{}", format_comparison(&mv)));
-    }
-
-    if let Some(f) = format {
-        query_parts.push(format!("f:{f}"));
-    }
-
-    let query = query_parts.join(" ");
+    // Create mtg_core client with proper configuration
+    let client = mtg_core::scryfall::ScryfallClient::builder()
+        .timeout_secs(global.timeout)
+        .verbose(global.verbose)
+        .build()?;
 
     if global.verbose {
-        aeprintln!("Generated creature search query: {query}");
+        aeprintln!("Searching for creatures with color: {:?}, power: {:?}, toughness: {:?}, mana value: {:?}, format: {:?}", 
+                  color, power, toughness, mana_value, format);
     }
 
-    run(
-        Params {
-            query,
-            pretty,
-            page: 1,
-            order: "name".to_string(),
-            dir: "auto".to_string(),
-            include_extras: false,
-            include_multilingual: false,
-            include_variations: false,
-            unique: "cards".to_string(),
-            csv: false,
-        },
-        global,
-    )
-    .await
+    // Use mtg_core client to search creatures
+    let core_response = client
+        .search_creatures(color, power, toughness, mana_value, format)
+        .await?;
+
+    // Convert to CLI types
+    let search_response = convert_core_response_to_cli(&core_response);
+
+    let params = Params {
+        query: "creatures".to_string(), // For display purposes
+        pretty,
+        page: 1,
+        order: "name".to_string(),
+        dir: "auto".to_string(),
+        include_extras: false,
+        include_multilingual: false,
+        include_variations: false,
+        unique: "cards".to_string(),
+        csv: false,
+    };
+
+    if pretty {
+        display_pretty_results(&search_response, &params)?;
+    } else {
+        println!("{}", serde_json::to_string_pretty(&search_response)?);
+    }
+
+    Ok(())
 }

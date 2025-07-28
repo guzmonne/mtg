@@ -1,10 +1,19 @@
 pub mod client;
+pub mod search;
 pub mod sets;
+pub mod smart;
+pub mod types;
 
 use serde::{Deserialize, Serialize};
 
 // Re-export the client for convenience
 pub use client::{ScryfallClient, ScryfallClientBuilder, ScryfallClientConfig};
+
+// Re-export types for convenience
+pub use types::{
+    AdvancedSearchParams, AutocompleteResponse, Card, QueryIntent, QueryIssue, ScryfallError,
+    SearchParams, SearchResponse, SmartSearchResult,
+};
 
 /// Generic list object for Scryfall API responses
 #[derive(Debug, Clone, Serialize, Deserialize)]

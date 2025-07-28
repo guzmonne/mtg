@@ -15,15 +15,6 @@ pub struct App {
     pub command: SubCommands,
 }
 
-#[derive(Debug)]
-enum QueryIssue {
-    UnknownKeyword(String),
-    #[allow(dead_code)]
-    InvalidOperator(String),
-    #[allow(dead_code)]
-    MalformedExpression(String),
-}
-
 #[derive(Debug, clap::Parser)]
 pub enum SubCommands {
     /// Smart search that auto-detects what you're looking for (recommended for LLMs)
@@ -934,87 +925,6 @@ fn display_set_details(set: &mtg_core::scryfall::sets::ScryfallSet) -> Result<()
     Ok(())
 }
 
-#[derive(Debug)]
-enum QueryIntent {
-    ExactCardName(String),
-    SetCollector(String, String),
-    ArenaId(u32),
-    MtgoId(u32),
-    ScryfallId(String),
-    SearchQuery(String),
-}
-
-fn detect_query_intent(query: &str) -> Option<QueryIntent> {
-    let query = query.trim();
-
-    // Check for Scryfall UUID (36 characters with hyphens)
-    if query.len() == 36 && query.chars().filter(|&c| c == '-').count() == 4 {
-        return Some(QueryIntent::ScryfallId(query.to_string()));
-    }
-
-    // Check for pure numbers (Arena/MTGO IDs)
-    if let Ok(id) = query.parse::<u32>() {
-        // Heuristic: Arena IDs are typically larger than MTGO IDs
-        if id > 50000 {
-            return Some(QueryIntent::ArenaId(id));
-        } else {
-            return Some(QueryIntent::MtgoId(id));
-        }
-    }
-
-    // Check for "SET COLLECTOR" pattern (e.g., "ktk 96", "war 001")
-    let parts: Vec<&str> = query.split_whitespace().collect();
-    if parts.len() == 2 {
-        let potential_set = parts[0].to_lowercase();
-        let potential_collector = parts[1];
-
-        // Check if first part looks like a set code (2-4 characters, mostly letters)
-        if potential_set.len() >= 2
-            && potential_set.len() <= 4
-            && potential_set.chars().all(|c| c.is_alphanumeric())
-        {
-            // Check if second part looks like a collector number
-            if potential_collector.chars().any(|c| c.is_ascii_digit()) {
-                return Some(QueryIntent::SetCollector(
-                    potential_set,
-                    potential_collector.to_string(),
-                ));
-            }
-        }
-    }
-
-    // Check if it contains Scryfall search syntax
-    if query.contains(':')
-        || query.contains(">=")
-        || query.contains("<=")
-        || query.contains("!=")
-        || query.contains('>')
-        || query.contains('<')
-    {
-        return Some(QueryIntent::SearchQuery(query.to_string()));
-    }
-
-    // Check for common search patterns
-    let lower_query = query.to_lowercase();
-    if lower_query.contains(" creature")
-        || lower_query.contains(" instant")
-        || lower_query.contains(" sorcery")
-        || lower_query.contains(" artifact")
-        || lower_query.contains(" enchantment")
-        || lower_query.contains(" planeswalker")
-    {
-        return Some(QueryIntent::SearchQuery(query.to_string()));
-    }
-
-    // If it's a simple phrase without special characters, treat as exact card name
-    if !query.contains('"') && !query.contains('(') && !query.contains('[') {
-        return Some(QueryIntent::ExactCardName(query.to_string()));
-    }
-
-    // Default to search query
-    Some(QueryIntent::SearchQuery(query.to_string()))
-}
-
 // Interactive query builder
 async fn build_query_interactive(pretty: bool, global: crate::Global) -> Result<()> {
     use std::io::{self, Write};
@@ -1158,51 +1068,6 @@ fn format_color_query(color: &str) -> String {
     }
 }
 
-// Helper function to format color identity queries
-fn format_color_identity_query(identity: &str) -> String {
-    let identity = identity.to_lowercase();
-
-    // Handle common identity names
-    match identity.as_str() {
-        "white" => "id:w".to_string(),
-        "blue" => "id:u".to_string(),
-        "black" => "id:b".to_string(),
-        "red" => "id:r".to_string(),
-        "green" => "id:g".to_string(),
-        "colorless" => "id:colorless".to_string(),
-        // Guild names
-        "azorius" => "id:wu".to_string(),
-        "dimir" => "id:ub".to_string(),
-        "rakdos" => "id:br".to_string(),
-        "gruul" => "id:rg".to_string(),
-        "selesnya" => "id:gw".to_string(),
-        "orzhov" => "id:wb".to_string(),
-        "izzet" => "id:ur".to_string(),
-        "golgari" => "id:bg".to_string(),
-        "boros" => "id:rw".to_string(),
-        "simic" => "id:gu".to_string(),
-        // Shard names
-        "bant" => "id:gwu".to_string(),
-        "esper" => "id:wub".to_string(),
-        "grixis" => "id:ubr".to_string(),
-        "jund" => "id:brg".to_string(),
-        "naya" => "id:rgw".to_string(),
-        // Wedge names
-        "abzan" => "id:wbg".to_string(),
-        "jeskai" => "id:urw".to_string(),
-        "sultai" => "id:bgu".to_string(),
-        "mardu" => "id:rwb".to_string(),
-        "temur" => "id:gur".to_string(),
-        _ => {
-            if identity.starts_with("id:") {
-                identity
-            } else {
-                format!("id:{identity}")
-            }
-        }
-    }
-}
-
 // Helper function to format comparison operators
 fn format_comparison(value: &str) -> String {
     if value.starts_with(">=")
@@ -1215,372 +1080,6 @@ fn format_comparison(value: &str) -> String {
     } else {
         format!("={value}")
     }
-}
-
-// Enhanced error handling with suggestions
-pub(crate) fn enhance_error_message(error: &str, query: &str) -> String {
-    let error_lower = error.to_lowercase();
-    let query_lower = query.to_lowercase();
-
-    // Common error patterns and suggestions
-    if error_lower.contains("no card found") || error_lower.contains("not found") {
-        let mut suggestions = Vec::new();
-
-        // Check for common misspellings
-        if let Some(suggestion) = suggest_card_name_correction(&query_lower) {
-            suggestions.push(format!(
-                "Did you mean '{}'? Try: mtg scryfall find \"{}\"",
-                suggestion, suggestion
-            ));
-        }
-
-        // Suggest using search instead of exact name
-        if !query.contains(':') && !query.contains(' ') {
-            suggestions.push(format!(
-                "Try searching instead: mtg scryfall find \"{}\"",
-                query
-            ));
-        }
-
-        // Suggest autocomplete
-        suggestions.push(format!(
-            "Get suggestions: mtg scryfall autocomplete \"{}\"",
-            query
-        ));
-
-        if suggestions.is_empty() {
-            format!("{}\n💡 Try: mtg scryfall help", error)
-        } else {
-            format!("{}\n💡 Suggestions:\n  {}", error, suggestions.join("\n  "))
-        }
-    } else if error_lower.contains("invalid search syntax") || error_lower.contains("syntax") {
-        let mut suggestions = Vec::new();
-
-        // Check for common syntax errors
-        if let Some(correction) = suggest_query_correction(query) {
-            suggestions.push(format!("Try: mtg scryfall search \"{}\"", correction));
-        }
-
-        suggestions.push("Use the query builder: mtg scryfall build".to_string());
-        suggestions.push("See examples: mtg scryfall help".to_string());
-
-        format!("{}\n💡 Suggestions:\n  {}", error, suggestions.join("\n  "))
-    } else if error_lower.contains("rate limit") {
-        format!(
-            "{}\n💡 Wait a moment and try again. The CLI uses caching to reduce API calls.",
-            error
-        )
-    } else if error_lower.contains("network") || error_lower.contains("connection") {
-        format!(
-            "{}\n💡 Check your internet connection and try again.",
-            error
-        )
-    } else {
-        // Generic enhancement
-        format!("{}\n💡 Need help? Try: mtg scryfall help", error)
-    }
-}
-
-// Suggest corrections for common card name misspellings
-fn suggest_card_name_correction(query: &str) -> Option<String> {
-    let common_corrections = [
-        ("lightning bold", "Lightning Bolt"),
-        ("lightning bolt", "Lightning Bolt"),
-        ("counterspel", "Counterspell"),
-        ("sol ring", "Sol Ring"),
-        ("black lotus", "Black Lotus"),
-        ("time walk", "Time Walk"),
-        ("ancestral recall", "Ancestral Recall"),
-        ("mox sapphire", "Mox Sapphire"),
-        ("mox ruby", "Mox Ruby"),
-        ("mox pearl", "Mox Pearl"),
-        ("mox emerald", "Mox Emerald"),
-        ("mox jet", "Mox Jet"),
-        ("force of will", "Force of Will"),
-        ("brainstorm", "Brainstorm"),
-        ("swords to plowshare", "Swords to Plowshares"),
-        ("path to exile", "Path to Exile"),
-        ("birds of paradise", "Birds of Paradise"),
-        ("llanowar elfs", "Llanowar Elves"),
-        ("dark ritual", "Dark Ritual"),
-        ("giant growth", "Giant Growth"),
-    ];
-
-    for (misspelling, correction) in &common_corrections {
-        if query.contains(misspelling) {
-            return Some(correction.to_string());
-        }
-    }
-
-    None
-}
-
-// Suggest corrections for common query syntax errors
-fn suggest_query_correction(query: &str) -> Option<String> {
-    let mut corrected = query.to_string();
-    let mut changed = false;
-
-    // Common syntax corrections
-    let corrections = [
-        ("colour:", "c:"),
-        ("color:", "c:"),
-        ("type:", "t:"),
-        ("oracle:", "o:"),
-        ("manavalue:", "mv:"),
-        ("mana_value:", "mv:"),
-        ("manacost:", "m:"),
-        ("mana_cost:", "m:"),
-        ("power:", "pow:"),
-        ("toughness:", "tou:"),
-        ("loyalty:", "loy:"),
-        ("rarity:", "r:"),
-        ("set:", "s:"),
-        ("format:", "f:"),
-        ("artist:", "a:"),
-        ("flavor:", "ft:"),
-        ("identity:", "id:"),
-        ("cmc:", "mv:"),
-        ("converted mana cost:", "mv:"),
-        ("creature type", "t:creature"),
-        ("instant spell", "t:instant"),
-        ("sorcery spell", "t:sorcery"),
-        ("artifact card", "t:artifact"),
-        ("enchantment card", "t:enchantment"),
-        ("planeswalker card", "t:planeswalker"),
-        ("land card", "t:land"),
-        ("red card", "c:red"),
-        ("blue card", "c:blue"),
-        ("white card", "c:white"),
-        ("black card", "c:black"),
-        ("green card", "c:green"),
-        ("multicolor card", "c:m"),
-        ("colorless card", "c:colorless"),
-    ];
-
-    for (wrong, right) in &corrections {
-        if corrected.to_lowercase().contains(&wrong.to_lowercase()) {
-            corrected = corrected
-                .to_lowercase()
-                .replace(&wrong.to_lowercase(), right);
-            changed = true;
-        }
-    }
-
-    // Fix comparison operators
-    if corrected.contains("equal to") {
-        corrected = corrected.replace("equal to", "=");
-        changed = true;
-    }
-    if corrected.contains("greater than or equal") {
-        corrected = corrected.replace("greater than or equal", ">=");
-        changed = true;
-    }
-    if corrected.contains("less than or equal") {
-        corrected = corrected.replace("less than or equal", "<=");
-        changed = true;
-    }
-    if corrected.contains("greater than") {
-        corrected = corrected.replace("greater than", ">");
-        changed = true;
-    }
-    if corrected.contains("less than") {
-        corrected = corrected.replace("less than", "<");
-        changed = true;
-    }
-
-    if changed {
-        Some(corrected)
-    } else {
-        None
-    }
-}
-
-// Validate query syntax and provide suggestions
-fn validate_and_suggest_query(query: &str) -> Result<String, String> {
-    let query = query.trim();
-
-    // Check for empty query
-    if query.is_empty() {
-        return Err("Empty query. Try: mtg scryfall help".to_string());
-    }
-
-    // Check for common mistakes
-    let issues = find_query_issues(query);
-    if !issues.is_empty() {
-        let suggestions: Vec<String> = issues
-            .iter()
-            .map(|issue| match issue {
-                QueryIssue::UnknownKeyword(keyword) => {
-                    if let Some(suggestion) = suggest_keyword_correction(keyword) {
-                        format!(
-                            "Unknown keyword '{}'. Did you mean '{}'?",
-                            keyword, suggestion
-                        )
-                    } else {
-                        format!(
-                            "Unknown keyword '{}'. See 'mtg scryfall help' for valid keywords.",
-                            keyword
-                        )
-                    }
-                }
-                QueryIssue::InvalidOperator(op) => {
-                    format!("Invalid operator '{}'. Use: =, !=, <, <=, >, >=", op)
-                }
-                QueryIssue::MalformedExpression(expr) => {
-                    format!("Malformed expression '{}'. Check syntax.", expr)
-                }
-            })
-            .collect();
-
-        return Err(format!(
-            "Query validation issues:\n  {}",
-            suggestions.join("\n  ")
-        ));
-    }
-
-    Ok(query.to_string())
-}
-
-fn find_query_issues(query: &str) -> Vec<QueryIssue> {
-    let mut issues = Vec::new();
-
-    // Valid Scryfall keywords
-    let valid_keywords = [
-        "c",
-        "color",
-        "colors",
-        "id",
-        "identity",
-        "m",
-        "mana",
-        "mv",
-        "cmc",
-        "t",
-        "type",
-        "o",
-        "oracle",
-        "pow",
-        "power",
-        "tou",
-        "toughness",
-        "loy",
-        "loyalty",
-        "r",
-        "rarity",
-        "s",
-        "set",
-        "f",
-        "format",
-        "a",
-        "artist",
-        "ft",
-        "flavor",
-        "is",
-        "not",
-        "cn",
-        "number",
-        "lang",
-        "language",
-        "year",
-        "frame",
-        "border",
-        "game",
-        "legal",
-        "banned",
-        "restricted",
-        "new",
-        "old",
-        "reprint",
-        "firstprint",
-        "unique",
-        "art",
-        "prints",
-        "usd",
-        "eur",
-        "tix",
-        "penny",
-    ];
-
-    // Check for unknown keywords
-    for part in query.split_whitespace() {
-        if part.contains(':') {
-            let keyword = part.split(':').next().unwrap_or("");
-            if !keyword.is_empty() && !valid_keywords.contains(&keyword.to_lowercase().as_str()) {
-                issues.push(QueryIssue::UnknownKeyword(keyword.to_string()));
-            }
-        }
-    }
-
-    issues
-}
-
-fn suggest_keyword_correction(keyword: &str) -> Option<String> {
-    let keyword_lower = keyword.to_lowercase();
-
-    let corrections = [
-        ("colour", "c"),
-        ("color", "c"),
-        ("type", "t"),
-        ("oracle", "o"),
-        ("manavalue", "mv"),
-        ("manacost", "m"),
-        ("power", "pow"),
-        ("toughness", "tou"),
-        ("loyalty", "loy"),
-        ("rarity", "r"),
-        ("set", "s"),
-        ("format", "f"),
-        ("artist", "a"),
-        ("flavor", "ft"),
-        ("identity", "id"),
-        ("cmc", "mv"),
-    ];
-
-    for (wrong, right) in &corrections {
-        if keyword_lower == *wrong {
-            return Some(right.to_string());
-        }
-    }
-
-    None
-}
-
-fn parse_scryfall_response(response_text: &str) -> Result<search::Response> {
-    // First, try to parse as a generic JSON value to check the object type
-    let json_value: serde_json::Value = serde_json::from_str(response_text)?;
-
-    if let Some(object_type) = json_value.get("object").and_then(|v| v.as_str()) {
-        if object_type == "error" {
-            // Parse as error response using the new comprehensive error structure
-            let scryfall_error: crate::error::ScryfallError = serde_json::from_str(response_text)?;
-            let api_error = crate::error::ScryfallApiError::from_scryfall_error(scryfall_error);
-            let enhanced_error = enhance_error_message(&api_error.to_string(), "");
-            return Err(eyre!("{}", enhanced_error));
-        }
-    }
-
-    // Parse as search response
-    let search_response: search::Response = serde_json::from_str(response_text)?;
-    Ok(search_response)
-}
-
-fn parse_scryfall_card_response(response_text: &str) -> Result<Card> {
-    // First, try to parse as a generic JSON value to check the object type
-    let json_value: serde_json::Value = serde_json::from_str(response_text)?;
-
-    if let Some(object_type) = json_value.get("object").and_then(|v| v.as_str()) {
-        if object_type == "error" {
-            // Parse as error response using the new comprehensive error structure
-            let scryfall_error: crate::error::ScryfallError = serde_json::from_str(response_text)?;
-            let api_error = crate::error::ScryfallApiError::from_scryfall_error(scryfall_error);
-            let enhanced_error = enhance_error_message(&api_error.to_string(), "");
-            return Err(eyre!("{}", enhanced_error));
-        }
-    }
-
-    // Parse as card response
-    let card: Card = serde_json::from_str(response_text)?;
-    Ok(card)
 }
 
 fn display_single_card_details(card: &Card) -> Result<()> {
@@ -1693,4 +1192,94 @@ fn display_single_card_details(card: &Card) -> Result<()> {
 
     table.printstd();
     Ok(())
+}
+
+/// Convert mtg_core Card to CLI Card
+pub fn convert_core_card_to_cli(core_card: &mtg_core::scryfall::Card) -> Card {
+    Card {
+        object: core_card.object.clone(),
+        id: core_card.id.clone(),
+        oracle_id: core_card.oracle_id.clone(),
+        multiverse_ids: core_card.multiverse_ids.clone(),
+        mtgo_id: core_card.mtgo_id,
+        arena_id: core_card.arena_id,
+        tcgplayer_id: core_card.tcgplayer_id,
+        cardmarket_id: core_card.cardmarket_id,
+        name: core_card.name.clone(),
+        lang: core_card.lang.clone(),
+        released_at: core_card.released_at.clone(),
+        uri: core_card.uri.clone(),
+        scryfall_uri: core_card.scryfall_uri.clone(),
+        layout: core_card.layout.clone(),
+        highres_image: core_card.highres_image,
+        image_status: core_card.image_status.clone(),
+        image_uris: core_card.image_uris.clone(),
+        mana_cost: core_card.mana_cost.clone(),
+        cmc: core_card.cmc,
+        type_line: core_card.type_line.clone(),
+        oracle_text: core_card.oracle_text.clone(),
+        power: core_card.power.clone(),
+        toughness: core_card.toughness.clone(),
+        loyalty: core_card.loyalty.clone(),
+        colors: core_card.colors.clone(),
+        color_identity: core_card.color_identity.clone(),
+        keywords: core_card.keywords.clone(),
+        legalities: core_card.legalities.clone(),
+        games: core_card.games.clone(),
+        reserved: core_card.reserved,
+        foil: core_card.foil,
+        nonfoil: core_card.nonfoil,
+        finishes: core_card.finishes.clone(),
+        oversized: core_card.oversized,
+        promo: core_card.promo,
+        reprint: core_card.reprint,
+        variation: core_card.variation,
+        set_id: core_card.set_id.clone(),
+        set: core_card.set.clone(),
+        set_name: core_card.set_name.clone(),
+        set_type: core_card.set_type.clone(),
+        set_uri: core_card.set_uri.clone(),
+        set_search_uri: core_card.set_search_uri.clone(),
+        scryfall_set_uri: core_card.scryfall_set_uri.clone(),
+        rulings_uri: core_card.rulings_uri.clone(),
+        prints_search_uri: core_card.prints_search_uri.clone(),
+        collector_number: core_card.collector_number.clone(),
+        digital: core_card.digital,
+        rarity: core_card.rarity.clone(),
+        flavor_text: core_card.flavor_text.clone(),
+        card_back_id: core_card.card_back_id.clone(),
+        artist: core_card.artist.clone(),
+        artist_ids: core_card.artist_ids.clone(),
+        illustration_id: core_card.illustration_id.clone(),
+        border_color: core_card.border_color.clone(),
+        frame: core_card.frame.clone(),
+        security_stamp: core_card.security_stamp.clone(),
+        full_art: core_card.full_art,
+        textless: core_card.textless,
+        booster: core_card.booster,
+        story_spotlight: core_card.story_spotlight,
+        edhrec_rank: core_card.edhrec_rank,
+        penny_rank: core_card.penny_rank,
+        prices: core_card.prices.clone(),
+        related_uris: core_card.related_uris.clone(),
+        purchase_uris: core_card.purchase_uris.clone(),
+    }
+}
+
+/// Convert mtg_core SearchResponse to CLI Response  
+pub fn convert_core_response_to_cli(
+    core_response: &mtg_core::scryfall::SearchResponse,
+) -> search::Response {
+    List {
+        object: core_response.object.clone(),
+        data: core_response
+            .data
+            .iter()
+            .map(convert_core_card_to_cli)
+            .collect(),
+        has_more: core_response.has_more,
+        next_page: core_response.next_page.clone(),
+        total_cards: core_response.total_cards,
+        warnings: core_response.warnings.clone(),
+    }
 }

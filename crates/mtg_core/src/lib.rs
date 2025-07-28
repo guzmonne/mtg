@@ -3,7 +3,12 @@ pub mod gatherer;
 pub mod scryfall;
 
 // Re-export the ScryfallClient for easy access from the binary
-pub use scryfall::{ScryfallClient, ScryfallClientBuilder, ScryfallClientConfig};
+pub use scryfall::{
+    AdvancedSearchParams as ScryfallAdvancedSearchParams,
+    AutocompleteResponse as ScryfallAutocompleteResponse, Card as ScryfallCard, ScryfallClient,
+    ScryfallClientBuilder, ScryfallClientConfig, SearchParams as ScryfallSearchParams,
+    SearchResponse as ScryfallSearchResponse,
+};
 
 // Re-export the GathererClient for easy access from the binary
 pub use gatherer::{

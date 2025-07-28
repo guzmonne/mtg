@@ -27,7 +27,7 @@ async fn main() -> color_eyre::Result<()> {
             println!("✓ Successfully connected to custom base URL");
         }
         Err(e) => {
-            println!("✗ Expected failure connecting to test server: {}", e);
+            println!("✗ Expected failure connecting to test server: {e}");
             println!("This is normal - the example demonstrates configuration, not actual usage");
         }
     }

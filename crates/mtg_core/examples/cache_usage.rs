@@ -44,8 +44,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let retrieved_bolt: Option<Card> = cache.get("lightning-bolt").await?;
     let retrieved_counter: Option<Card> = cache.get("counterspell").await?;
 
-    println!("Lightning Bolt: {:?}", retrieved_bolt);
-    println!("Counterspell: {:?}", retrieved_counter);
+    println!("Lightning Bolt: {retrieved_bolt:?}");
+    println!("Counterspell: {retrieved_counter:?}");
 
     // Check cache statistics
     let stats = cache.stats(Some("example/cards")).await?;
@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // List all keys (note: these are hashes, not original keys)
     let keys = <DiskCache as CacheStore<&str, Card>>::keys(&cache).await?;
-    println!("Cache keys: {:?}", keys);
+    println!("Cache keys: {keys:?}");
 
     // Clean up - remove the example cache
     let report = cache.clean_prefix("example").await?;
