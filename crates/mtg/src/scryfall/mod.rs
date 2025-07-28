@@ -6,6 +6,7 @@ use serde_json::Value;
 pub mod autocomplete;
 pub mod random;
 pub mod search;
+pub mod sets;
 pub mod smart;
 
 #[derive(Debug, clap::Parser)]
@@ -437,6 +438,55 @@ pub enum SubCommands {
         #[clap(long)]
         json: bool,
     },
+
+    /// Manage and browse Magic sets
+    Sets {
+        #[command(subcommand)]
+        command: SetCommands,
+    },
+}
+
+#[derive(Debug, clap::Parser)]
+pub enum SetCommands {
+    /// List all Magic sets
+    List {
+        /// Filter by set type (core, expansion, masters, etc.)
+        #[clap(long)]
+        set_type: Option<String>,
+
+        /// Filter sets released after this date (YYYY-MM-DD)
+        #[clap(long)]
+        released_after: Option<String>,
+
+        /// Filter sets released before this date (YYYY-MM-DD)
+        #[clap(long)]
+        released_before: Option<String>,
+
+        /// Filter by block name
+        #[clap(long)]
+        block: Option<String>,
+
+        /// Filter digital-only sets
+        #[clap(long)]
+        digital_only: Option<bool>,
+
+        /// Display results in a formatted table instead of JSON
+        #[clap(long)]
+        pretty: bool,
+    },
+
+    /// Get information about a specific set
+    Get {
+        /// Set code (e.g., "ktk", "war", "m21")
+        set_code: String,
+
+        /// Display result in a formatted table instead of JSON
+        #[clap(long)]
+        pretty: bool,
+    },
+
+    /// List available set types
+    Types,
 }
 
 /// Generic list object for Scryfall API responses
@@ -716,7 +766,172 @@ pub async fn run(app: App, global: crate::Global) -> Result<()> {
         SubCommands::Build { pretty, json } => {
             build_query_interactive(!json && pretty, global).await
         }
+        SubCommands::Sets { command } => handle_sets_command(command, global).await,
     }
+}
+
+async fn handle_sets_command(command: SetCommands, global: crate::Global) -> Result<()> {
+    use mtg_core::scryfall::sets::{SetListParams, SetType};
+    use std::str::FromStr;
+
+    match command {
+        SetCommands::List {
+            set_type,
+            released_after,
+            released_before,
+            block,
+            digital_only,
+            pretty,
+        } => {
+            let set_type_enum = if let Some(type_str) = set_type {
+                match SetType::from_str(&type_str) {
+                    Ok(t) => Some(t),
+                    Err(_) => {
+                        aeprintln!(
+                            "Invalid set type: {type_str}. Use 'mtg scryfall sets types' to see available types."
+                        );
+                        return Ok(());
+                    }
+                }
+            } else {
+                None
+            };
+
+            let params = SetListParams {
+                set_type: set_type_enum,
+                released_after,
+                released_before,
+                block,
+                digital_only,
+            };
+
+            let sets_list = sets::list_sets(params, global).await?;
+
+            if pretty {
+                display_sets_table(&sets_list)?;
+            } else {
+                println!("{}", serde_json::to_string_pretty(&sets_list)?);
+            }
+        }
+        SetCommands::Get { set_code, pretty } => {
+            let set = sets::get_set_by_code(&set_code, global).await?;
+
+            if pretty {
+                display_set_details(&set)?;
+            } else {
+                println!("{}", serde_json::to_string_pretty(&set)?);
+            }
+        }
+        SetCommands::Types => {
+            println!("Available set types:");
+            println!();
+            for set_type in SetType::all() {
+                println!("  {:<20} - {}", set_type.as_str(), set_type.description());
+            }
+        }
+    }
+    Ok(())
+}
+
+fn display_sets_table(sets_list: &mtg_core::scryfall::sets::ScryfallSetList) -> Result<()> {
+    let mut table = new_table();
+    table.add_row(Row::new(vec![
+        Cell::new("Code"),
+        Cell::new("Name"),
+        Cell::new("Type"),
+        Cell::new("Released"),
+        Cell::new("Cards"),
+        Cell::new("Digital"),
+    ]));
+
+    for set in &sets_list.data {
+        table.add_row(Row::new(vec![
+            Cell::new(&set.code.to_uppercase()),
+            Cell::new(&set.name),
+            Cell::new(&set.set_type),
+            Cell::new(set.released_at.as_deref().unwrap_or("Unknown")),
+            Cell::new(&set.card_count.to_string()),
+            Cell::new(if set.digital { "Yes" } else { "No" }),
+        ]));
+    }
+
+    table.printstd();
+
+    // Display warnings if any
+    if let Some(warnings) = &sets_list.warnings {
+        aeprintln!();
+        aeprintln!("⚠️  Warnings:");
+        for warning in warnings {
+            aeprintln!("   • {warning}");
+        }
+    }
+
+    aeprintln!();
+    aeprintln!("Found {} sets", sets_list.data.len());
+
+    Ok(())
+}
+
+fn display_set_details(set: &mtg_core::scryfall::sets::ScryfallSet) -> Result<()> {
+    use prettytable::format;
+
+    let mut table = new_table();
+    table.set_format(*format::consts::FORMAT_CLEAN);
+
+    table.add_row(Row::new(vec![Cell::new("Property"), Cell::new("Value")]));
+    table.add_row(Row::new(vec![
+        Cell::new("Code"),
+        Cell::new(&set.code.to_uppercase()),
+    ]));
+    table.add_row(Row::new(vec![Cell::new("Name"), Cell::new(&set.name)]));
+    table.add_row(Row::new(vec![Cell::new("Type"), Cell::new(&set.set_type)]));
+
+    if let Some(released) = &set.released_at {
+        table.add_row(Row::new(vec![Cell::new("Released"), Cell::new(released)]));
+    }
+
+    table.add_row(Row::new(vec![
+        Cell::new("Card Count"),
+        Cell::new(&set.card_count.to_string()),
+    ]));
+
+    if let Some(printed_size) = set.printed_size {
+        table.add_row(Row::new(vec![
+            Cell::new("Printed Size"),
+            Cell::new(&printed_size.to_string()),
+        ]));
+    }
+
+    if let Some(block) = &set.block {
+        table.add_row(Row::new(vec![Cell::new("Block"), Cell::new(block)]));
+    }
+
+    table.add_row(Row::new(vec![
+        Cell::new("Digital Only"),
+        Cell::new(if set.digital { "Yes" } else { "No" }),
+    ]));
+    table.add_row(Row::new(vec![
+        Cell::new("Foil Only"),
+        Cell::new(if set.foil_only { "Yes" } else { "No" }),
+    ]));
+    table.add_row(Row::new(vec![
+        Cell::new("Nonfoil Only"),
+        Cell::new(if set.nonfoil_only { "Yes" } else { "No" }),
+    ]));
+
+    if let Some(mtgo_code) = &set.mtgo_code {
+        table.add_row(Row::new(vec![Cell::new("MTGO Code"), Cell::new(mtgo_code)]));
+    }
+
+    if let Some(arena_code) = &set.arena_code {
+        table.add_row(Row::new(vec![
+            Cell::new("Arena Code"),
+            Cell::new(arena_code),
+        ]));
+    }
+
+    table.printstd();
+    Ok(())
 }
 
 #[derive(Debug)]
