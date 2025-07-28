@@ -27,21 +27,31 @@ impl MatchDisplay {
     }
 
     pub fn display_match_start(&self, match_state: &MatchState) -> Result<()> {
-        self.print_separator("MATCH STARTED")?;
+        println!("\n🎮 ═══════════════════════════════════════════");
+        println!("🎮 MATCH STARTED!");
+        println!("🎮 ═══════════════════════════════════════════");
+
+        // Display player matchup
+        if match_state.players.len() >= 2 {
+            println!(
+                "\n⚔️  {} vs {}",
+                match_state.players[0].screen_name, match_state.players[1].screen_name
+            );
+        }
+
+        println!("\nMatch ID: {}", match_state.match_id);
 
         let mut table = Table::new();
         table.set_content_arrangement(ContentArrangement::Dynamic);
 
         // Header
-        table.set_header(vec!["Player", "Life", "Rank"]);
+        table.set_header(vec!["Player", "Life", "Seat"]);
 
         for player in &match_state.players {
-            let rank_info = format!("Seat {}", player.seat_id);
-
             let mut row = vec![
                 Cell::new(&player.screen_name),
                 Cell::new(player.life_total),
-                Cell::new(rank_info),
+                Cell::new(player.seat_id),
             ];
 
             if self.use_colors {
@@ -58,6 +68,7 @@ impl MatchDisplay {
         }
 
         println!("{}", table);
+        println!("\n🎯 Good luck, have fun!");
         println!("Match ID: {}", match_state.match_id);
         println!("Started: {}", match_state.started_at.format("%H:%M:%S"));
         self.print_separator("")?;
@@ -220,7 +231,9 @@ impl MatchDisplay {
     }
 
     pub fn display_match_end(&self, match_state: &MatchState) -> Result<()> {
-        self.print_separator("MATCH COMPLETE")?;
+        println!("\n🏁 ═══════════════════════════════════════════");
+        println!("🏁 MATCH COMPLETE!");
+        println!("🏁 ═══════════════════════════════════════════");
 
         if let Some(result) = &match_state.result {
             let winner_name = result
@@ -229,18 +242,37 @@ impl MatchDisplay {
                 .map(|p| p.screen_name.as_str())
                 .unwrap_or("Unknown");
 
+            let loser_name = match_state
+                .players
+                .iter()
+                .find(|p| Some(p.seat_id as usize) != result.winner)
+                .map(|p| p.screen_name.as_str())
+                .unwrap_or("Unknown");
+
             let duration = self.format_duration(result.duration_seconds);
 
-            println!("Winner: {}", winner_name);
-            println!("Reason: {}", result.reason);
-            println!("Duration: {}", duration);
+            println!("\n🏆 {} defeats {}!", winner_name, loser_name);
+            println!("📋 Victory by: {}", result.reason);
+            println!("⏱️  Match duration: {}", duration);
+            println!("🔢 Total turns: {}", match_state.current_turn);
 
             // Display final life totals
+            println!("\n📊 Final Board State:");
             let mut table = Table::new();
-            table.set_header(vec!["Player", "Final Life"]);
+            table.set_header(vec!["Player", "Final Life", "Status"]);
 
             for player in &match_state.players {
-                let mut row = vec![Cell::new(&player.screen_name), Cell::new(player.life_total)];
+                let status = if Some(player.seat_id as usize) == result.winner {
+                    "🏆 Winner"
+                } else {
+                    "❌ Defeated"
+                };
+
+                let mut row = vec![
+                    Cell::new(&player.screen_name),
+                    Cell::new(player.life_total),
+                    Cell::new(status),
+                ];
 
                 if self.use_colors {
                     let color = if Some(player.seat_id as usize) == result.winner {
@@ -249,14 +281,33 @@ impl MatchDisplay {
                         Color::Red
                     };
                     row[0] = row[0].clone().fg(color);
+                    row[2] = row[2].clone().fg(color);
                 }
 
                 table.add_row(row);
             }
 
             println!("{}", table);
+
+            // Show some match statistics if we have actions
+            if !match_state.actions.is_empty() {
+                println!("\n📈 Match Statistics:");
+                let total_actions = match_state.actions.len();
+                println!("   Total actions: {}", total_actions);
+
+                // Count life changes
+                let life_changes = match_state
+                    .actions
+                    .iter()
+                    .filter(|a| matches!(a.action_type, ActionType::LifeChange))
+                    .count();
+                if life_changes > 0 {
+                    println!("   Life changes: {}", life_changes);
+                }
+            }
         }
 
+        println!("\n🎮 Thanks for playing!");
         self.print_separator("")?;
         Ok(())
     }

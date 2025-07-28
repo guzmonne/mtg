@@ -28,7 +28,14 @@ pub struct Params {
 pub async fn run(params: Params) -> Result<()> {
     // Determine log file path
     let log_path = if let Some(path) = params.log_path {
-        std::path::PathBuf::from(path)
+        let path_buf = std::path::PathBuf::from(path);
+        if path_buf.is_dir() {
+            // If it's a directory, find the newest log file in it
+            crate::companion::parse::find_newest_log_file(&path_buf)?
+        } else {
+            // If it's a file, use it directly
+            path_buf
+        }
     } else {
         // Use default log directory and find newest file
         let log_dir = crate::companion::parse::get_default_log_path()?;

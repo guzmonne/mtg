@@ -7,6 +7,7 @@ use chrono::Utc;
 use prettytable::{Cell, Row};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::io::Write;
 
 fn to_camel_case(snake_case: &str) -> String {
     let mut result = String::new();
@@ -72,11 +73,37 @@ impl EventParser {
         }
     }
 
+    pub fn current_match(&self) -> Option<&MatchState> {
+        self.current_match.as_ref()
+    }
+
+    fn get_player_name(&self, seat_id: u32) -> String {
+        if let Some(ref match_state) = self.current_match {
+            if let Some(player) = match_state.players.iter().find(|p| p.seat_id == seat_id) {
+                return player.screen_name.clone();
+            }
+        }
+
+        // Check if this is the current user
+        if let Some((_, ref display_name)) = self.current_user {
+            if seat_id == 1 {
+                return display_name.clone();
+            }
+        }
+
+        format!("Player {}", seat_id)
+    }
+
     pub fn parse_event(
         &mut self,
         event: RawLogEvent,
         async_tx: tokio::sync::mpsc::Sender<crate::companion::watch::async_processor::AsyncTask>,
     ) -> Result<Option<ParsedEvent>> {
+        // Debug: Show all events being processed
+        if std::env::var("MTG_DEBUG").is_ok() {
+            println!("🔍 Parsing event: {}", event.event_name);
+        }
+
         match event.event_name.as_str() {
             // Business events (main event type in logs)
             "LogBusinessEvents" => self.handle_business_event(&event.raw_data),
@@ -96,7 +123,7 @@ impl EventParser {
             "Event_GetCourseDeck" | "DeckMessage" | "DeckUpsertDeckV2" => {
                 self.handle_deck_submission(&event.raw_data, async_tx)
             }
-            "EventGetCoursesV2" => self.handle_courses_event(&event.raw_data),
+            "EventGetCoursesV2" => Ok(None), // Ignore courses events
 
             // Quest events
             "QuestGetQuests" => self.handle_quest_event(&event.raw_data),
@@ -308,7 +335,8 @@ impl EventParser {
                                 | "FileCleanupCheckEnd"
                                 | "ClientPerformanceMetrics"
                                 | "SystemInfo"
-                                | "GraphicsInfo" => {
+                                | "GraphicsInfo"
+                                | "LoginStyle" => {
                                     // These are just system telemetry, ignore silently
                                 }
                                 _ => {
@@ -440,11 +468,25 @@ impl EventParser {
             data.get("WinningReason").and_then(|v| v.as_str()),
         ) {
             println!("\n  🏆 Result:");
+            let player_name = self.get_player_name(seat_id as u32);
+
             if team_id == winning_team {
-                println!("    Winner: Player {} (Team {})", seat_id, team_id);
+                println!("    Winner: {} (Team {})", player_name, team_id);
             } else {
-                println!("    Loser: Player {} (Team {})", seat_id, team_id);
-                println!("    Winner: Team {}", winning_team);
+                println!("    Loser: {} (Team {})", player_name, team_id);
+
+                // Find the winner's name
+                let winner_name = if let Some(ref match_state) = self.current_match {
+                    match_state
+                        .players
+                        .iter()
+                        .find(|p| p.seat_id as u64 == winning_team)
+                        .map(|p| p.screen_name.clone())
+                        .unwrap_or_else(|| format!("Player {}", winning_team))
+                } else {
+                    format!("Player {}", winning_team)
+                };
+                println!("    Winner: {} (Team {})", winner_name, winning_team);
             }
 
             let reason_display = match winning_reason {
@@ -472,14 +514,70 @@ impl EventParser {
             println!("    Total turns: {}", turns);
 
             if let Some(starting_team) = data.get("StartingTeamId").and_then(|v| v.as_u64()) {
-                println!("    Starting player: Team {}", starting_team);
+                let starting_player_name = if let Some(ref match_state) = self.current_match {
+                    match_state
+                        .players
+                        .iter()
+                        .find(|p| p.seat_id as u64 == starting_team)
+                        .map(|p| p.screen_name.clone())
+                        .unwrap_or_else(|| format!("Player {}", starting_team))
+                } else {
+                    format!("Player {}", starting_team)
+                };
+                println!(
+                    "    Starting player: {} (Team {})",
+                    starting_player_name, starting_team
+                );
             }
         }
 
         // Opening hands
         if let Some(starting_hand) = data.get("StartingHand").and_then(|v| v.as_array()) {
-            println!("\n  🃏 Opening Hand:");
+            let player_name = if let Some(seat_id) = data.get("SeatId").and_then(|v| v.as_u64()) {
+                self.get_player_name(seat_id as u32)
+            } else {
+                "Player".to_string()
+            };
+
+            println!("\n  🃏 {}'s Opening Hand:", player_name);
             println!("    Kept {} cards", starting_hand.len());
+
+            // Try to display card names from our tracked initial hand
+            if let Some(ref match_state) = self.current_match {
+                if let Some(seat_id) = data.get("SeatId").and_then(|v| v.as_u64()) {
+                    if let Some(player) = match_state
+                        .players
+                        .iter()
+                        .find(|p| p.seat_id == seat_id as u32)
+                    {
+                        if !player.initial_hand.is_empty() {
+                            println!("    Starting Hand Card Names:");
+                            for card in &player.initial_hand {
+                                if let Some(ref info) = card.card_info {
+                                    println!("      - {}", info.name);
+                                } else {
+                                    // Try to get name from game objects
+                                    if let Some(obj) = self.game_objects.get(&card.instance_id) {
+                                        if let Some(ref name) = obj.card_name {
+                                            println!("      - {}", name);
+                                        } else {
+                                            println!(
+                                                "      - Card #{} (grpId: {})",
+                                                card.instance_id, card.grp_id
+                                            );
+                                        }
+                                    } else {
+                                        println!(
+                                            "      - Card #{} (grpId: {})",
+                                            card.instance_id, card.grp_id
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             if let Some(mulligans) = data.get("MulliganedHands").and_then(|v| v.as_array()) {
                 if !mulligans.is_empty() {
@@ -502,34 +600,32 @@ impl EventParser {
             }
         }
 
-        Ok(None)
-    }
-
-    fn handle_courses_event(&mut self, raw_data: &str) -> Result<Option<ParsedEvent>> {
-        if let Some(data) = self.extract_json_data(raw_data, "EventGetCoursesV2")? {
-            println!("\n📚 Courses Event:");
-
-            // Try to parse the courses array
-            if let Some(courses) = data.get("Courses").and_then(|v| v.as_array()) {
-                for course in courses {
-                    if let (Some(name), Some(module)) = (
-                        course.get("InternalEventName").and_then(|v| v.as_str()),
-                        course.get("CurrentModule").and_then(|v| v.as_str()),
-                    ) {
-                        println!("  • {} - Status: {}", name, module);
-
-                        // Show deck info if available
-                        if let Some(deck_summary) = course.get("CourseDeckSummary") {
-                            if let Some(deck_name) =
-                                deck_summary.get("Name").and_then(|v| v.as_str())
-                            {
-                                println!("    Deck: {}", deck_name);
-                            }
-                        }
-                    }
-                }
-            }
+        // Display final match summary
+        println!("\n--- Match Result ---");
+        if let Some(winning_team) = data.get("WinningTeamId").and_then(|v| v.as_u64()) {
+            // Find the winner's name
+            let winner_name = if let Some(ref match_state) = self.current_match {
+                match_state
+                    .players
+                    .iter()
+                    .find(|p| p.seat_id as u64 == winning_team)
+                    .map(|p| p.screen_name.clone())
+                    .unwrap_or_else(|| format!("Player {}", winning_team))
+            } else {
+                format!("Player {}", winning_team)
+            };
+            println!("Winner: {} (Team {})", winner_name, winning_team);
         }
+        if let Some(winning_type) = data.get("WinningType").and_then(|v| v.as_str()) {
+            println!("Winning Type: {}", winning_type);
+        }
+        if let Some(winning_reason) = data.get("WinningReason").and_then(|v| v.as_str()) {
+            println!("Winning Reason: {}", winning_reason);
+        }
+        if let Some(turns) = data.get("TurnCount").and_then(|v| v.as_u64()) {
+            println!("Total Turns: {}", turns);
+        }
+
         Ok(None)
     }
 
@@ -718,6 +814,8 @@ impl EventParser {
                             "GREMessageType_GameStateMessage" => {
                                 if let Some(game_state_msg) = message.get("gameStateMessage") {
                                     self.process_game_state_message(game_state_msg, &async_tx)?;
+                                } else if std::env::var("MTG_DEBUG").is_ok() {
+                                    eprintln!("DEBUG: GameStateMessage missing 'gameStateMessage' field: {}", message);
                                 }
                             }
                             "GREMessageType_TimerStateMessage" => {
@@ -732,6 +830,9 @@ impl EventParser {
                             }
                             _ => {
                                 // Other message types we might want to handle later
+                                if std::env::var("MTG_DEBUG").is_ok() {
+                                    println!("🔍 Unhandled GRE message type: {}", msg_type);
+                                }
                             }
                         }
                     }
@@ -860,10 +961,20 @@ impl EventParser {
     ) -> Result<()> {
         // Check if this is a game state diff
         if let Some(state_type) = game_state_msg.get("type").and_then(|v| v.as_str()) {
+            // Debug: Show what type of game state message we're processing
+            if std::env::var("MTG_DEBUG").is_ok() {
+                println!("🔍 Processing game state type: {}", state_type);
+            }
+
             if state_type == "GameStateType_Diff" {
+                // Debug: Show that we're processing a game state diff
+                if std::env::var("MTG_DEBUG").is_ok() {
+                    println!("🔍 Processing GameStateType_Diff");
+                }
                 // Process turn information
                 if let Some(turn_info) = game_state_msg.get("turnInfo") {
                     self.display_turn_info(turn_info)?;
+                    std::io::stdout().flush().unwrap_or(());
                 }
 
                 // Process game info for match end
@@ -879,9 +990,11 @@ impl EventParser {
                 if let Some(actions) = game_state_msg.get("actions").and_then(|v| v.as_array()) {
                     if !actions.is_empty() {
                         println!("\n⚡ Actions:");
+                        std::io::stdout().flush().unwrap_or(());
                         for action in actions {
                             self.display_action(action, async_tx)?;
                         }
+                        std::io::stdout().flush().unwrap_or(());
                     }
                 }
 
@@ -912,6 +1025,7 @@ impl EventParser {
                     game_state_msg.get("annotations").and_then(|v| v.as_array())
                 {
                     self.process_annotations(annotations, async_tx)?;
+                    std::io::stdout().flush().unwrap_or(());
                 }
 
                 // Process persistent annotations
@@ -940,7 +1054,39 @@ impl EventParser {
 
                 // Store this game state for future comparison
                 self.last_game_state = Some(game_state_msg.clone());
+            } else if state_type == "GameStateType_Full" {
+                // Process full game state (initial state)
+                if std::env::var("MTG_DEBUG").is_ok() {
+                    println!("🔍 Processing GameStateType_Full (initial state)");
+                }
+
+                // Process turn information for full state too
+                if let Some(turn_info) = game_state_msg.get("turnInfo") {
+                    self.display_turn_info(turn_info)?;
+                }
+
+                // Process game objects in full state
+                if let Some(game_objects) =
+                    game_state_msg.get("gameObjects").and_then(|v| v.as_array())
+                {
+                    self.process_game_objects(game_objects, async_tx)?;
+                }
+
+                // Process players in full state
+                if let Some(players) = game_state_msg.get("players").and_then(|v| v.as_array()) {
+                    self.process_players_diff(players)?;
+                }
+
+                // Store this game state for future comparison
+                self.last_game_state = Some(game_state_msg.clone());
+            } else if std::env::var("MTG_DEBUG").is_ok() {
+                eprintln!("DEBUG: Unhandled GameStateMessage type: {}", state_type);
             }
+        } else if std::env::var("MTG_DEBUG").is_ok() {
+            eprintln!(
+                "DEBUG: GameStateMessage missing 'type' field: {}",
+                game_state_msg
+            );
         }
 
         Ok(())
@@ -998,7 +1144,8 @@ impl EventParser {
                 }
 
                 if !active_timers.is_empty() || !warning_timers.is_empty() {
-                    println!("\n⏱️ Timer Update - Player {}:", seat_id);
+                    let player_name = self.get_player_name(seat_id as u32);
+                    println!("\n⏱️ Timer Update - {}:", player_name);
                     for timer in warning_timers {
                         println!("  {}", timer);
                     }
@@ -1021,63 +1168,82 @@ impl EventParser {
         Ok(())
     }
 
-    fn display_turn_info(&self, turn_info: &Value) -> Result<()> {
-        if let (Some(phase), Some(turn), Some(active_player)) = (
-            turn_info.get("phase").and_then(|v| v.as_str()),
-            turn_info.get("turnNumber").and_then(|v| v.as_u64()),
-            turn_info.get("activePlayer").and_then(|v| v.as_u64()),
-        ) {
+    fn display_turn_info(&mut self, turn_info: &Value) -> Result<()> {
+        if let Some(turn) = turn_info.get("turnNumber").and_then(|v| v.as_u64()) {
+            // Check if this is a new turn
+            if self
+                .current_match
+                .as_ref()
+                .map_or(true, |m| m.current_turn != turn as u32)
+            {
+                if let Some(active_player) = turn_info.get("activePlayer").and_then(|v| v.as_u64())
+                {
+                    let active_player_name = self.get_player_name(active_player as u32);
+                    println!("\n--- Turn {} ({}) ---", turn, active_player_name);
+
+                    // Update current turn in match state
+                    if let Some(ref mut match_state) = self.current_match {
+                        match_state.current_turn = turn as u32;
+                        match_state.active_player = active_player as usize;
+                    }
+                }
+            }
+        }
+
+        // Display phase and step information
+        if let Some(phase) = turn_info.get("phase").and_then(|v| v.as_str()) {
             let phase_display = match phase {
                 "Phase_Beginning" => "Beginning",
-                "Phase_Main1" => "Main 1",
+                "Phase_Main1" => "Main1",
                 "Phase_Combat" => "Combat",
-                "Phase_Main2" => "Main 2",
-                "Phase_Ending" => "End",
+                "Phase_Main2" => "Main2",
+                "Phase_Ending" => "Ending",
                 _ => phase,
             };
 
             // Check if we have a step
-            let step_info = if let Some(step) = turn_info.get("step").and_then(|v| v.as_str()) {
+            if let Some(step) = turn_info.get("step").and_then(|v| v.as_str()) {
                 let step_display = match step {
                     "Step_Untap" => "Untap",
                     "Step_Upkeep" => "Upkeep",
                     "Step_Draw" => "Draw",
-                    "Step_BeginCombat" => "Beginning of Combat",
+                    "Step_BeginCombat" => "Begin Combat",
                     "Step_DeclareAttack" => "Declare Attackers",
                     "Step_DeclareBlock" => "Declare Blockers",
                     "Step_FirstStrikeDamage" => "First Strike Damage",
                     "Step_CombatDamage" => "Combat Damage",
-                    "Step_EndCombat" => "End of Combat",
+                    "Step_EndCombat" => "End Combat",
                     "Step_End" => "End",
                     "Step_Cleanup" => "Cleanup",
                     _ => step,
                 };
-                format!(" - {}", step_display)
-            } else {
-                String::new()
-            };
+                println!("Phase: {}, Step: {}", phase_display, step_display);
 
-            println!(
-                "\n📍 Turn {} - Player {}'s {}{}",
-                turn, active_player, phase_display, step_info
-            );
-
-            // Show priority if different from active player
-            if let Some(priority_player) = turn_info.get("priorityPlayer").and_then(|v| v.as_u64())
-            {
-                if priority_player != active_player {
-                    println!("   Priority: Player {}", priority_player);
+                // Display life totals at the beginning of each phase
+                if step == "Step_Untap" || (phase == "Phase_Beginning" && step == "Step_Upkeep") {
+                    // TODO: Implement display_life_totals() method
+                    // self.display_life_totals();
                 }
-            }
 
-            // Show decision player if present
-            if let Some(decision_player) = turn_info.get("decisionPlayer").and_then(|v| v.as_u64())
-            {
-                if decision_player > 0 {
-                    println!("   Waiting for: Player {}", decision_player);
+                // Update phase in match state
+                if let Some(ref mut match_state) = self.current_match {
+                    match_state.phase = GamePhase::from(phase);
+                }
+            } else {
+                println!("Phase: {}", phase_display);
+            }
+        }
+
+        // Show priority if different from active player
+        if let Some(priority_player) = turn_info.get("priorityPlayer").and_then(|v| v.as_u64()) {
+            if let Some(active_player) = turn_info.get("activePlayer").and_then(|v| v.as_u64()) {
+                if priority_player != active_player {
+                    let priority_player_name = self.get_player_name(priority_player as u32);
+                    println!("  Priority: {}", priority_player_name);
                 }
             }
         }
+
         Ok(())
     }
 
@@ -1105,15 +1271,55 @@ impl EventParser {
                         _ => reason,
                     };
 
+                    let winner_name = self.get_player_name(winning_team as u32);
                     println!(
-                        "  {} Winner: Player {} ({})",
-                        scope_display, winning_team, reason_display
+                        "  {} Winner: {} ({})",
+                        scope_display, winner_name, reason_display
                     );
                 }
             }
         }
 
         Ok(())
+    }
+
+    fn format_mana_pool(&self, mana_pool: &Value) -> String {
+        let mut pool_str = String::new();
+
+        if let Some(pool_obj) = mana_pool.as_object() {
+            let mut mana_counts = Vec::new();
+
+            // Check each mana type
+            for (mana_type, symbol) in &[
+                ("w", "W"),
+                ("u", "U"),
+                ("b", "B"),
+                ("r", "R"),
+                ("g", "G"),
+                ("c", "C"),
+            ] {
+                if let Some(count) = pool_obj.get(*mana_type).and_then(|v| v.as_u64()) {
+                    if count > 0 {
+                        if count == 1 {
+                            mana_counts.push(format!("{{{}}}", symbol));
+                        } else {
+                            mana_counts.push(format!("{}{{{}}}", count, symbol));
+                        }
+                    }
+                }
+            }
+
+            // Check for generic/colorless mana
+            if let Some(generic) = pool_obj.get("generic").and_then(|v| v.as_u64()) {
+                if generic > 0 {
+                    mana_counts.push(format!("{{{}}}", generic));
+                }
+            }
+
+            pool_str = mana_counts.join("");
+        }
+
+        pool_str
     }
 
     fn format_mana_cost(&self, mana_cost: &[Value]) -> String {
@@ -1168,28 +1374,48 @@ impl EventParser {
             if let Some(action_type) = action_data.get("actionType").and_then(|v| v.as_str()) {
                 match action_type {
                     "ActionType_Activate_Mana" => {
-                        if let (Some(instance_id), Some(ability_id)) = (
-                            action_data.get("instanceId").and_then(|v| v.as_u64()),
-                            action_data.get("abilityGrpId").and_then(|v| v.as_u64()),
-                        ) {
+                        if let Some(instance_id) =
+                            action_data.get("instanceId").and_then(|v| v.as_u64())
+                        {
+                            let player_name = self.get_player_name(seat_id as u32);
+
                             // Look up the game object
                             if let Some(obj_info) = self.game_objects.get(&(instance_id as u32)) {
-                                println!(
-                                    "  🔴 Player {} taps object #{} for mana",
-                                    seat_id, instance_id
-                                );
+                                // Check if we have manaInfo to show what mana was produced
+                                if let Some(mana_info) = action_data.get("manaInfo") {
+                                    if let Some(mana_array) = mana_info.as_array() {
+                                        let mana_str = self.format_mana_cost(mana_array);
+                                        if !mana_str.is_empty() {
+                                            println!("  {} activates mana ability of object #{} producing {}", 
+                                                player_name, instance_id, mana_str);
+                                        } else {
+                                            println!(
+                                                "  {} activates mana ability of object #{}",
+                                                player_name, instance_id
+                                            );
+                                        }
+                                    } else {
+                                        println!(
+                                            "  {} activates mana ability of object #{}",
+                                            player_name, instance_id
+                                        );
+                                    }
+                                } else {
+                                    println!(
+                                        "  {} activates mana ability of object #{}",
+                                        player_name, instance_id
+                                    );
+                                }
 
                                 // Send async request to get card details
-                                if let Some(grp_id) = Some(obj_info.grp_id) {
-                                    let _ = async_tx.try_send(crate::companion::watch::async_processor::AsyncTask::FetchCardByGrpId {
-                                        grp_id,
-                                        context: format!("Tapped for mana by Player {}", seat_id),
-                                    });
-                                }
+                                let _ = async_tx.try_send(crate::companion::watch::async_processor::AsyncTask::FetchCardByGrpId {
+                                    grp_id: obj_info.grp_id,
+                                    context: format!("Tapped for mana by {}", player_name),
+                                });
                             } else {
                                 println!(
-                                    "  🔴 Player {} activates mana ability on #{}",
-                                    seat_id, instance_id
+                                    "  {} activates mana ability on object #{}",
+                                    player_name, instance_id
                                 );
                             }
                         }
@@ -1200,8 +1426,10 @@ impl EventParser {
                             action_data.get("abilityGrpId").and_then(|v| v.as_u64()),
                         ) {
                             println!(
-                                "  📜 Player {} activates ability {} on object #{}",
-                                seat_id, ability_id, instance_id
+                                "  📜 {} activates ability {} on object #{}",
+                                self.get_player_name(seat_id as u32),
+                                ability_id,
+                                instance_id
                             );
 
                             // Display mana cost if present
@@ -1218,24 +1446,109 @@ impl EventParser {
                             if let Some(obj_info) = self.game_objects.get(&(instance_id as u32)) {
                                 let _ = async_tx.try_send(crate::companion::watch::async_processor::AsyncTask::FetchCardByGrpId {
                                     grp_id: obj_info.grp_id,
-                                    context: format!("Ability activated by Player {}", seat_id),
+                                    context: format!("Ability activated by {}", self.get_player_name(seat_id as u32)),
                                 });
                             }
                         }
                     }
                     "ActionType_Cast" => {
                         if let Some(grp_id) = action_data.get("grpId").and_then(|v| v.as_u64()) {
-                            println!("  🎯 Player {} casts spell (grpId: {})", seat_id, grp_id);
+                            let player_name = self.get_player_name(seat_id as u32);
+                            print!("  {} casts ", player_name);
+
+                            // Display mana cost if present
+                            if let Some(mana_cost) =
+                                action_data.get("manaCost").and_then(|v| v.as_array())
+                            {
+                                let cost_str = self.format_mana_cost(mana_cost);
+                                if !cost_str.is_empty() {
+                                    print!("spell for {}", cost_str);
+                                }
+                            }
+                            println!();
 
                             // Send async request to get card details
                             let _ = async_tx.try_send(crate::companion::watch::async_processor::AsyncTask::FetchCardByGrpId {
                                 grp_id: grp_id as u32,
-                                context: format!("Cast by Player {}", seat_id),
+                                context: format!("Cast by {}", player_name),
                             });
                         }
                     }
+                    "ActionType_Play" => {
+                        if let Some(grp_id) = action_data.get("grpId").and_then(|v| v.as_u64()) {
+                            let player_name = self.get_player_name(seat_id as u32);
+                            println!("  {} plays land", player_name);
+
+                            // Send async request to get card details
+                            let _ = async_tx.try_send(crate::companion::watch::async_processor::AsyncTask::FetchCardByGrpId {
+                                grp_id: grp_id as u32,
+                                context: format!("Played by {}", player_name),
+                            });
+                        }
+                    }
+                    "ActionType_Pass" => {
+                        println!("  {} passes priority", self.get_player_name(seat_id as u32));
+                    }
+                    "ActionType_FloatMana" => {
+                        let player_name = self.get_player_name(seat_id as u32);
+
+                        // Check if manaInfo is an array (similar to manaCost)
+                        if let Some(mana_info) = action_data.get("manaInfo") {
+                            if let Some(mana_array) = mana_info.as_array() {
+                                let mana_str = self.format_mana_cost(mana_array);
+                                if !mana_str.is_empty() {
+                                    println!("  {} floats {}", player_name, mana_str);
+                                } else {
+                                    println!("  {} floats mana", player_name);
+                                }
+                            } else if let Some(mana_obj) = mana_info.as_object() {
+                                // Handle if manaInfo is an object with different structure
+                                let mut mana_details = Vec::new();
+
+                                // Check for common mana color fields
+                                for (color_key, symbol) in &[
+                                    ("white", "W"),
+                                    ("blue", "U"),
+                                    ("black", "B"),
+                                    ("red", "R"),
+                                    ("green", "G"),
+                                    ("colorless", "C"),
+                                    ("generic", ""),
+                                ] {
+                                    if let Some(count) =
+                                        mana_obj.get(*color_key).and_then(|v| v.as_u64())
+                                    {
+                                        if count > 0 {
+                                            if color_key == &"generic" {
+                                                mana_details.push(format!("{{{}}}", count));
+                                            } else {
+                                                for _ in 0..count {
+                                                    mana_details.push(format!("{{{}}}", symbol));
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if !mana_details.is_empty() {
+                                    println!("  {} floats {}", player_name, mana_details.join(""));
+                                } else {
+                                    println!("  {} floats mana", player_name);
+                                }
+                            } else {
+                                // Fallback if structure is unknown
+                                println!("  {} floats mana", player_name);
+                            }
+                        } else {
+                            println!("  {} floats mana", player_name);
+                        }
+                    }
                     _ => {
-                        println!("  ❓ Player {} performs {}", seat_id, action_type);
+                        println!(
+                            "  {} performs {}",
+                            self.get_player_name(seat_id as u32),
+                            action_type
+                        );
                     }
                 }
             }
@@ -1270,6 +1583,24 @@ impl EventParser {
                         card_name: None,
                     },
                 );
+
+                // Track initial hand cards
+                if zone_name == "Hand" && is_new {
+                    if let Some(ref mut match_state) = self.current_match {
+                        if let Some(player) = match_state
+                            .players
+                            .iter_mut()
+                            .find(|p| p.seat_id == owner as u32)
+                        {
+                            player.initial_hand.push(CardInstance {
+                                instance_id: instance_id as u32,
+                                grp_id: grp_id as u32,
+                                card_info: None,
+                                zone: Zone::Hand,
+                            });
+                        }
+                    }
+                }
 
                 // If it's a new object in a visible zone, announce it
                 if is_new && (zone == 3 || zone == 28 || zone == 5) {
@@ -1349,7 +1680,7 @@ impl EventParser {
         Ok(())
     }
 
-    fn process_players_diff(&self, players: &[Value]) -> Result<()> {
+    fn process_players_diff(&mut self, players: &[Value]) -> Result<()> {
         let mut has_changes = false;
         let mut status_lines = Vec::new();
 
@@ -1373,6 +1704,17 @@ impl EventParser {
                     None
                 };
 
+                // Update match state
+                if let Some(ref mut match_state) = self.current_match {
+                    if let Some(player) = match_state
+                        .players
+                        .iter_mut()
+                        .find(|p| p.seat_id == seat as u32)
+                    {
+                        player.life_total = life as i32;
+                    }
+                }
+
                 if let Some(prev) = prev_life {
                     if prev != life {
                         has_changes = true;
@@ -1383,13 +1725,18 @@ impl EventParser {
                         } else {
                             diff.to_string()
                         };
+                        let player_name = self.get_player_name(seat as u32);
                         status_lines.push(format!(
-                            "  {} Player {}: {} → {} life ({})",
-                            symbol, seat, prev, life, change_str
+                            "  {} {}: {} → {} life ({})",
+                            symbol, player_name, prev, life, change_str
                         ));
+
+                        // Also display inline life change
+                        println!("  {} Life: {}", player_name, life);
                     }
                 } else {
-                    status_lines.push(format!("  Player {}: {} life", seat, life));
+                    let player_name = self.get_player_name(seat as u32);
+                    status_lines.push(format!("  {}: {} life", player_name, life));
                 }
 
                 // Also check for status changes
@@ -1561,23 +1908,49 @@ impl EventParser {
 
                 for affected_id in affected_ids {
                     if let Some(instance_id) = affected_id.as_u64() {
-                        println!("\n🎭 Zone Transfer: {}", category);
-
                         // Look up the game object
                         if let Some(obj_info) = self.game_objects.get(&(instance_id as u32)) {
-                            println!(
-                                "  Object #{} moved from {} to {}",
-                                instance_id, zone_from, zone_to
-                            );
+                            let player_name = self.get_player_name(obj_info.owner);
+
+                            // Format the output based on the category
+                            match category.as_str() {
+                                "PlayLand" => {
+                                    println!("  {} plays land", player_name);
+                                }
+                                "CastSpell" => {
+                                    // This is handled by the action display
+                                }
+                                "Resolve" => {
+                                    if zone_to == "Battlefield" {
+                                        println!("    Spell enters the battlefield");
+                                    }
+                                }
+                                "Discard" => {
+                                    println!("  {} discards a card", player_name);
+                                }
+                                "Draw" => {
+                                    println!("  {} draws a card", player_name);
+                                }
+                                _ => {
+                                    // Only show other transfers if they're significant
+                                    if zone_from != zone_to
+                                        && (zone_to == "Battlefield"
+                                            || zone_to == "Graveyard"
+                                            || zone_to == "Exile")
+                                    {
+                                        println!("  Card moved from {} to {}", zone_from, zone_to);
+                                    }
+                                }
+                            }
 
                             // Send async request to get card details
                             let context = match category.as_str() {
-                                "PlayLand" => format!("Land played from {}", zone_from),
-                                "CastSpell" => format!("Spell cast from {}", zone_from),
-                                "Resolve" => format!("Spell resolved to {}", zone_to),
-                                "Discard" => format!("Discarded from {}", zone_from),
-                                "Draw" => format!("Drawn from {}", zone_from),
-                                _ => format!("Moved from {} to {}", zone_from, zone_to),
+                                "PlayLand" => format!("{} played land", player_name),
+                                "CastSpell" => format!("{} cast spell", player_name),
+                                "Resolve" => format!("Entered {}", zone_to),
+                                "Discard" => format!("{} discarded", player_name),
+                                "Draw" => format!("{} drew", player_name),
+                                _ => format!("Moved to {}", zone_to),
                             };
 
                             let _ = async_tx.try_send(crate::companion::watch::async_processor::AsyncTask::FetchCardByGrpId {
@@ -1622,10 +1995,40 @@ impl EventParser {
                     _ => "Unknown",
                 };
 
-                println!(
-                    "  👤 Player {} performed {} action",
-                    affector_id, action_name
-                );
+                let player_name = self.get_player_name(affector_id as u32);
+
+                // Get more details about the action
+                match action_type {
+                    4 => {
+                        // Attack
+                        println!("  ⚔️ {} declares attackers!", player_name);
+                        if let Some(affected_ids) =
+                            annotation.get("affectedIds").and_then(|v| v.as_array())
+                        {
+                            for obj_id in affected_ids {
+                                if let Some(id) = obj_id.as_u64() {
+                                    println!("    → Creature #{} is attacking", id);
+                                }
+                            }
+                        }
+                    }
+                    5 => {
+                        // Block
+                        println!("  🛡️ {} declares blockers!", player_name);
+                        if let Some(affected_ids) =
+                            annotation.get("affectedIds").and_then(|v| v.as_array())
+                        {
+                            for obj_id in affected_ids {
+                                if let Some(id) = obj_id.as_u64() {
+                                    println!("    → Creature #{} is blocking", id);
+                                }
+                            }
+                        }
+                    }
+                    _ => {
+                        println!("  👤 {} performed {} action", player_name, action_name);
+                    }
+                }
             }
         }
         Ok(())
@@ -1682,10 +2085,35 @@ impl EventParser {
             }
 
             if damage > 0 {
-                println!(
-                    "  💥 {} damage dealt from #{} to #{}",
-                    damage, source, target
-                );
+                // Check if target is a player (low instance IDs are usually players)
+                if target <= 10 {
+                    let target_player = self.get_player_name(target as u32);
+
+                    // Check if source is a known game object
+                    if let Some(source_obj) = self.game_objects.get(&(source as u32)) {
+                        println!(
+                            "  {} takes {} damage from object #{}",
+                            target_player, damage, source
+                        );
+                    } else {
+                        println!("  {} takes {} damage", target_player, damage);
+                    }
+                } else {
+                    // Damage to a creature or other permanent
+                    let source_info = self
+                        .game_objects
+                        .get(&(source as u32))
+                        .map(|obj| format!("object #{}", source))
+                        .unwrap_or_else(|| format!("source #{}", source));
+
+                    let target_info = self
+                        .game_objects
+                        .get(&(target as u32))
+                        .map(|obj| format!("object #{}", target))
+                        .unwrap_or_else(|| format!("target #{}", target));
+
+                    println!("  {} damage dealt to {}", damage, target_info);
+                }
             }
         }
         Ok(())
@@ -1719,7 +2147,8 @@ impl EventParser {
                 } else {
                     life_change.to_string()
                 };
-                println!("  {} Player {} life {}", symbol, player, change_str);
+                let player_name = self.get_player_name(player as u32);
+                println!("  {} {} life {}", symbol, player_name, change_str);
             }
         }
         Ok(())
@@ -1771,10 +2200,37 @@ impl EventParser {
                     _ => "",
                 };
 
+                // Get the active player for this phase
+                let active_player_name =
+                    if let Some(player_id) = affected_ids.first().and_then(|v| v.as_u64()) {
+                        self.get_player_name(player_id as u32)
+                    } else {
+                        "Active player".to_string()
+                    };
+
                 if !step_name.is_empty() {
-                    println!("  📍 Phase/Step: {} - {}", phase_name, step_name);
+                    match (phase, step) {
+                        (1, 1) => println!("  📍 {} untaps their permanents", active_player_name),
+                        (1, 2) => println!("  📍 {}'s upkeep step", active_player_name),
+                        (1, 3) => println!("  📍 {} draws for turn", active_player_name),
+                        (3, 1) => {
+                            println!("  ⚔️ Beginning of {}'s combat phase", active_player_name)
+                        }
+                        (3, 2) => println!("  ⚔️ {} may declare attackers", active_player_name),
+                        (3, 3) => println!("  🛡️ Opponents may declare blockers"),
+                        (3, 4) => println!("  💥 First strike damage step"),
+                        (3, 5) => println!("  💥 Regular damage step"),
+                        (3, 6) => println!("  ⚔️ End of combat"),
+                        (5, 1) => println!("  📍 {}'s end step", active_player_name),
+                        (5, 10) => println!("  📍 Cleanup step"),
+                        _ => println!("  📍 {} - {}", phase_name, step_name),
+                    }
                 } else if phase > 0 {
-                    println!("  📍 Phase: {}", phase_name);
+                    match phase {
+                        2 => println!("  📍 {}'s first main phase", active_player_name),
+                        4 => println!("  📍 {}'s second main phase", active_player_name),
+                        _ => println!("  📍 {} phase", phase_name),
+                    }
                 }
             }
         }
@@ -1788,8 +2244,9 @@ impl EventParser {
         ) {
             for affected_id in affected_ids {
                 if let Some(player_id) = affected_id.as_u64() {
+                    let player_name = self.get_player_name(player_id as u32);
                     println!("\n🔄 New Turn Started!");
-                    println!("  Active Player: Player {}", player_id);
+                    println!("  Active Player: {}", player_name);
                 }
             }
         }
@@ -1811,10 +2268,21 @@ impl EventParser {
 
                 for affected_id in affected_ids {
                     if let Some(instance_id) = affected_id.as_u64() {
-                        if tapped {
-                            println!("  ⚡ Object #{} tapped", instance_id);
-                        } else {
-                            println!("  ♻️ Object #{} untapped", instance_id);
+                        // Look up the game object for more context
+                        let obj_desc =
+                            if let Some(obj_info) = self.game_objects.get(&(instance_id as u32)) {
+                                if let Some(ref name) = obj_info.card_name {
+                                    format!("{} ({})", name, obj_info.zone)
+                                } else {
+                                    format!("object #{} ({})", instance_id, obj_info.zone)
+                                }
+                            } else {
+                                format!("object #{}", instance_id)
+                            };
+
+                        if !tapped {
+                            // Only show untap during untap step
+                            println!("  {} untaps", obj_desc);
                         }
                     }
                 }
@@ -2743,10 +3211,6 @@ impl EventParser {
         // Return the first event if any were generated
         Ok(events.into_iter().next())
     }
-
-    pub fn current_match(&self) -> Option<&MatchState> {
-        self.current_match.as_ref()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -2827,5 +3291,65 @@ mod tests {
         assert_eq!(to_camel_case("hello_world"), "helloWorld");
         assert_eq!(to_camel_case("test_case"), "testCase");
         assert_eq!(to_camel_case("single"), "single");
+    }
+
+    #[test]
+    fn test_format_mana_cost() {
+        let parser = EventParser::new();
+
+        // Test generic mana
+        let generic_mana = serde_json::json!([
+            {"color": ["ManaColor_Generic"], "count": 3}
+        ]);
+        assert_eq!(
+            parser.format_mana_cost(generic_mana.as_array().unwrap()),
+            "{3}"
+        );
+
+        // Test colored mana
+        let colored_mana = serde_json::json!([
+            {"color": ["ManaColor_Red"], "count": 2},
+            {"color": ["ManaColor_Blue"], "count": 1}
+        ]);
+        assert_eq!(
+            parser.format_mana_cost(colored_mana.as_array().unwrap()),
+            "{R}{R}{U}"
+        );
+
+        // Test mixed mana
+        let mixed_mana = serde_json::json!([
+            {"color": ["ManaColor_Generic"], "count": 2},
+            {"color": ["ManaColor_White"], "count": 1},
+            {"color": ["ManaColor_Black"], "count": 1}
+        ]);
+        assert_eq!(
+            parser.format_mana_cost(mixed_mana.as_array().unwrap()),
+            "{2}{W}{B}"
+        );
+    }
+
+    #[test]
+    fn test_format_mana_pool() {
+        let parser = EventParser::new();
+
+        // Test mana pool with multiple colors
+        let mana_pool = serde_json::json!({
+            "w": 2,
+            "u": 1,
+            "b": 0,
+            "r": 3,
+            "g": 1,
+            "c": 0,
+            "generic": 4
+        });
+
+        let result = parser.format_mana_pool(&mana_pool);
+        assert!(result.contains("2{W}"));
+        assert!(result.contains("{U}"));
+        assert!(result.contains("3{R}"));
+        assert!(result.contains("{G}"));
+        assert!(result.contains("{4}"));
+        assert!(!result.contains("{B}")); // Should not include zero counts
+        assert!(!result.contains("{C}")); // Should not include zero counts
     }
 }

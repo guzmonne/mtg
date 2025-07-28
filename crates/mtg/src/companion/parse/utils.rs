@@ -47,12 +47,22 @@ pub fn get_default_log_path() -> Result<PathBuf> {
 pub fn find_newest_log_file(dir: &Path) -> Result<PathBuf> {
     let mut newest_file = None;
     let mut newest_time = std::time::SystemTime::UNIX_EPOCH;
+    let mut log_files_found = 0;
+
+    if !dir.exists() {
+        return Err(eyre!("Directory does not exist: {:?}", dir));
+    }
+
+    if !dir.is_dir() {
+        return Err(eyre!("Path is not a directory: {:?}", dir));
+    }
 
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
 
         if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("log") {
+            log_files_found += 1;
             let metadata = entry.metadata()?;
             if let Ok(modified) = metadata.modified() {
                 if modified > newest_time {
@@ -63,5 +73,14 @@ pub fn find_newest_log_file(dir: &Path) -> Result<PathBuf> {
         }
     }
 
-    newest_file.ok_or_else(|| eyre!("No log files found in directory"))
+    newest_file.ok_or_else(|| {
+        if log_files_found == 0 {
+            eyre!("No log files found in directory: {:?}", dir)
+        } else {
+            eyre!(
+                "Found {} log files but couldn't determine newest",
+                log_files_found
+            )
+        }
+    })
 }

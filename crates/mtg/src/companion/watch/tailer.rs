@@ -45,9 +45,6 @@ impl LogTailer {
             self.state_manager.current_state().bytes_read
         );
 
-        let mut last_status = std::time::Instant::now();
-        let status_interval = Duration::from_secs(30);
-
         loop {
             let events = self.read_new_events().await?;
 
@@ -55,13 +52,6 @@ impl LogTailer {
                 if let Err(e) = callback(event) {
                     aeprintln!("Error processing event: {}", e);
                 }
-            }
-
-            // Show periodic status message
-            if last_status.elapsed() > status_interval {
-                let current_pos = self.state_manager.current_state().bytes_read;
-                aeprintln!("⏳ Still watching... (position: {})", current_pos);
-                last_status = std::time::Instant::now();
             }
 
             // Check for new log files (Arena creates new files periodically)
@@ -260,14 +250,27 @@ impl LogTailer {
                     after_arrow.trim().to_string()
                 };
 
-                // For incoming events, JSON data is on the next line after the arrow line
-                // Skip empty lines and find the JSON data
+                let event_name = if let Some(paren_pos) = after_arrow.find('(') {
+                    after_arrow[..paren_pos].trim().to_string()
+                } else {
+                    after_arrow.trim().to_string()
+                };
+
+                // For incoming events, JSON data can be on the same line or the next line.
+                // First, try to find JSON on the current line after the event name.
                 let mut json_data = String::new();
-                for line in lines.iter().skip(line_idx + 1) {
-                    let line = line.trim();
-                    if !line.is_empty() && (line.starts_with('{') || line.starts_with('[')) {
-                        json_data = line.to_string();
-                        break;
+                if let Some(json_start) = after_arrow.find('{') {
+                    json_data = after_arrow[json_start..].to_string();
+                } else if let Some(json_start) = after_arrow.find('[') {
+                    json_data = after_arrow[json_start..].to_string();
+                } else {
+                    // If not found on the current line, check the next line
+                    for line in lines.iter().skip(line_idx + 1) {
+                        let line = line.trim();
+                        if !line.is_empty() && (line.starts_with('{') || line.starts_with('[')) {
+                            json_data = line.to_string();
+                            break;
+                        }
                     }
                 }
 
