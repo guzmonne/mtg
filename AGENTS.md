@@ -13,11 +13,15 @@
 - `bacon` - Watch mode (default: check), use `bacon test` for tests
 
 ## Git Hooks
-- **Pre-commit hook**: Automatically runs `cargo fmt` before each commit
+- **Pre-commit hook**: Automatically runs quality checks before each commit
   - Located at `.git/hooks/pre-commit`
-  - Ensures consistent code formatting across all commits
+  - Runs three checks in sequence:
+    1. `cargo fmt` - Ensures consistent code formatting (auto-fixes if needed)
+    2. `cargo check` - Verifies code compiles without errors
+    3. `cargo test` - Runs all tests to ensure they pass
   - If formatting issues are found, it automatically fixes them and requires re-staging
-  - Hook will pass if no Rust files are being committed
+  - Hook will skip checks if no Rust files are being committed
+  - All checks must pass for the commit to proceed
 
 ### Installing Git Hooks
 Use the installation script to set up git hooks for new development environments:

@@ -87,7 +87,7 @@ install_pre_commit_hook() {
     cat > "$hook_file" << 'EOF'
 #!/bin/sh
 #
-# Pre-commit hook that runs cargo fmt to ensure consistent code formatting
+# Pre-commit hook that runs cargo fmt, cargo check, and cargo test to ensure code quality
 #
 
 # Check if cargo is available
@@ -102,9 +102,18 @@ if [ ! -f "Cargo.toml" ]; then
     exit 1
 fi
 
-echo "Running cargo fmt..."
+# Check if there are any staged Rust files
+rust_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(rs)$')
+if [ -z "$rust_files" ]; then
+    echo "No Rust files staged for commit, skipping checks..."
+    exit 0
+fi
 
-# Run cargo fmt and check if any files were modified
+echo "🔍 Running pre-commit checks on staged Rust files..."
+echo ""
+
+# 1. Run cargo fmt
+echo "📝 Running cargo fmt..."
 cargo fmt --all -- --check >/dev/null 2>&1
 fmt_exit_code=$?
 
@@ -112,18 +121,42 @@ if [ $fmt_exit_code -ne 0 ]; then
     echo "Code formatting issues detected. Running cargo fmt to fix them..."
     cargo fmt --all
     
-    # Check if there are any staged Rust files that need to be re-staged after formatting
-    rust_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(rs)$')
-    
+    # Re-stage formatted Rust files
     if [ -n "$rust_files" ]; then
         echo "Re-staging formatted Rust files..."
         echo "$rust_files" | xargs git add
-        echo "Files have been formatted and re-staged. Please review the changes and commit again."
+        echo ""
+        echo "❌ Files have been formatted and re-staged. Please review the changes and commit again."
         exit 1
     fi
 fi
 
 echo "✅ Code formatting check passed"
+echo ""
+
+# 2. Run cargo check
+echo "🔧 Running cargo check..."
+if ! cargo check --all 2>&1; then
+    echo ""
+    echo "❌ Cargo check failed. Please fix the compilation errors before committing."
+    exit 1
+fi
+
+echo "✅ Cargo check passed"
+echo ""
+
+# 3. Run cargo test
+echo "🧪 Running cargo test..."
+if ! cargo test --all 2>&1; then
+    echo ""
+    echo "❌ Tests failed. Please fix the failing tests before committing."
+    exit 1
+fi
+
+echo "✅ All tests passed"
+echo ""
+
+echo "✨ All pre-commit checks passed successfully!"
 exit 0
 EOF
 
@@ -236,7 +269,10 @@ main() {
         print_success "Git hooks installation completed!"
         echo ""
         print_info "The following hooks have been installed:"
-        echo "  • pre-commit: Runs 'cargo fmt' to ensure code formatting"
+        echo "  • pre-commit: Runs the following checks:"
+        echo "    - cargo fmt: Ensures consistent code formatting"
+        echo "    - cargo check: Verifies code compiles without errors"
+        echo "    - cargo test: Runs all tests to ensure they pass"
         echo ""
         print_info "These hooks will now run automatically on git operations."
         print_info "To test the hooks manually, run: $0 --test"
