@@ -1,6 +1,7 @@
 #![allow(clippy::large_enum_variant)]
 #![allow(clippy::uninlined_format_args)]
 use prettytable::{format, Cell, Row};
+use std::str::FromStr;
 
 use crate::prelude::*;
 use clap::Parser;
@@ -148,6 +149,8 @@ pub enum SubCommands {
 }
 
 async fn handle_sets_command(command: SetCommands, global: Global) -> Result<()> {
+    use mtg_core::scryfall::sets::{SetListParams, SetType};
+
     match command {
         SetCommands::List {
             set_type,
@@ -157,10 +160,11 @@ async fn handle_sets_command(command: SetCommands, global: Global) -> Result<()>
             digital_only,
             pretty,
         } => {
-            let set_type_enum = if let Some(type_str) = set_type {
-                match sets::SetType::from_str(&type_str) {
-                    Some(t) => Some(t),
-                    None => {
+            let set_type_enum: Option<SetType> = if let Some(type_str) = set_type {
+                match SetType::from_str(&type_str) {
+                    Ok(t) => Some(t),
+                    Err(e) => {
+                        aeprintln!("Error: {e}");
                         aeprintln!(
                             "Invalid set type: {type_str}. Use 'mtg sets types' to see available types."
                         );
@@ -171,7 +175,7 @@ async fn handle_sets_command(command: SetCommands, global: Global) -> Result<()>
                 None
             };
 
-            let params = sets::SetListParams {
+            let params = SetListParams {
                 set_type: set_type_enum,
                 released_after,
                 released_before,
@@ -199,7 +203,7 @@ async fn handle_sets_command(command: SetCommands, global: Global) -> Result<()>
         SetCommands::Types => {
             println!("Available set types:");
             println!();
-            for set_type in sets::SetType::all() {
+            for set_type in SetType::all() {
                 println!("  {:<20} - {}", set_type.as_str(), set_type.description());
             }
         }
@@ -207,7 +211,7 @@ async fn handle_sets_command(command: SetCommands, global: Global) -> Result<()>
     Ok(())
 }
 
-fn display_sets_table(sets_list: &sets::ScryfallSetList) -> Result<()> {
+fn display_sets_table(sets_list: &mtg_core::scryfall::sets::ScryfallSetList) -> Result<()> {
     let mut table = new_table();
     table.add_row(Row::new(vec![
         Cell::new("Code"),
@@ -246,7 +250,7 @@ fn display_sets_table(sets_list: &sets::ScryfallSetList) -> Result<()> {
     Ok(())
 }
 
-fn display_set_details(set: &sets::ScryfallSet) -> Result<()> {
+fn display_set_details(set: &mtg_core::scryfall::sets::ScryfallSet) -> Result<()> {
     let mut table = new_table();
     table.set_format(*format::consts::FORMAT_CLEAN);
 
