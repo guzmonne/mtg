@@ -7,6 +7,9 @@ use clap::Parser;
 
 mod api;
 mod cache;
+// Companion module is only available on macOS and Windows since MTG Arena
+// is not available on Linux platforms
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 mod companion;
 mod completions;
 mod decks;
@@ -140,6 +143,7 @@ pub enum SubCommands {
     },
 
     /// Track and analyze MTG Arena log files
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     Companion(crate::companion::App),
 }
 
@@ -322,6 +326,7 @@ async fn main() -> Result<()> {
                 crate::mcp::run_sse_server(app.global, host, port).await
             }
         },
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
         SubCommands::Companion(sub_app) => crate::companion::run(sub_app, app.global).await,
     }
     .map_err(|err: color_eyre::eyre::Report| eyre!(err))

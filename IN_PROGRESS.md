@@ -3,6 +3,8 @@
 ## Overview
 The `mtg companion watch` command is a comprehensive real-time log parser for MTG Arena that provides tournament-level detail for every game action. It monitors game events and displays them in a user-friendly format with full card details from Scryfall.
 
+**Platform Support**: This feature is only available on macOS and Windows, as MTG Arena is not available on Linux.
+
 ## Current Status: ✅ Feature Complete
 
 ### Core Features Implemented

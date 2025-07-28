@@ -88,6 +88,7 @@ crates/mtg/src/
 ### Companion Watch System
 - **Purpose**: Real-time monitoring of MTG Arena logs with comprehensive game state tracking
 - **Status**: ✅ Feature Complete (see [IN_PROGRESS.md](./IN_PROGRESS.md) for full documentation)
+- **Platform**: macOS and Windows only (MTG Arena is not available on Linux)
 - **Location**: `crates/mtg/src/companion/watch/`
 - **Key files**:
   - `tailer.rs` - Log file monitoring with state management

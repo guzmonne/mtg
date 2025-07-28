@@ -19,6 +19,7 @@ MTG CLI is a comprehensive command-line tool that provides access to Magic: The 
 - **Type Information**: Access comprehensive card types, subtypes, supertypes, and game formats
 - **Shell Completions**: Auto-completion support for Bash, Zsh, Fish, PowerShell, and Elvish
 - **High Performance**: Async operations with built-in caching and timeout controls
+- **MTG Arena Companion** (macOS/Windows only): Real-time log monitoring and game state tracking
 
 ### AI Integration (MCP)
 
