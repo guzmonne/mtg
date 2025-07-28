@@ -133,6 +133,21 @@ impl Global {
 
         builder.build()
     }
+
+    /// Create a configured GathererClient from global options
+    pub fn create_gatherer_client(&self) -> Result<mtg_core::GathererClient> {
+        let mut builder = mtg_core::GathererClient::builder()
+            .timeout_secs(self.timeout)
+            .verbose(self.verbose)
+            .enable_cache(!self.no_cache)
+            .cache_ttl_hours(self.cache_ttl_hours);
+
+        if let Some(ref cache_dir) = self.cache_dir {
+            builder = builder.cache_dir(cache_dir);
+        }
+
+        builder.build().map_err(|e| eyre!(e))
+    }
 }
 
 #[derive(Debug, clap::Parser)]

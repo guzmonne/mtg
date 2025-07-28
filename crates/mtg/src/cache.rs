@@ -56,33 +56,6 @@ impl CacheManager {
         format!("{:x}", hasher.finalize())
     }
 
-    pub fn hash_gatherer_search_request(
-        url: &str,
-        payload: &serde_json::Value,
-        headers: &[(String, String)],
-    ) -> String {
-        let mut hasher = Sha256::new();
-
-        // Hash the URL
-        hasher.update(url.as_bytes());
-
-        // Hash the payload
-        hasher.update(payload.to_string().as_bytes());
-
-        // Hash relevant headers (excluding dynamic ones like timestamps)
-        let relevant_headers: Vec<_> = headers
-            .iter()
-            .filter(|(k, _)| !matches!(k.as_str(), "date" | "x-request-id" | "x-trace-id"))
-            .collect();
-
-        for (key, value) in relevant_headers {
-            hasher.update(key.as_bytes());
-            hasher.update(value.as_bytes());
-        }
-
-        format!("{:x}", hasher.finalize())
-    }
-
     pub fn get_cache_path(&self, hash: &str) -> PathBuf {
         self.cache_dir.join(format!("{hash}.json"))
     }

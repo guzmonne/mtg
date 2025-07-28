@@ -1,8 +1,6 @@
-use crate::cache::CacheManager;
 use crate::prelude::*;
+use mtg_core::{GathererCard, GathererClient, GathererSearchParams, GathererSearchResponse};
 use prettytable::{Cell, Row};
-use serde::Serialize;
-use serde_json::Value;
 
 #[derive(Debug, clap::Parser)]
 pub struct App {
@@ -97,74 +95,9 @@ pub enum SubCommands {
     },
 }
 
-#[derive(Debug, Serialize)]
-struct SearchRequest {
-    #[serde(rename = "searchTerm")]
-    search_term: String,
-    #[serde(rename = "cardName")]
-    card_name: String,
-    rules: String,
-    #[serde(rename = "instanceSuperType")]
-    instance_super_type: String,
-    #[serde(rename = "instanceType")]
-    instance_type: String,
-    #[serde(rename = "instanceSubtype")]
-    instance_subtype: String,
-    colors: String,
-    #[serde(rename = "commanderColor")]
-    commander_color: String,
-    #[serde(rename = "manaCost")]
-    mana_cost: String,
-    #[serde(rename = "formatLegalities")]
-    format_legalities: String,
-    #[serde(rename = "setName")]
-    set_name: String,
-    #[serde(rename = "rarityName")]
-    rarity_name: String,
-    #[serde(rename = "artistName")]
-    artist_name: String,
-    power: String,
-    toughness: String,
-    loyalty: String,
-    #[serde(rename = "flavorText")]
-    flavor_text: String,
-    language: String,
-    #[serde(rename = "cardPrints")]
-    card_prints: String,
-    #[serde(rename = "extraCards")]
-    extra_cards: String,
-    page: String,
-}
-
-impl Default for SearchRequest {
-    fn default() -> Self {
-        Self {
-            search_term: "$undefined".to_string(),
-            card_name: "$undefined".to_string(),
-            rules: "$undefined".to_string(),
-            instance_super_type: "$undefined".to_string(),
-            instance_type: "$undefined".to_string(),
-            instance_subtype: "$undefined".to_string(),
-            colors: "$undefined".to_string(),
-            commander_color: "$undefined".to_string(),
-            mana_cost: "$undefined".to_string(),
-            format_legalities: "$undefined".to_string(),
-            set_name: "$undefined".to_string(),
-            rarity_name: "$undefined".to_string(),
-            artist_name: "$undefined".to_string(),
-            power: "$undefined".to_string(),
-            toughness: "$undefined".to_string(),
-            loyalty: "$undefined".to_string(),
-            flavor_text: "$undefined".to_string(),
-            language: "eq~English~en-us".to_string(),
-            card_prints: "$undefined".to_string(),
-            extra_cards: "$undefined".to_string(),
-            page: "$undefined".to_string(),
-        }
-    }
-}
-
 pub async fn run(app: App, global: crate::Global) -> Result<()> {
+    let client = global.create_gatherer_client()?;
+
     match app.command {
         SubCommands::Search {
             name,
@@ -186,111 +119,68 @@ pub async fn run(app: App, global: crate::Global) -> Result<()> {
             pretty,
             page,
         } => {
-            search_cards(
-                SearchParams {
-                    name,
-                    rules,
-                    card_type,
-                    subtype,
-                    supertype,
-                    mana_cost,
-                    set,
-                    rarity,
-                    artist,
-                    power,
-                    toughness,
-                    loyalty,
-                    flavor,
-                    colors,
-                    format,
-                    language,
-                    pretty,
-                    page,
-                },
-                global,
-            )
-            .await
+            let params = GathererSearchParams {
+                name,
+                rules,
+                card_type,
+                subtype,
+                supertype,
+                mana_cost,
+                set,
+                rarity,
+                artist,
+                power,
+                toughness,
+                loyalty,
+                flavor,
+                colors,
+                format,
+                language,
+                page,
+            };
+
+            search_cards(&client, &params, pretty).await
         }
-        SubCommands::Card { name, pretty } => get_card(&name, pretty, global).await,
+        SubCommands::Card { name, pretty } => get_card(&client, &name, pretty).await,
     }
 }
 
-pub struct SearchParams {
-    pub name: Option<String>,
-    pub rules: Option<String>,
-    pub card_type: Option<String>,
-    pub subtype: Option<String>,
-    pub supertype: Option<String>,
-    pub mana_cost: Option<String>,
-    pub set: Option<String>,
-    pub rarity: Option<String>,
-    pub artist: Option<String>,
-    pub power: Option<String>,
-    pub toughness: Option<String>,
-    pub loyalty: Option<String>,
-    pub flavor: Option<String>,
-    pub colors: Option<String>,
-    pub format: Option<String>,
-    pub language: Option<String>,
-    pub pretty: bool,
-    pub page: u32,
-}
+async fn search_cards(
+    client: &GathererClient,
+    params: &GathererSearchParams,
+    pretty: bool,
+) -> Result<()> {
+    let response = client.search(params).await.map_err(|e| eyre!(e))?;
 
-fn parse_server_action_response(response: &str) -> Result<Option<Value>> {
-    // Next.js server action responses have format:
-    // 0:{"a":"$@1","f":"","b":"..."}
-    // 1:{"apiVersion":"1","method":"CardData.search","data":{...}}
-
-    for line in response.lines() {
-        if let Some(colon_pos) = line.find(':') {
-            let json_part = &line[colon_pos + 1..];
-
-            // Try to parse this line as JSON
-            if let Ok(parsed) = serde_json::from_str::<Value>(json_part) {
-                // Look for the card data in the response
-                if let Some(data) = parsed.get("data") {
-                    return Ok(Some(data.clone()));
-                }
-                // If this line contains card data directly, return it
-                if parsed.get("apiVersion").is_some() || parsed.get("kind").is_some() {
-                    return Ok(Some(parsed));
-                }
-            }
-        }
+    if pretty {
+        display_pretty_results(&response, params)?;
+    } else {
+        println!("{}", serde_json::to_string_pretty(&response)?);
     }
 
-    // If no structured data found, try parsing the entire response as JSON
-    match serde_json::from_str::<Value>(response) {
-        Ok(json) => Ok(Some(json)),
-        Err(_) => Ok(None),
+    Ok(())
+}
+
+async fn get_card(client: &GathererClient, name: &str, pretty: bool) -> Result<()> {
+    let card = client.get_card(name).await.map_err(|e| eyre!(e))?;
+
+    if pretty {
+        display_single_card_details(&card)?;
+    } else {
+        println!("{}", serde_json::to_string_pretty(&card)?);
     }
+
+    Ok(())
 }
 
-fn decode_html_entities(text: &str) -> String {
-    text.replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&amp;", "&")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .replace("&apos;", "'")
-        .replace("&nbsp;", " ")
-        .replace("<i>", "") // Remove italic tags for terminal display
-        .replace("</i>", "")
-        .replace("<b>", "") // Remove bold tags
-        .replace("</b>", "")
-        .replace("<br>", "\n")
-        .replace("<br/>", "\n")
-        .replace("<br />", "\n")
-}
-
-fn display_pretty_results(data: &Value, params: &SearchParams) -> Result<()> {
-    let total_pages = data.get("totalPages").and_then(|v| v.as_u64()).unwrap_or(1);
-    let current_page = data.get("pageIndex").and_then(|v| v.as_u64()).unwrap_or(1);
-    let total_items = data.get("totalItems").and_then(|v| v.as_u64()).unwrap_or(0);
-    let current_items = data
-        .get("currentItemCount")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
+fn display_pretty_results(
+    response: &GathererSearchResponse,
+    params: &GathererSearchParams,
+) -> Result<()> {
+    let total_pages = response.total_pages.unwrap_or(1);
+    let current_page = response.page_index.unwrap_or(1);
+    let total_items = response.total_items.unwrap_or(0);
+    let current_items = response.current_item_count.unwrap_or(0);
 
     // Create table with clean format (space-separated columns)
     let mut table = new_table();
@@ -303,41 +193,18 @@ fn display_pretty_results(data: &Value, params: &SearchParams) -> Result<()> {
         Cell::new("P/T/L"),
     ]));
 
-    if let Some(items) = data.get("items").and_then(|v| v.as_array()) {
+    if let Some(items) = &response.items {
         for item in items {
-            let name = item
-                .get("instanceName")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Unknown");
-
-            let type_line = item
-                .get("instanceTypeLine")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Unknown");
-
-            let mana_cost = item
-                .get("instanceManaText")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-
-            let set_name = item
-                .get("setName")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Unknown");
-
-            let rarity = item
-                .get("rarityName")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Unknown");
+            let name = item.name.as_deref().unwrap_or("Unknown");
+            let type_line = item.type_line.as_deref().unwrap_or("Unknown");
+            let mana_cost = item.mana_cost.as_deref().unwrap_or("");
+            let set_name = item.set_name.as_deref().unwrap_or("Unknown");
+            let rarity = item.rarity.as_deref().unwrap_or("Unknown");
 
             // Handle power/toughness/loyalty
-            let power = item.get("oraclePower").and_then(|v| v.as_str());
-            let toughness = item.get("oracleToughness").and_then(|v| v.as_str());
-            let loyalty = item.get("calculatedLoyalty").and_then(|v| v.as_u64());
-
-            let pt_loyalty = if let Some(loyalty_val) = loyalty {
+            let pt_loyalty = if let Some(loyalty_val) = item.loyalty {
                 loyalty_val.to_string()
-            } else if let (Some(p), Some(t)) = (power, toughness) {
+            } else if let (Some(p), Some(t)) = (&item.power, &item.toughness) {
                 format!("{p}/{t}")
             } else {
                 "-".to_string()
@@ -418,9 +285,6 @@ fn display_pretty_results(data: &Value, params: &SearchParams) -> Result<()> {
         if let Some(language) = &params.language {
             base_cmd.push_str(&format!(" --language \"{language}\""));
         }
-        if params.pretty {
-            base_cmd.push_str(" --pretty");
-        }
 
         if current_page > 1 {
             aeprintln!("Previous page: {base_cmd} --page {}", current_page - 1);
@@ -434,203 +298,28 @@ fn display_pretty_results(data: &Value, params: &SearchParams) -> Result<()> {
     Ok(())
 }
 
-fn format_query_with_operators(query: &str) -> String {
-    // Handle comma-separated values as OR operations
-    // Handle + separated values as AND operations
-    if query.contains(',') || query.contains('+') {
-        let parts: Vec<&str> = if query.contains(',') {
-            query.split(',').collect()
-        } else {
-            query.split('+').collect()
-        };
-
-        let operator = if query.contains(',') { "~OR~" } else { "~AND~" };
-
-        parts
-            .iter()
-            .map(|part| format!("eq~{}", part.trim()))
-            .collect::<Vec<String>>()
-            .join(&format!(",{operator},"))
-    } else {
-        format!("eq~{query}")
-    }
-}
-
-async fn get_card(name: &str, pretty: bool, global: crate::Global) -> Result<()> {
-    let cache_manager = CacheManager::new()?;
-
-    if global.verbose {
-        println!("Searching for card '{name}' using advanced search");
-    }
-
-    // Perform the search
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(global.timeout))
-        .build()?;
-
-    let request = SearchRequest {
-        card_name: name.to_string(),
-        page: "1".to_string(),
-        ..Default::default()
-    };
-
-    let payload = serde_json::json!(["$undefined", request, {}, true, 1]);
-
-    // Generate cache key
-    let url = "https://gatherer.wizards.com/advanced-search";
-    let headers = vec![
-        ("accept".to_string(), "text/x-component".to_string()),
-        (
-            "content-type".to_string(),
-            "text/plain;charset=UTF-8".to_string(),
-        ),
-    ];
-    let cache_key = CacheManager::hash_gatherer_search_request(url, &payload, &headers);
-
-    if global.verbose {
-        println!("Cache key: {cache_key}");
-    }
-
-    // Check cache first
-    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
-        if global.verbose {
-            println!("Using cached response for card '{name}'");
-        }
-
-        let card_data = &cached_response.data;
-        if let Some(items) = card_data.get("items").and_then(|v| v.as_array()) {
-            if items.is_empty() {
-                return Err(
-                    crate::error::Error::Generic(format!("Card '{name}' not found")).into(),
-                );
-            }
-
-            // Get the first matching card (exact name match preferred)
-            let mut best_match = &items[0];
-
-            // Look for exact name match
-            for item in items {
-                if let Some(card_name) = item.get("instanceName").and_then(|v| v.as_str()) {
-                    if card_name.eq_ignore_ascii_case(name) {
-                        best_match = item;
-                        break;
-                    }
-                }
-            }
-
-            if pretty {
-                display_single_card_details(best_match)?;
-            } else {
-                println!("{}", serde_json::to_string_pretty(best_match)?);
-            }
-        } else {
-            return Err(crate::error::Error::Generic(format!("Card '{name}' not found")).into());
-        }
-        return Ok(());
-    }
-
-    if global.verbose {
-        println!("Cache miss for card '{name}', fetching from API");
-    }
-
-    let response = client
-        .post("https://gatherer.wizards.com/advanced-search")
-        .header("accept", "text/x-component")
-        .header("accept-language", "en-US,en;q=0.9")
-        .header("cache-control", "no-cache")
-        .header("content-type", "text/plain;charset=UTF-8")
-        .header("dnt", "1")
-        .header("next-action", "7fdc558e6830828dfb95ae6a9638513cb4727e9b52")
-        .header("next-router-state-tree", "%5B%22%22%2C%7B%22children%22%3A%5B%5B%22lang%22%2C%22en%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%22advanced-search%22%2C%7B%22children%22%3A%5B%22__PAGE__%22%2C%7B%7D%2C%22%2Fadvanced-search%22%2C%22refresh%22%5D%7D%5D%7D%2Cnull%2Cnull%2Ctrue%5D%7D%2Cnull%2Cnull%5D")
-        .header("origin", "https://gatherer.wizards.com")
-        .header("pragma", "no-cache")
-        .header("priority", "u=1, i")
-        .header("referer", "https://gatherer.wizards.com/advanced-search")
-        .header("sec-ch-ua", "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\"")
-        .header("sec-ch-ua-mobile", "?0")
-        .header("sec-ch-ua-platform", "\"macOS\"")
-        .header("sec-fetch-dest", "empty")
-        .header("sec-fetch-mode", "cors")
-        .header("sec-fetch-site", "same-origin")
-        .header("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36")
-        .json(&payload)
-        .send()
-        .await?;
-
-    let response_text = response.text().await?;
-
-    if global.verbose {
-        println!("Search response length: {} characters", response_text.len());
-    }
-
-    // Parse the response
-    let parsed_data = parse_server_action_response(&response_text)?;
-
-    if let Some(card_data) = parsed_data {
-        // Cache the successful response
-        cache_manager.set(&cache_key, card_data.clone()).await?;
-
-        if global.verbose {
-            println!("Response cached for card '{name}'");
-        }
-
-        if let Some(items) = card_data.get("items").and_then(|v| v.as_array()) {
-            if items.is_empty() {
-                return Err(
-                    crate::error::Error::Generic(format!("Card '{name}' not found")).into(),
-                );
-            }
-
-            // Get the first matching card (exact name match preferred)
-            let mut best_match = &items[0];
-
-            // Look for exact name match
-            for item in items {
-                if let Some(card_name) = item.get("instanceName").and_then(|v| v.as_str()) {
-                    if card_name.eq_ignore_ascii_case(name) {
-                        best_match = item;
-                        break;
-                    }
-                }
-            }
-
-            if pretty {
-                display_single_card_details(best_match)?;
-            } else {
-                println!("{}", serde_json::to_string_pretty(best_match)?);
-            }
-        } else {
-            return Err(crate::error::Error::Generic(format!("Card '{name}' not found")).into());
-        }
-    } else {
-        return Err(crate::error::Error::Generic(format!("Card '{name}' not found")).into());
-    }
-
-    Ok(())
-}
-
-fn display_single_card_details(card: &serde_json::Value) -> Result<()> {
+fn display_single_card_details(card: &GathererCard) -> Result<()> {
     let mut table = new_table();
 
     // Card name
-    if let Some(name) = card.get("instanceName").and_then(|v| v.as_str()) {
+    if let Some(name) = &card.name {
         table.add_row(Row::new(vec![Cell::new("Name"), Cell::new(name)]));
     }
 
     // Mana cost
-    if let Some(mana_cost) = card.get("instanceManaText").and_then(|v| v.as_str()) {
+    if let Some(mana_cost) = &card.mana_cost {
         if !mana_cost.is_empty() {
             table.add_row(Row::new(vec![Cell::new("Mana Cost"), Cell::new(mana_cost)]));
         }
     }
 
     // Type line
-    if let Some(type_line) = card.get("instanceTypeLine").and_then(|v| v.as_str()) {
+    if let Some(type_line) = &card.type_line {
         table.add_row(Row::new(vec![Cell::new("Type"), Cell::new(type_line)]));
     }
 
     // Oracle text
-    if let Some(oracle_text) = card.get("instanceText").and_then(|v| v.as_str()) {
+    if let Some(oracle_text) = &card.oracle_text {
         if !oracle_text.is_empty() {
             let decoded_text = decode_html_entities(oracle_text);
             table.add_row(Row::new(vec![
@@ -641,9 +330,7 @@ fn display_single_card_details(card: &serde_json::Value) -> Result<()> {
     }
 
     // Power/Toughness
-    let power = card.get("oraclePower").and_then(|v| v.as_str());
-    let toughness = card.get("oracleToughness").and_then(|v| v.as_str());
-    if let (Some(p), Some(t)) = (power, toughness) {
+    if let (Some(p), Some(t)) = (&card.power, &card.toughness) {
         table.add_row(Row::new(vec![
             Cell::new("Power/Toughness"),
             Cell::new(&format!("{p}/{t}")),
@@ -651,7 +338,7 @@ fn display_single_card_details(card: &serde_json::Value) -> Result<()> {
     }
 
     // Loyalty
-    if let Some(loyalty) = card.get("calculatedLoyalty").and_then(|v| v.as_u64()) {
+    if let Some(loyalty) = card.loyalty {
         table.add_row(Row::new(vec![
             Cell::new("Loyalty"),
             Cell::new(&loyalty.to_string()),
@@ -659,22 +346,22 @@ fn display_single_card_details(card: &serde_json::Value) -> Result<()> {
     }
 
     // Set
-    if let Some(set_name) = card.get("setName").and_then(|v| v.as_str()) {
+    if let Some(set_name) = &card.set_name {
         table.add_row(Row::new(vec![Cell::new("Set"), Cell::new(set_name)]));
     }
 
     // Rarity
-    if let Some(rarity) = card.get("rarityName").and_then(|v| v.as_str()) {
+    if let Some(rarity) = &card.rarity {
         table.add_row(Row::new(vec![Cell::new("Rarity"), Cell::new(rarity)]));
     }
 
     // Artist
-    if let Some(artist) = card.get("artistName").and_then(|v| v.as_str()) {
+    if let Some(artist) = &card.artist {
         table.add_row(Row::new(vec![Cell::new("Artist"), Cell::new(artist)]));
     }
 
     // Flavor text
-    if let Some(flavor_text) = card.get("flavorText").and_then(|v| v.as_str()) {
+    if let Some(flavor_text) = &card.flavor_text {
         if !flavor_text.is_empty() {
             let decoded_text = decode_html_entities(flavor_text);
             table.add_row(Row::new(vec![
@@ -688,212 +375,19 @@ fn display_single_card_details(card: &serde_json::Value) -> Result<()> {
     Ok(())
 }
 
-pub async fn search_cards(params: SearchParams, global: crate::Global) -> Result<()> {
-    let cache_manager = CacheManager::new()?;
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(global.timeout))
-        .build()?;
-
-    let mut request = SearchRequest::default();
-
-    // Map CLI parameters to request fields
-    if let Some(ref name) = params.name {
-        request.card_name = name.clone();
-    }
-    if let Some(ref rules) = params.rules {
-        request.rules = rules.clone();
-    }
-    if let Some(ref supertype) = params.supertype {
-        // Handle complex queries with AND/OR operators
-        request.instance_super_type = format_query_with_operators(supertype);
-    }
-    if let Some(ref card_type) = params.card_type {
-        // Handle complex queries with AND/OR operators
-        request.instance_type = format_query_with_operators(card_type);
-    }
-    if let Some(ref subtype) = params.subtype {
-        // Handle complex queries with AND/OR operators
-        request.instance_subtype = format_query_with_operators(subtype);
-    }
-    if let Some(ref mana_cost) = params.mana_cost {
-        // Mana cost format: "1W(B/G)(W/P)" -> "1_W_(B/G)_(W/P)"
-        request.mana_cost = mana_cost.replace(" ", "_");
-    }
-    if let Some(ref set) = params.set {
-        // Format set name with proper escaping for special characters
-        let escaped_set = set.replace(" ", "_").replace(":", "_");
-        request.set_name = format!(
-            "eq~{}~{}",
-            escaped_set,
-            set.chars().take(3).collect::<String>().to_uppercase()
-        );
-    }
-    if let Some(ref rarity) = params.rarity {
-        let rarity_code = match rarity.to_lowercase().as_str() {
-            "common" => "C",
-            "uncommon" => "U",
-            "rare" => "R",
-            "mythic" | "mythic rare" => "M",
-            _ => rarity,
-        };
-        request.rarity_name = format!("eq~{rarity}~{rarity_code}");
-    }
-    if let Some(ref artist) = params.artist {
-        request.artist_name = artist.clone();
-    }
-    if let Some(ref power) = params.power {
-        // Power/toughness can be ranges like "5_10"
-        request.power = power.replace("-", "_");
-    }
-    if let Some(ref toughness) = params.toughness {
-        // Toughness can be ranges like "2_5"
-        request.toughness = toughness.replace("-", "_");
-    }
-    if let Some(ref loyalty) = params.loyalty {
-        // Loyalty can be ranges like "3_6"
-        request.loyalty = loyalty.replace("-", "_");
-    }
-    if let Some(ref flavor) = params.flavor {
-        request.flavor_text = flavor.clone();
-    }
-    if let Some(ref colors) = params.colors {
-        // Colors can have neq~ prefix for "not equal"
-        if colors.starts_with("!") || colors.starts_with("not ") {
-            let clean_colors = colors
-                .trim_start_matches('!')
-                .trim_start_matches("not ")
-                .trim();
-            request.colors = format!("neq~{}", clean_colors.replace(",", "_"));
-        } else {
-            request.colors = colors.replace(",", "_");
-        }
-    }
-    if let Some(ref format) = params.format {
-        // Format legalities have specific format: "Legal:Alchemy,Banned:Brawl"
-        request.format_legalities = format.clone();
-    }
-    if let Some(ref language) = params.language {
-        // Language format: "eq~English~en-us" for English, "eq~Japanese~ja-jp" for Japanese, etc.
-        let lang_code = match language.to_lowercase().as_str() {
-            "english" => "en-us",
-            "japanese" => "ja-jp",
-            "french" => "fr-fr",
-            "german" => "de-de",
-            "spanish" => "es-es",
-            "italian" => "it-it",
-            "portuguese" => "pt-br",
-            "russian" => "ru-ru",
-            "korean" => "ko-kr",
-            "chinese simplified" | "simplified chinese" => "zh-cn",
-            "chinese traditional" | "traditional chinese" => "zh-tw",
-            _ => language, // Use as-is if not recognized
-        };
-        request.language = format!("eq~{language}~{lang_code}");
-    }
-    // Note: language defaults to "eq~English~en-us" if not specified
-
-    // Set page number
-    request.page = params.page.to_string();
-
-    // Create the request payload as expected by the API
-    let payload = serde_json::json!(["$undefined", request, {}, true, params.page]);
-
-    if global.verbose {
-        println!(
-            "Request payload: {}",
-            serde_json::to_string_pretty(&payload)?
-        );
-    }
-
-    // Generate cache key
-    let url = "https://gatherer.wizards.com/advanced-search";
-    let headers = vec![
-        ("accept".to_string(), "text/x-component".to_string()),
-        (
-            "content-type".to_string(),
-            "text/plain;charset=UTF-8".to_string(),
-        ),
-    ];
-    let cache_key = CacheManager::hash_gatherer_search_request(url, &payload, &headers);
-
-    if global.verbose {
-        println!("Cache key: {cache_key}");
-    }
-
-    // Check cache first
-    if let Some(cached_response) = cache_manager.get(&cache_key).await? {
-        if global.verbose {
-            println!("Using cached response");
-        }
-
-        let card_data = &cached_response.data;
-        if params.pretty {
-            display_pretty_results(card_data, &params)?;
-        } else {
-            println!("{}", serde_json::to_string_pretty(card_data)?);
-        }
-        return Ok(());
-    }
-
-    if global.verbose {
-        println!("Cache miss, fetching from API");
-    }
-
-    let response = client
-        .post("https://gatherer.wizards.com/advanced-search")
-        .header("accept", "text/x-component")
-        .header("accept-language", "en-US,en;q=0.9")
-        .header("cache-control", "no-cache")
-        .header("content-type", "text/plain;charset=UTF-8")
-        .header("dnt", "1")
-        .header("next-action", "7fdc558e6830828dfb95ae6a9638513cb4727e9b52")
-        .header("next-router-state-tree", "%5B%22%22%2C%7B%22children%22%3A%5B%5B%22lang%22%2C%22en%22%2C%22d%22%5D%2C%7B%22children%22%3A%5B%22advanced-search%22%2C%7B%22children%22%3A%5B%22__PAGE__%22%2C%7B%7D%2C%22%2Fadvanced-search%22%2C%22refresh%22%5D%7D%5D%7D%2Cnull%2Cnull%2Ctrue%5D%7D%2Cnull%2Cnull%5D")
-        .header("origin", "https://gatherer.wizards.com")
-        .header("pragma", "no-cache")
-        .header("priority", "u=1, i")
-        .header("referer", "https://gatherer.wizards.com/advanced-search")
-        .header("sec-ch-ua", "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\"")
-        .header("sec-ch-ua-mobile", "?0")
-        .header("sec-ch-ua-platform", "\"macOS\"")
-        .header("sec-fetch-dest", "empty")
-        .header("sec-fetch-mode", "cors")
-        .header("sec-fetch-site", "same-origin")
-        .header("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36")
-        .json(&payload)
-        .send()
-        .await?;
-
-    if global.verbose {
-        println!("Response status: {}", response.status());
-        println!("Response headers: {:#?}", response.headers());
-    }
-
-    let response_text = response.text().await?;
-
-    if global.verbose {
-        println!("Raw response: {response_text}");
-    }
-
-    // Parse Next.js server action response format
-    let parsed_data = parse_server_action_response(&response_text)?;
-
-    if let Some(card_data) = parsed_data {
-        // Cache the successful response
-        cache_manager.set(&cache_key, card_data.clone()).await?;
-
-        if global.verbose {
-            println!("Response cached");
-        }
-
-        if params.pretty {
-            display_pretty_results(&card_data, &params)?;
-        } else {
-            println!("{}", serde_json::to_string_pretty(&card_data)?);
-        }
-    } else {
-        println!("No card data found in response");
-    }
-
-    Ok(())
+fn decode_html_entities(text: &str) -> String {
+    text.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&apos;", "'")
+        .replace("&nbsp;", " ")
+        .replace("<i>", "") // Remove italic tags for terminal display
+        .replace("</i>", "")
+        .replace("<b>", "") // Remove bold tags
+        .replace("</b>", "")
+        .replace("<br>", "\n")
+        .replace("<br/>", "\n")
+        .replace("<br />", "\n")
 }
