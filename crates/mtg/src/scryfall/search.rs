@@ -1004,14 +1004,7 @@ pub async fn by_multiverse_id(
 #[allow(dead_code)]
 pub async fn get_card_by_arena_id(arena_id: u32) -> Result<Card> {
     let cache_manager = CacheManager::new()?;
-    let global = crate::Global {
-        api_base_url: "https://api.magicthegathering.io/v1".to_string(),
-        timeout: 30,
-        verbose: false,
-        scryfall_base_url: "https://api.scryfall.com".to_string(),
-        scryfall_user_agent: None,
-        scryfall_rate_limit_ms: 100,
-    };
+    let global = crate::Global::new();
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(global.timeout))

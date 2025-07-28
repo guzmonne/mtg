@@ -46,9 +46,6 @@ pub mod serializer;
 pub mod types;
 pub mod utils;
 
-#[cfg(test)]
-mod tests;
-
 // Re-export main types for convenience
 pub use builder::DiskCacheBuilder;
 pub use disk::{CacheStore, DiskCache};

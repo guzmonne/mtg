@@ -3,6 +3,7 @@
 
 use crate::prelude::*;
 use clap::Parser;
+use std::io::Write;
 
 mod api;
 mod cache;
@@ -68,19 +69,66 @@ pub struct Global {
         default_value = "100"
     )]
     pub scryfall_rate_limit_ms: u64,
+
+    /// Disable caching for all requests
+    #[clap(long, global = true)]
+    pub no_cache: bool,
+
+    /// Clear cache before running command
+    #[clap(long, global = true)]
+    pub clear_cache: bool,
+
+    /// Use custom cache directory
+    #[clap(long, env = "MTG_CACHE_DIR", global = true, value_name = "PATH")]
+    pub cache_dir: Option<std::path::PathBuf>,
+
+    /// Set cache TTL in hours
+    #[clap(long, env = "MTG_CACHE_TTL_HOURS", global = true, default_value = "24")]
+    pub cache_ttl_hours: u64,
+}
+
+impl Default for Global {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Global {
+    /// Create a new Global configuration with sensible defaults
+    pub fn new() -> Self {
+        Self {
+            api_base_url: "https://api.magicthegathering.io/v1".to_string(),
+            verbose: false,
+            timeout: 30,
+            scryfall_base_url: "https://api.scryfall.com".to_string(),
+            scryfall_user_agent: None,
+            scryfall_rate_limit_ms: 100,
+            no_cache: false,
+            clear_cache: false,
+            cache_dir: None,
+            cache_ttl_hours: 24,
+        }
+    }
+
     /// Create a configured ScryfallClient from global options
     pub fn create_scryfall_client(&self) -> Result<mtg_core::ScryfallClient> {
         let mut builder = mtg_core::ScryfallClient::builder()
             .base_url(&self.scryfall_base_url)
             .timeout_secs(self.timeout)
             .verbose(self.verbose)
-            .rate_limit_delay_ms(Some(self.scryfall_rate_limit_ms));
+            .rate_limit_delay_ms(Some(self.scryfall_rate_limit_ms))
+            .enable_cache(!self.no_cache);
 
         if let Some(user_agent) = &self.scryfall_user_agent {
             builder = builder.user_agent(user_agent);
+        }
+
+        if let Some(ref cache_dir) = self.cache_dir {
+            builder = builder.cache_path(cache_dir);
+        }
+
+        if !self.no_cache {
+            builder = builder.cache_ttl_secs(self.cache_ttl_hours * 3600);
         }
 
         builder.build()
@@ -105,6 +153,49 @@ pub enum McpCommands {
 }
 
 #[derive(Debug, clap::Parser)]
+pub enum CacheCommands {
+    /// Show cache statistics
+    Stats {
+        /// Show statistics for specific prefix only
+        #[clap(long)]
+        prefix: Option<String>,
+    },
+
+    /// Clear cached data
+    Clear {
+        /// Only clear specific prefix
+        #[clap(long)]
+        prefix: Option<String>,
+
+        /// Confirm clearing without prompt
+        #[clap(long, short = 'y')]
+        yes: bool,
+    },
+
+    /// Clean old cache entries
+    Clean {
+        /// Remove entries older than N hours
+        #[clap(long, default_value = "24")]
+        older_than_hours: u64,
+
+        /// Target size in MB to clean cache down to
+        #[clap(long)]
+        target_size_mb: Option<u64>,
+    },
+
+    /// List cache entries
+    List {
+        /// Filter by prefix
+        #[clap(long)]
+        prefix: Option<String>,
+
+        /// Show detailed information
+        #[clap(long, short = 'v')]
+        verbose: bool,
+    },
+}
+
+#[derive(Debug, clap::Parser)]
 pub enum SubCommands {
     /// Access the MTG API directly
     Api {
@@ -124,6 +215,12 @@ pub enum SubCommands {
     /// Analyze Magic: The Gathering deck lists
     Decks(crate::decks::App),
 
+    /// Manage cache data
+    Cache {
+        #[command(subcommand)]
+        command: CacheCommands,
+    },
+
     /// Start Model Context Protocol server for AI integration (defaults to STDIO)
     Mcp {
         #[command(subcommand)]
@@ -135,12 +232,150 @@ pub enum SubCommands {
     Companion(crate::companion::App),
 }
 
+/// Execute cache management commands
+async fn execute_cache_command(cmd: CacheCommands, global: &Global) -> Result<()> {
+    use mtg_core::cache::DiskCache;
+
+    let cache = if let Some(ref cache_dir) = global.cache_dir {
+        DiskCache::builder()
+            .base_path(cache_dir)
+            .prefix("scryfall")
+            .build()?
+    } else {
+        DiskCache::builder().prefix("scryfall").build()?
+    };
+
+    match cmd {
+        CacheCommands::Stats { prefix } => {
+            let stats = cache.stats(prefix.as_deref()).await?;
+            println!("Cache Statistics:");
+            println!("  Total files: {}", stats.total_files);
+            println!(
+                "  Total size: {:.2} MB",
+                stats.total_size as f64 / 1_048_576.0
+            );
+
+            if !stats.prefixes.is_empty() {
+                println!("  Prefixes: {}", stats.prefixes.join(", "));
+            }
+        }
+
+        CacheCommands::Clear { prefix, yes } => {
+            if !yes {
+                print!("Are you sure you want to clear the cache? [y/N] ");
+                std::io::stdout().flush()?;
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input)?;
+                if !input.trim().eq_ignore_ascii_case("y") {
+                    println!("Cancelled");
+                    return Ok(());
+                }
+            }
+
+            if let Some(prefix) = prefix {
+                let report = cache.clean_prefix(&prefix).await?;
+                println!(
+                    "Cleared {} entries with prefix '{}' ({:.2} MB)",
+                    report.removed_count,
+                    prefix,
+                    report.freed_bytes as f64 / 1_048_576.0
+                );
+            } else {
+                let report = cache.clean_all().await?;
+                println!(
+                    "Cleared {} cache entries ({:.2} MB)",
+                    report.removed_count,
+                    report.freed_bytes as f64 / 1_048_576.0
+                );
+            }
+        }
+
+        CacheCommands::Clean {
+            older_than_hours,
+            target_size_mb,
+        } => {
+            let older_than = std::time::Duration::from_secs(older_than_hours * 3600);
+
+            if let Some(target_mb) = target_size_mb {
+                let target_bytes = target_mb * 1_048_576;
+                let report = cache.clean_to_size_limit(target_bytes, None).await?;
+                println!(
+                    "Cleaned {} entries ({:.2} MB)",
+                    report.removed_count,
+                    report.freed_bytes as f64 / 1_048_576.0
+                );
+            } else {
+                let report = cache.clean_older_than(older_than, None).await?;
+                println!(
+                    "Cleaned {} entries older than {} hours ({:.2} MB)",
+                    report.removed_count,
+                    older_than_hours,
+                    report.freed_bytes as f64 / 1_048_576.0
+                );
+            }
+        }
+
+        CacheCommands::List { prefix, verbose: _ } => {
+            let prefixes = cache.list_prefixes().await?;
+
+            if prefixes.is_empty() {
+                println!("No cache prefixes found");
+                return Ok(());
+            }
+
+            println!("Cache prefixes:");
+            for prefix_name in prefixes {
+                if let Some(ref filter_prefix) = prefix {
+                    if !prefix_name.contains(filter_prefix) {
+                        continue;
+                    }
+                }
+                let stats = cache.stats(Some(&prefix_name)).await?;
+                println!(
+                    "  {} ({} files, {:.2} MB)",
+                    prefix_name,
+                    stats.total_files,
+                    stats.total_size as f64 / 1_048_576.0
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Clear the cache directory
+fn clear_cache(global: &Global) -> Result<()> {
+    use mtg_core::cache::DiskCache;
+
+    let cache = if let Some(ref cache_dir) = global.cache_dir {
+        DiskCache::builder()
+            .base_path(cache_dir)
+            .prefix("scryfall")
+            .build()?
+    } else {
+        DiskCache::builder().prefix("scryfall").build()?
+    };
+
+    tokio::runtime::Runtime::new()?.block_on(async {
+        use mtg_core::cache::CacheStore;
+        CacheStore::<String, String>::clear(&cache).await
+    })?;
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
     color_eyre::install()?;
 
     let app = App::parse();
+
+    // Clear cache if requested
+    if app.global.clear_cache {
+        clear_cache(&app.global)?;
+        println!("Cache cleared");
+    }
 
     match app.command {
         SubCommands::Api { command } => command.run().await,
@@ -149,6 +384,7 @@ async fn main() -> Result<()> {
 
         SubCommands::Completions(sub_app) => crate::completions::run(sub_app, app.global).await,
         SubCommands::Decks(sub_app) => crate::decks::run(sub_app, app.global).await,
+        SubCommands::Cache { command } => execute_cache_command(command, &app.global).await,
         SubCommands::Mcp { command } => match command {
             Some(McpCommands::Stdio) | None => crate::mcp::run_mcp_server(app.global).await,
             Some(McpCommands::Sse { host, port }) => {
@@ -159,4 +395,50 @@ async fn main() -> Result<()> {
         SubCommands::Companion(sub_app) => crate::companion::run(sub_app, app.global).await,
     }
     .map_err(|err: color_eyre::eyre::Report| eyre!(err))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_global_new() {
+        let global = Global::new();
+        assert_eq!(global.api_base_url, "https://api.magicthegathering.io/v1");
+        assert!(!global.verbose);
+        assert_eq!(global.timeout, 30);
+        assert_eq!(global.scryfall_base_url, "https://api.scryfall.com");
+        assert!(global.scryfall_user_agent.is_none());
+        assert_eq!(global.scryfall_rate_limit_ms, 100);
+        assert!(!global.no_cache);
+        assert!(!global.clear_cache);
+        assert!(global.cache_dir.is_none());
+        assert_eq!(global.cache_ttl_hours, 24);
+    }
+
+    #[test]
+    fn test_global_default() {
+        let global_new = Global::new();
+        let global_default = Global::default();
+
+        assert_eq!(global_new.api_base_url, global_default.api_base_url);
+        assert_eq!(global_new.verbose, global_default.verbose);
+        assert_eq!(global_new.timeout, global_default.timeout);
+        assert_eq!(
+            global_new.scryfall_base_url,
+            global_default.scryfall_base_url
+        );
+        assert_eq!(
+            global_new.scryfall_user_agent,
+            global_default.scryfall_user_agent
+        );
+        assert_eq!(
+            global_new.scryfall_rate_limit_ms,
+            global_default.scryfall_rate_limit_ms
+        );
+        assert_eq!(global_new.no_cache, global_default.no_cache);
+        assert_eq!(global_new.clear_cache, global_default.clear_cache);
+        assert_eq!(global_new.cache_dir, global_default.cache_dir);
+        assert_eq!(global_new.cache_ttl_hours, global_default.cache_ttl_hours);
+    }
 }

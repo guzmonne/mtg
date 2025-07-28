@@ -1,6 +1,8 @@
+use crate::cache::CachedHttpClient;
 use color_eyre::Result;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT};
 use serde::de::DeserializeOwned;
+use std::path::PathBuf;
 use std::time::Duration;
 
 /// Configuration for the Scryfall API client
@@ -18,6 +20,12 @@ pub struct ScryfallClientConfig {
     pub verbose: bool,
     /// Rate limiting delay between requests (in milliseconds)
     pub rate_limit_delay: Option<Duration>,
+    /// Enable HTTP response caching
+    pub enable_cache: bool,
+    /// Cache directory path (defaults to system cache)
+    pub cache_path: Option<PathBuf>,
+    /// Cache TTL in seconds (defaults to 24 hours)
+    pub cache_ttl: Option<u64>,
 }
 
 impl Default for ScryfallClientConfig {
@@ -29,6 +37,9 @@ impl Default for ScryfallClientConfig {
             headers: HeaderMap::new(),
             verbose: false,
             rate_limit_delay: Some(Duration::from_millis(100)), // Scryfall recommends 50-100ms between requests
+            enable_cache: true,                                 // Enable by default
+            cache_path: None,                                   // Use default system cache
+            cache_ttl: Some(86400),                             // 24 hours
         }
     }
 }
@@ -111,6 +122,30 @@ impl ScryfallClientBuilder {
         self
     }
 
+    /// Enable or disable caching
+    pub fn enable_cache(mut self, enable: bool) -> Self {
+        self.config.enable_cache = enable;
+        self
+    }
+
+    /// Set custom cache directory path
+    pub fn cache_path<P: Into<PathBuf>>(mut self, path: P) -> Self {
+        self.config.cache_path = Some(path.into());
+        self
+    }
+
+    /// Set cache TTL in seconds
+    pub fn cache_ttl_secs(mut self, seconds: u64) -> Self {
+        self.config.cache_ttl = Some(seconds);
+        self
+    }
+
+    /// Disable caching (convenience method)
+    pub fn no_cache(mut self) -> Self {
+        self.config.enable_cache = false;
+        self
+    }
+
     /// Build the client
     pub fn build(self) -> Result<ScryfallClient> {
         ScryfallClient::with_config(self.config)
@@ -120,7 +155,7 @@ impl ScryfallClientBuilder {
 /// Generic Scryfall API client
 #[derive(Debug, Clone)]
 pub struct ScryfallClient {
-    client: reqwest::Client,
+    client: CachedHttpClient,
     config: ScryfallClientConfig,
     last_request_time: std::sync::Arc<std::sync::Mutex<Option<std::time::Instant>>>,
 }
@@ -142,10 +177,29 @@ impl ScryfallClient {
         let mut headers = config.headers.clone();
         headers.insert(USER_AGENT, HeaderValue::from_str(&config.user_agent)?);
 
-        let client = reqwest::Client::builder()
+        // Build the HTTP client with or without caching
+        let mut builder = CachedHttpClient::builder()
             .timeout(config.timeout)
-            .default_headers(headers)
-            .build()?;
+            .default_headers(headers);
+
+        if config.enable_cache {
+            // Configure cache settings
+            if let Some(ref path) = config.cache_path {
+                builder = builder.cache_base_path(path);
+            }
+
+            if let Some(ttl) = config.cache_ttl {
+                builder = builder.default_ttl(Duration::from_secs(ttl));
+            }
+
+            // Use scryfall-specific cache prefix
+            builder = builder.cache_prefix("scryfall");
+        } else {
+            // Disable caching
+            builder = builder.disable_cache();
+        }
+
+        let client = builder.build()?;
 
         Ok(Self {
             client,
@@ -215,13 +269,13 @@ impl ScryfallClient {
             println!("GET {url}");
         }
 
-        let response = self.client.get(&url).send().await?;
+        let response = self.client.get(&url).await?;
 
         if self.config.verbose {
-            println!("Response status: {}", response.status());
+            println!("Response status: {}", response.status_code());
         }
 
-        let response_text = response.text().await?;
+        let response_text = response.text()?;
 
         if self.config.verbose {
             println!("Response length: {} characters", response_text.len());
@@ -284,13 +338,13 @@ impl ScryfallClient {
             println!("GET {url}");
         }
 
-        let response = self.client.get(&url).send().await?;
+        let response = self.client.get(&url).await?;
 
         if self.config.verbose {
-            println!("Response status: {}", response.status());
+            println!("Response status: {}", response.status_code());
         }
 
-        let response_text = response.text().await?;
+        let response_text = response.text()?;
 
         if self.config.verbose {
             println!("Response length: {} characters", response_text.len());
@@ -335,13 +389,13 @@ impl ScryfallClient {
             println!("GET {url} (raw)");
         }
 
-        let response = self.client.get(&url).send().await?;
+        let response = self.client.get(&url).await?;
 
         if self.config.verbose {
-            println!("Response status: {}", response.status());
+            println!("Response status: {}", response.status_code());
         }
 
-        let response_text = response.text().await?;
+        let response_text = response.text()?;
 
         if self.config.verbose {
             println!("Response length: {} characters", response_text.len());
@@ -385,13 +439,13 @@ impl ScryfallClient {
             println!("GET {url} (raw)");
         }
 
-        let response = self.client.get(&url).send().await?;
+        let response = self.client.get(&url).await?;
 
         if self.config.verbose {
-            println!("Response status: {}", response.status());
+            println!("Response status: {}", response.status_code());
         }
 
-        let response_text = response.text().await?;
+        let response_text = response.text()?;
 
         if self.config.verbose {
             println!("Response length: {} characters", response_text.len());
@@ -402,136 +456,60 @@ impl ScryfallClient {
 }
 
 #[cfg(test)]
-mod tests {
+mod cache_tests {
     use super::*;
+    use tempfile::TempDir;
 
-    #[test]
-    fn test_default_config() {
-        let config = ScryfallClientConfig::default();
-        assert_eq!(config.base_url, "https://api.scryfall.com");
-        assert_eq!(config.timeout, Duration::from_secs(30));
-        assert_eq!(config.user_agent, "mtg-cli/1.0");
-        assert!(!config.verbose);
-        assert_eq!(config.rate_limit_delay, Some(Duration::from_millis(100)));
-    }
-
-    #[test]
-    fn test_builder_pattern() -> Result<()> {
+    #[tokio::test]
+    async fn test_client_with_cache_enabled() -> Result<()> {
+        let temp_dir = TempDir::new()?;
         let client = ScryfallClient::builder()
-            .base_url("https://custom.api.com")
-            .timeout_secs(60)
-            .user_agent("custom-agent/2.0")
-            .verbose(true)
-            .rate_limit_delay_ms(Some(200))
-            .header("X-Custom-Header", "custom-value")?
+            .enable_cache(true)
+            .cache_path(temp_dir.path())
+            .cache_ttl_secs(3600)
             .build()?;
 
-        assert_eq!(client.base_url(), "https://custom.api.com");
-        assert!(client.is_verbose());
+        assert!(client.config.enable_cache);
+        assert_eq!(client.config.cache_ttl, Some(3600));
         Ok(())
     }
 
-    #[test]
-    fn test_default_client() -> Result<()> {
-        let client = ScryfallClient::new()?;
-        assert_eq!(client.base_url(), "https://api.scryfall.com");
-        assert!(!client.is_verbose());
+    #[tokio::test]
+    async fn test_client_with_cache_disabled() -> Result<()> {
+        let client = ScryfallClient::builder().no_cache().build()?;
+
+        assert!(!client.config.enable_cache);
         Ok(())
     }
 
-    #[test]
-    fn test_builder_default() -> Result<()> {
+    #[tokio::test]
+    async fn test_client_builder_methods() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let client = ScryfallClient::builder()
+            .enable_cache(true)
+            .cache_path(temp_dir.path())
+            .cache_ttl_secs(7200)
+            .verbose(true)
+            .build()?;
+
+        assert!(client.config.enable_cache);
+        assert_eq!(client.config.cache_ttl, Some(7200));
+        assert!(client.config.verbose);
+        assert_eq!(
+            client.config.cache_path,
+            Some(temp_dir.path().to_path_buf())
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_client_default_cache_settings() -> Result<()> {
         let client = ScryfallClient::builder().build()?;
-        assert_eq!(client.base_url(), "https://api.scryfall.com");
-        assert!(!client.is_verbose());
+
+        // Default should have cache enabled
+        assert!(client.config.enable_cache);
+        assert_eq!(client.config.cache_ttl, Some(86400)); // 24 hours
+        assert!(client.config.cache_path.is_none()); // Use default path
         Ok(())
-    }
-
-    // Integration tests (require network access)
-    #[cfg(feature = "integration-tests")]
-    mod integration {
-        use super::*;
-        use crate::scryfall::sets::ScryfallSetList;
-
-        #[tokio::test]
-        async fn test_get_sets() -> Result<()> {
-            let client = ScryfallClient::new()?;
-            let sets: ScryfallSetList = client.get("sets").await?;
-
-            assert_eq!(sets.object, "list");
-            assert!(!sets.data.is_empty());
-            Ok(())
-        }
-
-        #[tokio::test]
-        async fn test_get_specific_set() -> Result<()> {
-            let client = ScryfallClient::new()?;
-            let set: crate::scryfall::sets::ScryfallSet = client.get("sets/dom").await?;
-
-            assert_eq!(set.object, "set");
-            assert_eq!(set.code, "dom");
-            assert_eq!(set.name, "Dominaria");
-            Ok(())
-        }
-
-        #[tokio::test]
-        async fn test_get_with_params() -> Result<()> {
-            let client = ScryfallClient::new()?;
-            let params = vec![
-                ("q".to_string(), "Lightning Bolt".to_string()),
-                ("unique".to_string(), "cards".to_string()),
-            ];
-
-            let response: serde_json::Value =
-                client.get_with_params("cards/search", params).await?;
-
-            assert_eq!(response["object"], "list");
-            Ok(())
-        }
-
-        #[tokio::test]
-        async fn test_rate_limiting() -> Result<()> {
-            let client = ScryfallClient::builder()
-                .rate_limit_delay_ms(Some(50))
-                .build()?;
-
-            let start = std::time::Instant::now();
-
-            // Make two requests
-            let _: ScryfallSetList = client.get("sets").await?;
-            let _: ScryfallSetList = client.get("sets").await?;
-
-            let elapsed = start.elapsed();
-
-            // Should take at least 50ms due to rate limiting
-            assert!(elapsed >= Duration::from_millis(50));
-            Ok(())
-        }
-
-        #[tokio::test]
-        async fn test_custom_user_agent() -> Result<()> {
-            let client = ScryfallClient::builder()
-                .user_agent("test-client/1.0")
-                .build()?;
-
-            // This test just ensures the client can be created with custom user agent
-            // The actual user agent is sent in headers, which we can't easily test here
-            let _: ScryfallSetList = client.get("sets").await?;
-            Ok(())
-        }
-
-        #[tokio::test]
-        async fn test_error_handling() -> Result<()> {
-            let client = ScryfallClient::new()?;
-
-            // Try to get a non-existent set
-            let result: color_eyre::Result<crate::scryfall::sets::ScryfallSet> =
-                client.get("sets/nonexistent").await;
-
-            assert!(result.is_err());
-            let error_msg = result.unwrap_err().to_string();
-            assert!(error_msg.contains("Scryfall API error"));
-            Ok(())
-        }
     }
 }

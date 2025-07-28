@@ -26,7 +26,7 @@ where
 }
 
 /// Disk-based cache implementation
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DiskCache {
     base_path: PathBuf,
     prefix: Option<String>,

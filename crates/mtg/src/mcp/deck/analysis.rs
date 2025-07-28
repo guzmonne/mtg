@@ -35,14 +35,7 @@ impl Mcp {
 
                 if let Some(deck_list) = args.get("deck_list").and_then(|v| v.as_str()) {
                     // Create a default Global config
-                    let global = crate::Global {
-                        api_base_url: "https://api.magicthegathering.io/v1".to_string(),
-                        verbose: false,
-                        timeout: 30,
-                        scryfall_base_url: "https://api.scryfall.com".to_string(),
-                        scryfall_user_agent: None,
-                        scryfall_rate_limit_ms: 100,
-                    };
+                    let global = crate::Global::new();
 
                     match crate::decks::analyze_deck_list_mcp(deck_list, global).await {
                         Ok(analysis) => tool_text_response!(analysis),

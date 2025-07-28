@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 pub use client::{ScryfallClient, ScryfallClientBuilder, ScryfallClientConfig};
 
 /// Generic list object for Scryfall API responses
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct List<T> {
     /// Always "list"
     pub object: String,

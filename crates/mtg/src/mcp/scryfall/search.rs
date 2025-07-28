@@ -134,14 +134,7 @@ impl Mcp {
                 let args = request.arguments.as_ref().unwrap_or(&empty_args);
 
                 // Create a default Global config for the search
-                let global = crate::Global {
-                    api_base_url: "https://api.magicthegathering.io/v1".to_string(),
-                    verbose: false,
-                    timeout: 30,
-                    scryfall_base_url: "https://api.scryfall.com".to_string(),
-                    scryfall_user_agent: None,
-                    scryfall_rate_limit_ms: 100,
-                };
+                let global = crate::Global::new();
 
                 // Check if we have a direct query or need to build from advanced parameters
                 if let Some(query) = args.get("query").and_then(|v| v.as_str()) {

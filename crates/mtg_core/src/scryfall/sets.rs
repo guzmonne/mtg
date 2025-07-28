@@ -1,5 +1,7 @@
+use crate::cache::{CacheStore, DiskCache};
 use color_eyre::Result;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 
 /// Complete Scryfall Set object with all API fields
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -239,29 +241,117 @@ pub struct SetListParams {
 /// Client for interacting with Scryfall sets API
 pub struct SetsClient {
     client: super::ScryfallClient,
+    cache: Option<DiskCache>,
 }
 
 impl SetsClient {
     /// Create a new sets client with a custom Scryfall client
     pub fn new(client: super::ScryfallClient) -> Self {
-        Self { client }
+        Self {
+            client,
+            cache: None,
+        }
+    }
+
+    /// Create a new sets client with caching enabled
+    pub fn with_cache(client: super::ScryfallClient) -> Result<Self> {
+        let cache = DiskCache::builder().prefix("scryfall/sets").build()?;
+
+        Ok(Self {
+            client,
+            cache: Some(cache),
+        })
+    }
+
+    /// Enable or disable caching
+    pub fn set_cache(&mut self, cache: Option<DiskCache>) {
+        self.cache = cache;
     }
 
     /// Get all sets from Scryfall API
     pub async fn list_sets(&self, params: SetListParams) -> Result<ScryfallSetList> {
-        // Use the generic client to fetch sets
+        // Generate a stable cache key from parameters
+        let cache_key = generate_cache_key("list", &params);
+
+        // Try cache first if available
+        if let Some(ref cache) = self.cache {
+            match cache.get(&cache_key).await {
+                Ok(Some(cached_sets)) => {
+                    if self.client.is_verbose() {
+                        println!("Cache hit for sets list");
+                    }
+                    return Ok(cached_sets);
+                }
+                Ok(None) => {
+                    if self.client.is_verbose() {
+                        println!("Cache miss for sets list");
+                    }
+                }
+                Err(e) => {
+                    if self.client.is_verbose() {
+                        eprintln!("Cache error (continuing without cache): {e}");
+                    }
+                }
+            }
+        }
+
+        // Fetch from API
         let mut set_response: ScryfallSetList = self.client.get("sets").await?;
 
         // Apply client-side filtering
         apply_set_filters(&mut set_response, &params);
+
+        // Store in cache if available
+        if let Some(ref cache) = self.cache {
+            if let Err(e) = cache.insert(cache_key, set_response.clone()).await {
+                if self.client.is_verbose() {
+                    eprintln!("Failed to cache sets list: {e}");
+                }
+            }
+        }
 
         Ok(set_response)
     }
 
     /// Get a specific set by code
     pub async fn get_set_by_code(&self, code: &str) -> Result<ScryfallSet> {
+        let cache_key = format!("set:{}", code.to_lowercase());
+
+        // Try cache first
+        if let Some(ref cache) = self.cache {
+            match cache.get(&cache_key).await {
+                Ok(Some(cached_set)) => {
+                    if self.client.is_verbose() {
+                        println!("Cache hit for set '{code}'");
+                    }
+                    return Ok(cached_set);
+                }
+                Ok(None) => {
+                    if self.client.is_verbose() {
+                        println!("Cache miss for set '{code}'");
+                    }
+                }
+                Err(e) => {
+                    if self.client.is_verbose() {
+                        eprintln!("Cache error (continuing without cache): {e}");
+                    }
+                }
+            }
+        }
+
+        // Fetch from API
         let endpoint = format!("sets/{}", urlencoding::encode(code));
         let set: ScryfallSet = self.client.get(&endpoint).await?;
+
+        // Store in cache
+        if let Some(ref cache) = self.cache {
+            if let Err(e) = cache.insert(cache_key, set.clone()).await {
+                if self.client.is_verbose() {
+                    eprintln!("Failed to cache set '{code}': {e}");
+                }
+            }
+        }
+
         Ok(set)
     }
 }
@@ -327,6 +417,16 @@ fn apply_set_filters(response: &mut ScryfallSetList, params: &SetListParams) {
     });
 }
 
+/// Generate a stable cache key from parameters
+fn generate_cache_key<T: Debug>(prefix: &str, params: &T) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let mut hasher = DefaultHasher::new();
+    format!("{params:?}").hash(&mut hasher);
+    format!("{}:{:x}", prefix, hasher.finish())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -352,5 +452,65 @@ mod tests {
         assert!(all_types.len() >= 23); // At least 23 types documented
         assert!(all_types.contains(&SetType::Core));
         assert!(all_types.contains(&SetType::Expansion));
+    }
+
+    #[tokio::test]
+    async fn test_sets_client_with_cache() -> Result<()> {
+        use tempfile::TempDir;
+        let temp_dir = TempDir::new()?;
+        let scryfall_client = super::super::ScryfallClient::builder()
+            .enable_cache(true)
+            .cache_path(temp_dir.path())
+            .build()?;
+
+        let cache = crate::cache::DiskCache::builder()
+            .base_path(temp_dir.path())
+            .prefix("scryfall/sets")
+            .build()?;
+
+        let mut sets_client = SetsClient::new(scryfall_client);
+        sets_client.set_cache(Some(cache));
+
+        // Verify cache is set
+        assert!(sets_client.cache.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn test_cache_key_generation() {
+        let params1 = SetListParams {
+            set_type: Some(SetType::Core),
+            released_after: None,
+            released_before: None,
+            block: None,
+            digital_only: None,
+        };
+
+        let params2 = SetListParams {
+            set_type: Some(SetType::Core),
+            released_after: None,
+            released_before: None,
+            block: None,
+            digital_only: None,
+        };
+
+        let key1 = generate_cache_key("test", &params1);
+        let key2 = generate_cache_key("test", &params2);
+
+        // Same parameters should generate same key
+        assert_eq!(key1, key2);
+
+        let params3 = SetListParams {
+            set_type: Some(SetType::Expansion),
+            released_after: None,
+            released_before: None,
+            block: None,
+            digital_only: None,
+        };
+
+        let key3 = generate_cache_key("test", &params3);
+
+        // Different parameters should generate different key
+        assert_ne!(key1, key3);
     }
 }

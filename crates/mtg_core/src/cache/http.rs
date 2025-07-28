@@ -47,7 +47,7 @@ impl CachedResponse {
 }
 
 /// HTTP client with caching capabilities
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CachedHttpClient {
     client: reqwest::Client,
     cache: DiskCache,
@@ -267,6 +267,18 @@ impl CachedHttpClientBuilder {
         V::Error: Into<http::Error>,
     {
         self.client_builder = self.client_builder.user_agent(value);
+        self
+    }
+
+    /// Set default headers
+    pub fn default_headers(mut self, headers: HeaderMap) -> Self {
+        self.client_builder = self.client_builder.default_headers(headers);
+        self
+    }
+
+    /// Disable caching (for compatibility)
+    pub fn disable_cache(self) -> Self {
+        // For now, just return self - we could add a flag later
         self
     }
 

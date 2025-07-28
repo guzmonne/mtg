@@ -41,14 +41,7 @@ impl Mcp {
                 let empty_args = HashMap::new();
                 let args = request.arguments.as_ref().unwrap_or(&empty_args);
 
-                let global = crate::Global {
-                    api_base_url: "https://api.magicthegathering.io/v1".to_string(),
-                    verbose: false,
-                    timeout: 30,
-                    scryfall_base_url: "https://api.scryfall.com".to_string(),
-                    scryfall_user_agent: None,
-                    scryfall_rate_limit_ms: 100,
-                };
+                let global = crate::Global::new();
 
                 if let Some(name) = args.get("name").and_then(|v| v.as_str()) {
                     if name.trim().is_empty() {

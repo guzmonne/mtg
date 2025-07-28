@@ -6,7 +6,24 @@ use tokio::fs;
 /// Get the default cache directory path
 pub fn default_cache_path() -> PathBuf {
     dirs::data_local_dir()
-        .unwrap_or_else(|| PathBuf::from("~/.local/share"))
+        .or_else(dirs::data_dir)
+        .or_else(|| {
+            dirs::home_dir().map(|home| {
+                #[cfg(windows)]
+                return home.join("AppData").join("Local");
+
+                #[cfg(not(windows))]
+                return home.join(".local").join("share");
+            })
+        })
+        .unwrap_or_else(|| {
+            // Last resort fallback
+            #[cfg(windows)]
+            return PathBuf::from(r"C:\Users\Default\AppData\Local");
+
+            #[cfg(not(windows))]
+            return PathBuf::from("/tmp");
+        })
         .join("mtg")
         .join("cache")
 }
@@ -93,4 +110,94 @@ pub async fn count_cache_files(path: &Path) -> Result<usize> {
     }
 
     Ok(count)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_cache_path_cross_platform() {
+        let cache_path = default_cache_path();
+
+        // Should always end with mtg/cache
+        assert!(cache_path.ends_with("mtg/cache") || cache_path.ends_with(r"mtg\cache"));
+
+        // Should be an absolute path
+        assert!(cache_path.is_absolute());
+
+        // Should not contain Unix-specific paths on Windows or vice versa
+        let path_str = cache_path.to_string_lossy();
+
+        #[cfg(windows)]
+        {
+            // On Windows, should not contain Unix-style paths
+            assert!(!path_str.contains("/.local/share"));
+            assert!(!path_str.contains("/tmp"));
+        }
+
+        #[cfg(not(windows))]
+        {
+            // On Unix-like systems, should not contain Windows-style paths
+            assert!(!path_str.contains(r"C:\"));
+            assert!(!path_str.contains("AppData"));
+        }
+    }
+
+    #[test]
+    fn test_key_to_path_cross_platform() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let base_path = temp_dir.path();
+
+        let path1 = key_to_path(base_path, Some("test"), "my-key");
+        let path2 = key_to_path(base_path, None, "my-key");
+
+        // Both paths should be under the base path
+        assert!(path1.starts_with(base_path));
+        assert!(path2.starts_with(base_path));
+
+        // Path with prefix should contain the prefix
+        assert!(path1.to_string_lossy().contains("test"));
+
+        // Both should end with .cache extension
+        assert_eq!(path1.extension().unwrap(), "cache");
+        assert_eq!(path2.extension().unwrap(), "cache");
+
+        // Should use proper path separators for the platform
+        let path_str = path1.to_string_lossy();
+        #[cfg(windows)]
+        {
+            // On Windows, should use backslashes
+            if path_str.len() > base_path.to_string_lossy().len() {
+                assert!(path_str.contains('\\'));
+            }
+        }
+
+        #[cfg(not(windows))]
+        {
+            // On Unix-like systems, should use forward slashes
+            if path_str.len() > base_path.to_string_lossy().len() {
+                assert!(path_str.contains('/'));
+            }
+        }
+    }
+
+    #[test]
+    fn test_hash_key_consistency() {
+        let key = "test-key-123";
+        let hash1 = hash_key(key);
+        let hash2 = hash_key(key);
+
+        // Same key should produce same hash
+        assert_eq!(hash1, hash2);
+
+        // Hash should be hex string
+        assert!(hash1.chars().all(|c| c.is_ascii_hexdigit()));
+
+        // Different keys should produce different hashes
+        let hash3 = hash_key("different-key");
+        assert_ne!(hash1, hash3);
+    }
 }
