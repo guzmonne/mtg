@@ -236,49 +236,21 @@ pub struct SetListParams {
     pub digital_only: Option<bool>,
 }
 
-/// Configuration for API requests
-#[derive(Debug, Clone)]
-pub struct ApiConfig {
-    pub timeout: u64,
-    pub verbose: bool,
-}
-
 /// Client for interacting with Scryfall sets API
 pub struct SetsClient {
-    client: reqwest::Client,
-    config: ApiConfig,
+    client: super::ScryfallClient,
 }
 
 impl SetsClient {
-    /// Create a new sets client
-    pub fn new(config: ApiConfig) -> Result<Self> {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(config.timeout))
-            .user_agent("mtg-cli/1.0")
-            .build()?;
-
-        Ok(Self { client, config })
+    /// Create a new sets client with a custom Scryfall client
+    pub fn new(client: super::ScryfallClient) -> Self {
+        Self { client }
     }
 
     /// Get all sets from Scryfall API
     pub async fn list_sets(&self, params: SetListParams) -> Result<ScryfallSetList> {
-        let url = "https://api.scryfall.com/sets";
-
-        if self.config.verbose {
-            println!("Fetching sets from API");
-            println!("Request URL: {url}");
-        }
-
-        let response = self.client.get(url).send().await?;
-
-        if self.config.verbose {
-            println!("Response status: {}", response.status());
-        }
-
-        let response_text = response.text().await?;
-
-        // Parse the response
-        let mut set_response = parse_scryfall_set_list_response(&response_text)?;
+        // Use the generic client to fetch sets
+        let mut set_response: ScryfallSetList = self.client.get("sets").await?;
 
         // Apply client-side filtering
         apply_set_filters(&mut set_response, &params);
@@ -288,77 +260,10 @@ impl SetsClient {
 
     /// Get a specific set by code
     pub async fn get_set_by_code(&self, code: &str) -> Result<ScryfallSet> {
-        let url = format!(
-            "https://api.scryfall.com/sets/{}",
-            urlencoding::encode(code)
-        );
-
-        if self.config.verbose {
-            println!("Fetching set from API");
-            println!("Request URL: {url}");
-        }
-
-        let response = self.client.get(&url).send().await?;
-
-        if self.config.verbose {
-            println!("Response status: {}", response.status());
-        }
-
-        let response_text = response.text().await?;
-
-        // Parse the response
-        let set = parse_scryfall_set_response(&response_text)?;
-
+        let endpoint = format!("sets/{}", urlencoding::encode(code));
+        let set: ScryfallSet = self.client.get(&endpoint).await?;
         Ok(set)
     }
-}
-
-/// Parse Scryfall set list response
-fn parse_scryfall_set_list_response(response_text: &str) -> Result<ScryfallSetList> {
-    // First, try to parse as a generic JSON value to check the object type
-    let json_value: serde_json::Value = serde_json::from_str(response_text)?;
-
-    if let Some(object_type) = json_value.get("object").and_then(|v| v.as_str()) {
-        if object_type == "error" {
-            // Parse as error response
-            let error_details = json_value
-                .get("details")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Unknown error");
-            return Err(color_eyre::eyre::eyre!(
-                "Scryfall API error: {}",
-                error_details
-            ));
-        }
-    }
-
-    // Parse as set list response
-    let set_list: ScryfallSetList = serde_json::from_str(response_text)?;
-    Ok(set_list)
-}
-
-/// Parse Scryfall single set response
-fn parse_scryfall_set_response(response_text: &str) -> Result<ScryfallSet> {
-    // First, try to parse as a generic JSON value to check the object type
-    let json_value: serde_json::Value = serde_json::from_str(response_text)?;
-
-    if let Some(object_type) = json_value.get("object").and_then(|v| v.as_str()) {
-        if object_type == "error" {
-            // Parse as error response
-            let error_details = json_value
-                .get("details")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Unknown error");
-            return Err(color_eyre::eyre::eyre!(
-                "Scryfall API error: {}",
-                error_details
-            ));
-        }
-    }
-
-    // Parse as set response
-    let set: ScryfallSet = serde_json::from_str(response_text)?;
-    Ok(set)
 }
 
 /// Apply client-side filters to set list

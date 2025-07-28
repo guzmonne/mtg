@@ -1,8 +1,6 @@
 use crate::cache::CacheManager;
 use crate::prelude::*;
-use mtg_core::scryfall::sets::{
-    ApiConfig, ScryfallSet, ScryfallSetList, SetListParams, SetsClient,
-};
+use mtg_core::scryfall::sets::{ScryfallSet, ScryfallSetList, SetListParams, SetsClient};
 
 /// Get all sets from Scryfall API with caching
 pub async fn list_sets(params: SetListParams, global: crate::Global) -> Result<ScryfallSetList> {
@@ -26,12 +24,9 @@ pub async fn list_sets(params: SetListParams, global: crate::Global) -> Result<S
         println!("Cache miss, fetching sets from API");
     }
 
-    // Create API client
-    let config = ApiConfig {
-        timeout: global.timeout,
-        verbose: global.verbose,
-    };
-    let client = SetsClient::new(config)?;
+    // Create API client using the global Scryfall client
+    let scryfall_client = global.create_scryfall_client()?;
+    let client = SetsClient::new(scryfall_client);
 
     // Fetch from API
     let set_response = client.list_sets(params).await?;
@@ -70,12 +65,9 @@ pub async fn get_set_by_code(code: &str, global: crate::Global) -> Result<Scryfa
         println!("Cache miss, fetching set from API");
     }
 
-    // Create API client
-    let config = ApiConfig {
-        timeout: global.timeout,
-        verbose: global.verbose,
-    };
-    let client = SetsClient::new(config)?;
+    // Create API client using the global Scryfall client
+    let scryfall_client = global.create_scryfall_client()?;
+    let client = SetsClient::new(scryfall_client);
 
     // Fetch from API
     let set = client.get_set_by_code(code).await?;

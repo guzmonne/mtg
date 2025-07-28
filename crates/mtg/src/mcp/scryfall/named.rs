@@ -45,6 +45,9 @@ impl Mcp {
                     api_base_url: "https://api.magicthegathering.io/v1".to_string(),
                     verbose: false,
                     timeout: 30,
+                    scryfall_base_url: "https://api.scryfall.com".to_string(),
+                    scryfall_user_agent: None,
+                    scryfall_rate_limit_ms: 100,
                 };
 
                 if let Some(name) = args.get("name").and_then(|v| v.as_str()) {

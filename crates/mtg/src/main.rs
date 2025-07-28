@@ -46,6 +46,45 @@ pub struct Global {
     /// Whether to display additional information
     #[clap(long, env = "MTG_VERBOSE", global = true, default_value = "false")]
     pub verbose: bool,
+
+    /// Scryfall API Base URL
+    #[clap(
+        long,
+        env = "SCRYFALL_API_BASE_URL",
+        global = true,
+        default_value = "https://api.scryfall.com"
+    )]
+    pub scryfall_base_url: String,
+
+    /// Custom User-Agent for Scryfall requests
+    #[clap(long, env = "SCRYFALL_USER_AGENT", global = true)]
+    pub scryfall_user_agent: Option<String>,
+
+    /// Rate limit delay between Scryfall requests in milliseconds
+    #[clap(
+        long,
+        env = "SCRYFALL_RATE_LIMIT_MS",
+        global = true,
+        default_value = "100"
+    )]
+    pub scryfall_rate_limit_ms: u64,
+}
+
+impl Global {
+    /// Create a configured ScryfallClient from global options
+    pub fn create_scryfall_client(&self) -> Result<mtg_core::ScryfallClient> {
+        let mut builder = mtg_core::ScryfallClient::builder()
+            .base_url(&self.scryfall_base_url)
+            .timeout_secs(self.timeout)
+            .verbose(self.verbose)
+            .rate_limit_delay_ms(Some(self.scryfall_rate_limit_ms));
+
+        if let Some(user_agent) = &self.scryfall_user_agent {
+            builder = builder.user_agent(user_agent);
+        }
+
+        builder.build()
+    }
 }
 
 #[derive(Debug, clap::Parser)]

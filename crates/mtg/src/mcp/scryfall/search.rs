@@ -138,6 +138,9 @@ impl Mcp {
                     api_base_url: "https://api.magicthegathering.io/v1".to_string(),
                     verbose: false,
                     timeout: 30,
+                    scryfall_base_url: "https://api.scryfall.com".to_string(),
+                    scryfall_user_agent: None,
+                    scryfall_rate_limit_ms: 100,
                 };
 
                 // Check if we have a direct query or need to build from advanced parameters

@@ -1,6 +1,10 @@
+pub mod client;
 pub mod sets;
 
 use serde::{Deserialize, Serialize};
+
+// Re-export the client for convenience
+pub use client::{ScryfallClient, ScryfallClientBuilder, ScryfallClientConfig};
 
 /// Generic list object for Scryfall API responses
 #[derive(Debug, Serialize, Deserialize)]
