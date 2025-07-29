@@ -1,5 +1,5 @@
-use crate::cache::CacheManager;
 use crate::prelude::*;
+use mtg_core::cache::{CacheStore, DiskCacheBuilder};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -546,7 +546,7 @@ pub async fn run(params: Params) -> Result<()> {
 
             // Cache the combined deck information
             if !combined_decks.is_empty() {
-                match CacheManager::new() {
+                match DiskCacheBuilder::new().prefix("companion").build() {
                     Ok(cache) => {
                         let cache_data = serde_json::json!({
                             "timestamp": std::time::SystemTime::now()
@@ -558,8 +558,7 @@ pub async fn run(params: Params) -> Result<()> {
                             "decks": combined_decks
                         });
 
-                        let hash = "arena_decks_combined";
-                        match cache.set(hash, cache_data).await {
+                        match cache.insert("arena_decks_combined", cache_data).await {
                             Ok(_) => aprintln!("\n✅ Cached combined deck information"),
                             Err(e) => aprintln!("\n⚠️  Failed to cache deck information: {}", e),
                         }

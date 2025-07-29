@@ -8,9 +8,6 @@ pub enum Error {
     #[error("Scryfall API error: {0}")]
     ScryfallApi(#[from] ScryfallApiError),
 
-    #[error("Cache error: {0}")]
-    Cache(#[from] crate::cache::CacheError),
-
     #[error("Network error: {0}")]
     Network(String),
 

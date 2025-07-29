@@ -6,7 +6,6 @@ use clap::Parser;
 use std::io::Write;
 
 mod api;
-mod cache;
 // Companion module is only available on macOS and Windows since MTG Arena
 // is not available on Linux platforms
 #[cfg(any(target_os = "macos", target_os = "windows"))]

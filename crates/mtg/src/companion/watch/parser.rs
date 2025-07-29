@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
 use super::types::*;
-use crate::cache::CacheManager;
 use crate::prelude::*;
 use chrono::Utc;
+use mtg_core::cache::{CacheStore, DiskCacheBuilder};
 use prettytable::{Cell, Row};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -2836,7 +2836,7 @@ impl EventParser {
         &self,
         card_entries: &[(u64, u64)],
     ) -> Result<HashMap<u64, crate::scryfall::Card>> {
-        let cache_manager = CacheManager::new()?;
+        let cache = DiskCacheBuilder::new().prefix("scryfall").build()?;
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .user_agent("mtg-cli/1.0")
@@ -2849,14 +2849,13 @@ impl EventParser {
             card_entries.iter().map(|(id, _)| *id).collect();
 
         for arena_id in unique_ids {
-            let url = format!("https://api.scryfall.com/cards/arena/{}", arena_id);
-            let cache_key = CacheManager::hash_request(&url);
+            let url = format!("https://api.scryfall.com/cards/arena/{arena_id}");
+            let cache_key = format!("arena_card_{arena_id}");
 
             // Check cache first
-            if let Some(cached_response) = cache_manager.get(&cache_key).await? {
-                if let Ok(card) =
-                    serde_json::from_value::<crate::scryfall::Card>(cached_response.data)
-                {
+            let cached_result: Result<Option<serde_json::Value>, _> = cache.get(&cache_key).await;
+            if let Ok(Some(cached_response)) = cached_result {
+                if let Ok(card) = serde_json::from_value::<crate::scryfall::Card>(cached_response) {
                     card_map.insert(arena_id, card);
                     continue;
                 }
@@ -2868,16 +2867,14 @@ impl EventParser {
                     if let Ok(text) = response.text().await {
                         if let Ok(card) = serde_json::from_str::<crate::scryfall::Card>(&text) {
                             // Cache the response
-                            let _ = cache_manager
-                                .set(&cache_key, serde_json::to_value(&card)?)
-                                .await;
+                            let _ = cache.insert(&cache_key, serde_json::to_value(&card)?).await;
                             card_map.insert(arena_id, card);
                         }
                     }
                 }
                 Err(e) => {
                     // If we can't fetch, log the error and skip this card
-                    eprintln!("Failed to fetch card {}: {}", arena_id, e);
+                    eprintln!("Failed to fetch card {arena_id}: {e}");
                 }
             }
         }

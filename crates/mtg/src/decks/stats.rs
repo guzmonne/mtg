@@ -177,7 +177,7 @@ fn convert_cli_deck_list_to_core(cli_deck_list: &DeckList) -> mtg_core::DeckList
                 card_details: card
                     .card_details
                     .as_ref()
-                    .map(|details| crate::scryfall::convert_cli_card_to_core(details)),
+                    .map(crate::scryfall::convert_cli_card_to_core),
             })
             .collect(),
         sideboard: cli_deck_list
@@ -191,7 +191,7 @@ fn convert_cli_deck_list_to_core(cli_deck_list: &DeckList) -> mtg_core::DeckList
                 card_details: card
                     .card_details
                     .as_ref()
-                    .map(|details| crate::scryfall::convert_cli_card_to_core(details)),
+                    .map(crate::scryfall::convert_cli_card_to_core),
             })
             .collect(),
     }
