@@ -1,10 +1,12 @@
 use serde::{Deserialize, Serialize};
 
+pub mod compare;
 pub mod parser;
 pub mod ranked;
 pub mod stats;
 pub mod utils;
 
+pub use compare::{compare_decks, load_deck_from_id_or_url, CardEntry, DeckComparison};
 pub use parser::parse_deck_list;
 pub use stats::{calculate_deck_stats, DeckStats};
 pub use utils::generate_short_hash;

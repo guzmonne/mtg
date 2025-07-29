@@ -9,7 +9,6 @@ mod utils;
 pub use mcp::analyze_deck_list_mcp;
 
 // Re-export some types from mtg_core
-pub use mtg_core::{generate_short_hash, parse_deck_list, ParsedDeck};
 
 // CLI-specific types that need to use CLI Card type
 use serde::{Deserialize, Serialize};
@@ -78,7 +77,7 @@ impl App {
                 format,
             } => stats::run(input, file, format, global).await,
             Commands::Ranked { command } => ranked::run(command, global).await,
-            Commands::Compare(args) => args.run().await,
+            Commands::Compare(args) => args.run(&global).await,
         }
     }
 }
