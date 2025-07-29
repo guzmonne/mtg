@@ -1,6 +1,7 @@
 use crate::prelude::*;
 
-use super::utils::{calculate_deck_stats, fetch_card_details};
+use super::utils::{calculate_deck_stats_cli, fetch_card_details_with_global};
+use mtg_core::parse_deck_list;
 
 // Function for MCP integration
 pub async fn analyze_deck_list_mcp(deck_content: &str, global: crate::Global) -> Result<String> {
@@ -11,9 +12,10 @@ pub async fn analyze_deck_list_mcp(deck_content: &str, global: crate::Global) ->
         ));
     }
 
-    let deck_list = super::parse_deck_list(deck_content)?;
-    let deck_with_details = fetch_card_details(deck_list, global).await?;
-    let stats = calculate_deck_stats(&deck_with_details)?;
+    let core_deck_list = parse_deck_list(deck_content)?;
+    let cli_deck_list = super::utils::convert_core_deck_list_to_cli(&core_deck_list);
+    let deck_with_details = fetch_card_details_with_global(cli_deck_list, &global).await?;
+    let stats = calculate_deck_stats_cli(&deck_with_details)?;
 
     // Format as pretty output for MCP
     let mut output = String::new();

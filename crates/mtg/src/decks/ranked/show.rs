@@ -1,128 +1,40 @@
-use scraper::{Html, Selector};
-use serde::Serialize;
-
-use crate::decks::ParsedDeck;
 use crate::prelude::*;
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ParsedDecksResponse {
-    pub url: String,
-    pub decks: Vec<ParsedDeck>,
-}
+use mtg_core::cache::{CachedHttpClient, DiskCacheBuilder};
+use mtg_core::{ParsedDecksResponse, RankedDecksClient};
 
 pub async fn run(identifier: String, output: String, global: crate::Global) -> Result<()> {
-    // Determine if identifier is a URL or ID
-    let url = if identifier.starts_with("http://") || identifier.starts_with("https://") {
-        identifier.clone()
-    } else {
-        // It's an ID, fetch from cache
-        let cache_manager = crate::cache::CacheManager::new()?;
-        let cached_item = cache_manager
-            .get(&identifier)
-            .await?
-            .ok_or_else(|| eyre!("No cached item found with ID: {}", identifier))?;
+    // Create cache and HTTP client - use same prefixes as list command
+    let cache = DiskCacheBuilder::new().prefix("ranked_list").build()?;
 
-        // Extract the link from the cached item
-        cached_item
-            .data
-            .get("link")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| eyre!("No link found in cached item"))?
-            .to_string()
-    };
-
-    // Fetch the page
-    let client = reqwest::Client::builder()
+    let http_client = CachedHttpClient::builder()
         .timeout(std::time::Duration::from_secs(global.timeout))
         .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36")
+        .cache_prefix("ranked_list_http")
         .build()?;
 
-    let response = client.get(&url).send().await?;
+    // Create ranked decks client
+    let client = RankedDecksClient::new(http_client, cache);
 
-    if !response.status().is_success() {
-        return Err(eyre!("Failed to fetch page: HTTP {}", response.status()));
-    }
-
-    let html_content = response.text().await?;
-
-    // Parse the HTML
-    let document = Html::parse_document(&html_content);
-
-    // Find all deck-list web components
-    let deck_list_selector = Selector::parse("deck-list").unwrap();
-    let mut parsed_decks = Vec::new();
-
-    for deck_element in document.select(&deck_list_selector) {
-        // Extract attributes from deck-list element
-        let deck_title = deck_element.value().attr("deck-title").map(String::from);
-        let subtitle = deck_element.value().attr("subtitle").map(String::from);
-        let event_date = deck_element.value().attr("event-date").map(String::from);
-        let event_name = deck_element.value().attr("event-name").map(String::from);
-        let format = deck_element.value().attr("format").map(String::from);
-
-        // Parse main deck
-        let main_deck_selector = Selector::parse("main-deck").unwrap();
-        let mut main_deck = Vec::new();
-
-        if let Some(main_deck_element) = deck_element.select(&main_deck_selector).next() {
-            let deck_content = main_deck_element.text().collect::<String>();
-            if let Ok(parsed_list) = crate::decks::parse_deck_list(&deck_content) {
-                main_deck = parsed_list.main_deck;
+    // Fetch decks using mtg_core
+    let response = match client.fetch_decks_response(&identifier).await {
+        Ok(response) => response,
+        Err(e) => {
+            // Check if it's a cache miss error and provide helpful message
+            if e.to_string().contains("No cached item found with ID") {
+                return Err(eyre!(
+                    "ID '{}' not found in cache. Please run 'mtg decks ranked list' first to generate IDs, or provide a URL directly.",
+                    identifier
+                ));
             }
+            return Err(e);
         }
+    };
 
-        // Parse sideboard
-        let sideboard_selector = Selector::parse("side-board").unwrap();
-        let mut sideboard = Vec::new();
-
-        if let Some(sideboard_element) = deck_element.select(&sideboard_selector).next() {
-            let deck_content = sideboard_element.text().collect::<String>();
-            if let Ok(parsed_list) = crate::decks::parse_deck_list(&deck_content) {
-                sideboard = parsed_list.main_deck; // Use main_deck since we're parsing just the sideboard content
-            }
-        }
-
-        // Generate hash for this deck
-        let deck_data = serde_json::json!({
-            "title": deck_title,
-            "subtitle": subtitle,
-            "event_date": event_date,
-            "event_name": event_name,
-            "format": format,
-            "main_deck": &main_deck,
-            "sideboard": &sideboard,
-        });
-        let deck_hash = crate::decks::generate_short_hash(&deck_data);
-
-        // Cache the parsed deck
-        let cache_manager = crate::cache::CacheManager::new()?;
-        // Add ID to the deck data before caching
-        let mut deck_data_with_id = deck_data.clone();
-        deck_data_with_id["id"] = serde_json::json!(deck_hash.clone());
-        cache_manager.set(&deck_hash, deck_data_with_id).await?;
-
-        parsed_decks.push(ParsedDeck {
-            id: deck_hash,
-            title: deck_title,
-            subtitle,
-            event_date,
-            event_name,
-            format,
-            main_deck,
-            sideboard,
-        });
-    }
-
-    if parsed_decks.is_empty() {
+    if response.decks.is_empty() {
         return Err(eyre!("No deck lists found on the page"));
     }
 
     // Output results
-    let response = ParsedDecksResponse {
-        url: url.clone(),
-        decks: parsed_decks,
-    };
-
     match output.as_str() {
         "json" => output_parsed_decks_json(&response)?,
         "pretty" => output_parsed_decks_pretty(&response)?,
@@ -192,108 +104,31 @@ fn output_parsed_decks_pretty(response: &ParsedDecksResponse) -> Result<()> {
 pub async fn fetch_decks_from_article(
     identifier: &str,
     global: &crate::Global,
-) -> Result<Vec<ParsedDeck>> {
-    // Determine if identifier is a URL or ID
-    let url = if identifier.starts_with("http://") || identifier.starts_with("https://") {
-        identifier.to_string()
-    } else {
-        // It's an ID, fetch from cache
-        let cache_manager = crate::cache::CacheManager::new()?;
-        let cached_item = cache_manager
-            .get(identifier)
-            .await?
-            .ok_or_else(|| eyre!("No cached item found with ID: {}", identifier))?;
+) -> Result<Vec<mtg_core::ParsedDeck>> {
+    // Create cache and HTTP client - use same prefixes as list command
+    let cache = DiskCacheBuilder::new().prefix("ranked_list").build()?;
 
-        // Extract the link from the cached item
-        cached_item
-            .data
-            .get("link")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| eyre!("No link found in cached item"))?
-            .to_string()
-    };
-
-    // Fetch the page
-    let client = reqwest::Client::builder()
+    let http_client = CachedHttpClient::builder()
         .timeout(std::time::Duration::from_secs(global.timeout))
         .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36")
+        .cache_prefix("ranked_list_http")
         .build()?;
 
-    let response = client.get(&url).send().await?;
+    // Create ranked decks client
+    let client = RankedDecksClient::new(http_client, cache);
 
-    if !response.status().is_success() {
-        return Err(eyre!("Failed to fetch page: HTTP {}", response.status()));
-    }
-
-    let html_content = response.text().await?;
-
-    // Parse the HTML
-    let document = Html::parse_document(&html_content);
-
-    // Find all deck-list web components
-    let deck_list_selector = Selector::parse("deck-list").unwrap();
-    let mut parsed_decks = Vec::new();
-
-    for deck_element in document.select(&deck_list_selector) {
-        // Extract attributes from deck-list element
-        let deck_title = deck_element.value().attr("deck-title").map(String::from);
-        let subtitle = deck_element.value().attr("subtitle").map(String::from);
-        let event_date = deck_element.value().attr("event-date").map(String::from);
-        let event_name = deck_element.value().attr("event-name").map(String::from);
-        let format = deck_element.value().attr("format").map(String::from);
-
-        // Parse main deck
-        let main_deck_selector = Selector::parse("main-deck").unwrap();
-        let mut main_deck = Vec::new();
-
-        if let Some(main_deck_element) = deck_element.select(&main_deck_selector).next() {
-            let deck_content = main_deck_element.text().collect::<String>();
-            if let Ok(parsed_list) = crate::decks::parse_deck_list(&deck_content) {
-                main_deck = parsed_list.main_deck;
+    // Fetch decks using mtg_core
+    match client.fetch_decks_from_article(identifier).await {
+        Ok(decks) => Ok(decks),
+        Err(e) => {
+            // Check if it's a cache miss error and provide helpful message
+            if e.to_string().contains("No cached item found with ID") {
+                return Err(eyre!(
+                    "ID '{}' not found in cache. Please run 'mtg decks ranked list' first to generate IDs, or provide a URL directly.",
+                    identifier
+                ));
             }
+            Err(e)
         }
-
-        // Parse sideboard
-        let sideboard_selector = Selector::parse("side-board").unwrap();
-        let mut sideboard = Vec::new();
-
-        if let Some(sideboard_element) = deck_element.select(&sideboard_selector).next() {
-            let deck_content = sideboard_element.text().collect::<String>();
-            if let Ok(parsed_list) = crate::decks::parse_deck_list(&deck_content) {
-                sideboard = parsed_list.main_deck; // Use main_deck since we're parsing just the sideboard content
-            }
-        }
-
-        // Generate hash for this deck
-        let deck_data = serde_json::json!({
-            "title": deck_title,
-            "subtitle": subtitle,
-            "event_date": event_date,
-            "event_name": event_name,
-            "format": format,
-            "main_deck": &main_deck,
-            "sideboard": &sideboard,
-        });
-        let deck_hash = crate::decks::generate_short_hash(&deck_data);
-
-        // Cache the parsed deck
-        let cache_manager = crate::cache::CacheManager::new()?;
-        // Add ID to the deck data before caching
-        let mut deck_data_with_id = deck_data.clone();
-        deck_data_with_id["id"] = serde_json::json!(deck_hash.clone());
-        cache_manager.set(&deck_hash, deck_data_with_id).await?;
-
-        parsed_decks.push(ParsedDeck {
-            id: deck_hash,
-            title: deck_title,
-            subtitle,
-            event_date,
-            event_name,
-            format,
-            main_deck,
-            sideboard,
-        });
     }
-
-    Ok(parsed_decks)
 }

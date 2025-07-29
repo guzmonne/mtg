@@ -1,6 +1,4 @@
 use clap_stdin::MaybeStdin;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 mod compare;
 mod mcp;
@@ -9,7 +7,27 @@ mod stats;
 mod utils;
 
 pub use mcp::analyze_deck_list_mcp;
-pub use utils::{generate_short_hash, parse_deck_list};
+
+// Re-export some types from mtg_core
+pub use mtg_core::{generate_short_hash, parse_deck_list, ParsedDeck};
+
+// CLI-specific types that need to use CLI Card type
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeckCard {
+    pub quantity: u32,
+    pub name: String,
+    pub set_code: Option<String>,
+    pub collector_number: Option<String>,
+    pub card_details: Option<crate::scryfall::Card>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeckList {
+    pub main_deck: Vec<DeckCard>,
+    pub sideboard: Vec<DeckCard>,
+}
 
 use crate::prelude::*;
 
@@ -49,46 +67,7 @@ pub enum Commands {
     Compare(compare::CompareArgs),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeckCard {
-    pub quantity: u32,
-    pub name: String,
-    pub set_code: Option<String>,
-    pub collector_number: Option<String>,
-    pub card_details: Option<crate::scryfall::Card>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeckList {
-    pub main_deck: Vec<DeckCard>,
-    pub sideboard: Vec<DeckCard>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ParsedDeck {
-    pub id: String,
-    pub title: Option<String>,
-    pub subtitle: Option<String>,
-    pub event_date: Option<String>,
-    pub event_name: Option<String>,
-    pub format: Option<String>,
-    pub main_deck: Vec<DeckCard>,
-    pub sideboard: Vec<DeckCard>,
-}
-
-#[derive(Debug, Clone)]
-pub struct DeckStats {
-    pub total_cards: u32,
-    pub main_deck_cards: u32,
-    pub sideboard_cards: u32,
-    pub unique_cards: u32,
-    pub average_mana_value: f64,
-    pub mana_curve: HashMap<u32, u32>,
-    pub color_distribution: HashMap<String, u32>,
-    pub type_distribution: HashMap<String, u32>,
-    pub rarity_distribution: HashMap<String, u32>,
-    pub format_legality: HashMap<String, bool>,
-}
+// Types are now re-exported from mtg_core above
 
 impl App {
     pub async fn run(self, global: crate::Global) -> Result<()> {

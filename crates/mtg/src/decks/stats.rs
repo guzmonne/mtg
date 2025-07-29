@@ -2,12 +2,15 @@ use clap_stdin::MaybeStdin;
 use futures::future::join_all;
 use prettytable::{Cell, Row};
 
-use super::{
-    utils::{calculate_deck_stats, fetch_card_details, parse_deck_list},
-    DeckCard, DeckList, DeckStats,
+use super::utils::{
+    calculate_deck_stats_cli, convert_core_deck_list_to_cli, convert_parsed_deck_to_cli_deck_list,
+    fetch_card_details_with_global,
 };
+use super::{DeckCard, DeckList};
 use crate::cache::CacheManager;
 use crate::prelude::*;
+use mtg_core::cache::{CacheStore, DiskCacheBuilder};
+use mtg_core::parse_deck_list;
 
 pub async fn run(
     input: Option<MaybeStdin<String>>,
@@ -91,30 +94,52 @@ pub async fn run(
                 }
 
                 // Convert ParsedDeck to DeckList
-                (
-                    DeckList {
-                        main_deck: decks[0].main_deck.clone(),
-                        sideboard: decks[0].sideboard.clone(),
-                    },
-                    false,
-                )
+                (convert_parsed_deck_to_cli_deck_list(&decks[0]), false)
             }
         }
     } else {
         // Parse deck list normally
-        (parse_deck_list(&deck_content)?, false)
+        let core_deck_list = parse_deck_list(&deck_content)?;
+        (convert_core_deck_list_to_cli(&core_deck_list), false)
     };
 
     // For Arena decks, we already have card details from the conversion
     let deck_with_details = if is_arena_deck {
         deck_list
     } else {
-        // Fetch card details for non-Arena decks
-        fetch_card_details(deck_list, global).await?
+        // Check if we already have card details cached
+        let deck_has_details = deck_list
+            .main_deck
+            .iter()
+            .any(|card| card.card_details.is_some())
+            || deck_list
+                .sideboard
+                .iter()
+                .any(|card| card.card_details.is_some());
+
+        if deck_has_details {
+            // We already have card details, use them
+            deck_list
+        } else {
+            // Fetch card details for non-Arena decks
+            let deck_with_fetched_details =
+                fetch_card_details_with_global(deck_list, &global).await?;
+
+            // Cache the deck with card details for future use
+            if let Ok(deck_id) = extract_deck_id_from_input(&deck_content) {
+                if let Err(e) = cache_deck_with_details(&deck_id, &deck_with_fetched_details).await
+                {
+                    // Log error but don't fail the command
+                    eprintln!("Warning: Failed to cache deck with details: {}", e);
+                }
+            }
+
+            deck_with_fetched_details
+        }
     };
 
     // Calculate statistics
-    let stats = calculate_deck_stats(&deck_with_details)?;
+    let stats = calculate_deck_stats_cli(&deck_with_details)?;
 
     // Output results
     match format.as_str() {
@@ -149,9 +174,28 @@ fn is_arena_deck_id(input: &str) -> bool {
 }
 
 async fn fetch_deck_from_cache(deck_id: &str) -> Result<DeckList> {
+    // First try the new mtg_core cache system for parsed decks
+    let cache = DiskCacheBuilder::new().prefix("ranked_list").build()?;
+
+    // First try to get deck with card details (faster)
+    let cache_key_with_details = format!("parsed_deck_with_details_{}", deck_id.trim());
+    let cached_result_with_details: Result<Option<serde_json::Value>, _> =
+        cache.get(&cache_key_with_details).await;
+    if let Ok(Some(cached_deck)) = cached_result_with_details {
+        return parse_cached_deck_data(&cached_deck);
+    }
+
+    // Fallback to deck without details
+    let cache_key = format!("parsed_deck_{}", deck_id.trim());
+    let cached_result: Result<Option<serde_json::Value>, _> = cache.get(&cache_key).await;
+    if let Ok(Some(cached_deck)) = cached_result {
+        return parse_cached_deck_data(&cached_deck);
+    }
+
+    // Fallback to legacy cache manager for backward compatibility
     let cache_manager = crate::cache::CacheManager::new()?;
 
-    // First try to get it as a deck ID
+    // Try to get it as a deck ID from legacy cache
     if let Ok(Some(cached_deck)) = cache_manager.get(deck_id.trim()).await {
         // Check if this is a deck (has main_deck field)
         if cached_deck.data.get("main_deck").is_some() {
@@ -317,7 +361,184 @@ async fn fetch_arena_deck_from_cache(deck_id: &str) -> Result<(DeckList, String)
     ))
 }
 
-fn output_pretty(deck_list: &DeckList, stats: &DeckStats) -> Result<()> {
+/// Safe padding calculation to prevent underflow
+fn safe_padding(total_width: usize, used_width: usize) -> String {
+    if used_width >= total_width {
+        String::new()
+    } else {
+        " ".repeat(total_width - used_width)
+    }
+}
+
+/// Format a single card in a card-like display
+fn format_card_display(card: &super::DeckCard, quantity: u32) -> String {
+    if let Some(details) = &card.card_details {
+        let mut output = String::new();
+
+        // Card border (top)
+        output.push_str(&format!("{}\n", " ".repeat(79)));
+
+        // Name and mana cost line
+        let name_line = if let Some(mana_cost) = &details.mana_cost {
+            if !mana_cost.is_empty() {
+                let used_width = 3 + quantity.to_string().len() + card.name.len() + mana_cost.len();
+                format!(
+                    " {}x {}{}{}",
+                    quantity,
+                    card.name,
+                    safe_padding(79, used_width),
+                    mana_cost
+                )
+            } else {
+                let used_width = 3 + quantity.to_string().len() + card.name.len();
+                format!(
+                    " {}x {}{}",
+                    quantity,
+                    card.name,
+                    safe_padding(79, used_width)
+                )
+            }
+        } else {
+            let used_width = 3 + quantity.to_string().len() + card.name.len();
+            format!(
+                " {}x {}{}",
+                quantity,
+                card.name,
+                safe_padding(79, used_width)
+            )
+        };
+        output.push_str(&name_line);
+        output.push('\n');
+
+        // Separator line
+        output.push_str(&format!("{}\n", " ".repeat(79)));
+
+        // Type line
+        let used_width = 1 + details.type_line.len();
+        let type_line = format!(" {}{}", details.type_line, safe_padding(79, used_width));
+        output.push_str(&type_line);
+        output.push('\n');
+
+        // Another separator if we have oracle text
+        if let Some(oracle_text) = &details.oracle_text {
+            if !oracle_text.is_empty() {
+                output.push_str(&format!("{}\n", " ".repeat(79)));
+
+                // Oracle text (wrapped to fit in card)
+                for line in oracle_text.lines() {
+                    let wrapped_lines = wrap_text_to_width(line, 77);
+                    for wrapped_line in wrapped_lines {
+                        let used_width = 1 + wrapped_line.len();
+                        let oracle_line =
+                            format!(" {}{}", wrapped_line, safe_padding(79, used_width));
+                        output.push_str(&oracle_line);
+                        output.push('\n');
+                    }
+                }
+            }
+        }
+
+        // Flavor text
+        if let Some(flavor_text) = &details.flavor_text {
+            if !flavor_text.is_empty() {
+                output.push_str(&format!("{}\n", " ".repeat(79)));
+                for line in flavor_text.lines() {
+                    let wrapped_lines = wrap_text_to_width(line, 75);
+                    for wrapped_line in wrapped_lines {
+                        let used_width = 3 + wrapped_line.len();
+                        let flavor_line =
+                            format!(" \"{}\"{}", wrapped_line, safe_padding(79, used_width));
+                        output.push_str(&flavor_line);
+                        output.push('\n');
+                    }
+                }
+            }
+        }
+
+        // Bottom section with P/T, Loyalty, Set info
+        output.push_str(&format!("{}\n", " ".repeat(79)));
+
+        // Power/Toughness or Loyalty in bottom right, Set info in bottom left
+        let set_info = format!("{} ({})", details.set_name, details.set);
+        let bottom_right =
+            if let (Some(power), Some(toughness)) = (&details.power, &details.toughness) {
+                format!("{}/{}", power, toughness)
+            } else if let Some(loyalty) = &details.loyalty {
+                loyalty.clone()
+            } else {
+                String::new()
+            };
+
+        let bottom_line = if !bottom_right.is_empty() {
+            let used_width = 4 + set_info.len() + details.rarity.len() + bottom_right.len();
+            format!(
+                " {} • {}{}{}",
+                set_info,
+                details.rarity,
+                safe_padding(79, used_width),
+                bottom_right
+            )
+        } else {
+            let used_width = 4 + set_info.len() + details.rarity.len();
+            format!(
+                " {} • {}{}",
+                set_info,
+                details.rarity,
+                safe_padding(79, used_width)
+            )
+        };
+        output.push_str(&bottom_line);
+        output.push('\n');
+
+        // Card border (bottom)
+        output.push_str(&" ".repeat(79));
+
+        output
+    } else {
+        // Simple format for cards without details
+        let name_used_width = 3 + quantity.to_string().len() + card.name.len();
+        let details_used_width = 31;
+        format!(
+            "{}\n {}x {}{}\n (Card details not available){}\n{}",
+            " ".repeat(79),
+            quantity,
+            card.name,
+            safe_padding(79, name_used_width),
+            safe_padding(79, details_used_width),
+            " ".repeat(79)
+        )
+    }
+}
+
+/// Wrap text to fit within a specified width
+fn wrap_text_to_width(text: &str, width: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut current_line = String::new();
+
+    for word in text.split_whitespace() {
+        if current_line.is_empty() {
+            current_line = word.to_string();
+        } else if current_line.len() + 1 + word.len() <= width {
+            current_line.push(' ');
+            current_line.push_str(word);
+        } else {
+            lines.push(current_line);
+            current_line = word.to_string();
+        }
+    }
+
+    if !current_line.is_empty() {
+        lines.push(current_line);
+    }
+
+    if lines.is_empty() {
+        lines.push(String::new());
+    }
+
+    lines
+}
+
+fn output_pretty(deck_list: &super::DeckList, stats: &mtg_core::DeckStats) -> Result<()> {
     println!("=== DECK ANALYSIS ===\n");
 
     // Basic stats
@@ -457,131 +678,35 @@ fn output_pretty(deck_list: &DeckList, stats: &DeckStats) -> Result<()> {
     if !deck_list.main_deck.is_empty() {
         println!("Main Deck ({} cards):", stats.main_deck_cards);
         println!("{}", "=".repeat(80));
-
-        for card in &deck_list.main_deck {
-            println!();
-            println!("{}x {}", card.quantity, card.name);
-
-            if let Some(details) = &card.card_details {
-                // Mana cost and type line
-                if let Some(mana_cost) = &details.mana_cost {
-                    if !mana_cost.is_empty() {
-                        println!("Mana Cost: {mana_cost}");
-                    }
-                }
-                println!("Type: {}", details.type_line);
-
-                // Power/Toughness for creatures
-                if let (Some(power), Some(toughness)) = (&details.power, &details.toughness) {
-                    println!("Power/Toughness: {power}/{toughness}");
-                }
-
-                // Loyalty for planeswalkers
-                if let Some(loyalty) = &details.loyalty {
-                    println!("Loyalty: {loyalty}");
-                }
-
-                // Oracle text
-                if let Some(oracle_text) = &details.oracle_text {
-                    if !oracle_text.is_empty() {
-                        println!("Oracle Text:");
-                        // Format oracle text with proper line breaks
-                        for line in oracle_text.lines() {
-                            println!("  {line}");
-                        }
-                    }
-                }
-
-                // Flavor text
-                if let Some(flavor_text) = &details.flavor_text {
-                    if !flavor_text.is_empty() {
-                        println!("Flavor Text:");
-                        for line in flavor_text.lines() {
-                            println!("  \"{line}\"");
-                        }
-                    }
-                }
-
-                // Set information
-                println!("Set: {} ({})", details.set_name, details.set);
-
-                // Rarity
-                println!("Rarity: {}", details.rarity);
-            } else {
-                println!("(Card details not available)");
-            }
-
-            println!("{}", "-".repeat(40));
-        }
-
         println!();
+
+        for (i, card) in deck_list.main_deck.iter().enumerate() {
+            if i > 0 {
+                println!("{}", "-".repeat(79));
+            }
+            println!("{}", format_card_display(card, card.quantity));
+            println!();
+        }
     }
 
     if !deck_list.sideboard.is_empty() {
         println!("Sideboard ({} cards):", stats.sideboard_cards);
         println!("{}", "=".repeat(80));
+        println!();
 
-        for card in &deck_list.sideboard {
-            println!();
-            println!("{}x {}", card.quantity, card.name);
-
-            if let Some(details) = &card.card_details {
-                // Mana cost and type line
-                if let Some(mana_cost) = &details.mana_cost {
-                    if !mana_cost.is_empty() {
-                        println!("Mana Cost: {mana_cost}");
-                    }
-                }
-                println!("Type: {}", details.type_line);
-
-                // Power/Toughness for creatures
-                if let (Some(power), Some(toughness)) = (&details.power, &details.toughness) {
-                    println!("Power/Toughness: {power}/{toughness}");
-                }
-
-                // Loyalty for planeswalkers
-                if let Some(loyalty) = &details.loyalty {
-                    println!("Loyalty: {loyalty}");
-                }
-
-                // Oracle text
-                if let Some(oracle_text) = &details.oracle_text {
-                    if !oracle_text.is_empty() {
-                        println!("Oracle Text:");
-                        // Format oracle text with proper line breaks
-                        for line in oracle_text.lines() {
-                            println!("  {line}");
-                        }
-                    }
-                }
-
-                // Flavor text
-                if let Some(flavor_text) = &details.flavor_text {
-                    if !flavor_text.is_empty() {
-                        println!("Flavor Text:");
-                        for line in flavor_text.lines() {
-                            println!("  \"{line}\"");
-                        }
-                    }
-                }
-
-                // Set information
-                println!("Set: {} ({})", details.set_name, details.set);
-
-                // Rarity
-                println!("Rarity: {}", details.rarity);
-            } else {
-                println!("(Card details not available)");
+        for (i, card) in deck_list.sideboard.iter().enumerate() {
+            if i > 0 {
+                println!("{}", "-".repeat(79));
             }
-
-            println!("{}", "-".repeat(40));
+            println!("{}", format_card_display(card, card.quantity));
+            println!();
         }
     }
 
     Ok(())
 }
 
-fn output_json(deck_list: &DeckList, stats: &DeckStats) -> Result<()> {
+fn output_json(deck_list: &super::DeckList, stats: &mtg_core::DeckStats) -> Result<()> {
     let output = serde_json::json!({
         "deck_list": deck_list,
         "statistics": {
@@ -644,6 +769,127 @@ async fn fetch_card_by_arena_id(
     cache_manager.set(&cache_key, json_value).await?;
 
     Ok(card)
+}
+
+/// Extract deck ID from input string if it's a deck ID
+fn extract_deck_id_from_input(input: &str) -> Result<String> {
+    let trimmed = input.trim();
+    if is_deck_id(trimmed) {
+        Ok(trimmed.to_string())
+    } else {
+        Err(eyre!("Input is not a deck ID"))
+    }
+}
+
+/// Parse cached deck data from JSON
+fn parse_cached_deck_data(cached_deck: &serde_json::Value) -> Result<DeckList> {
+    // Extract deck data from cached JSON
+    let main_deck = cached_deck
+        .get("main_deck")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| eyre!("Invalid deck data: missing main_deck"))?;
+
+    let sideboard = cached_deck
+        .get("sideboard")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| eyre!("Invalid deck data: missing sideboard"))?;
+
+    // Convert JSON arrays to DeckCard vectors
+    let main_deck_cards: Vec<DeckCard> = main_deck
+        .iter()
+        .filter_map(|card| {
+            let quantity = card.get("quantity")?.as_u64()? as u32;
+            let name = card.get("name")?.as_str()?.to_string();
+            let set_code = card
+                .get("set_code")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let collector_number = card
+                .get("collector_number")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+
+            // Try to parse card details if present
+            let card_details = card
+                .get("card_details")
+                .and_then(|v| serde_json::from_value(v.clone()).ok());
+
+            Some(DeckCard {
+                quantity,
+                name,
+                set_code,
+                collector_number,
+                card_details,
+            })
+        })
+        .collect();
+
+    let sideboard_cards: Vec<DeckCard> = sideboard
+        .iter()
+        .filter_map(|card| {
+            let quantity = card.get("quantity")?.as_u64()? as u32;
+            let name = card.get("name")?.as_str()?.to_string();
+            let set_code = card
+                .get("set_code")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let collector_number = card
+                .get("collector_number")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+
+            // Try to parse card details if present
+            let card_details = card
+                .get("card_details")
+                .and_then(|v| serde_json::from_value(v.clone()).ok());
+
+            Some(DeckCard {
+                quantity,
+                name,
+                set_code,
+                collector_number,
+                card_details,
+            })
+        })
+        .collect();
+
+    Ok(DeckList {
+        main_deck: main_deck_cards,
+        sideboard: sideboard_cards,
+    })
+}
+
+/// Cache a deck with card details for faster future access
+async fn cache_deck_with_details(deck_id: &str, deck_list: &DeckList) -> Result<()> {
+    let cache = DiskCacheBuilder::new().prefix("ranked_list").build()?;
+
+    // Create a JSON representation of the deck with card details
+    let deck_json = serde_json::json!({
+        "id": deck_id,
+        "main_deck": deck_list.main_deck.iter().map(|card| {
+            serde_json::json!({
+                "quantity": card.quantity,
+                "name": card.name,
+                "set_code": card.set_code,
+                "collector_number": card.collector_number,
+                "card_details": card.card_details
+            })
+        }).collect::<Vec<_>>(),
+        "sideboard": deck_list.sideboard.iter().map(|card| {
+            serde_json::json!({
+                "quantity": card.quantity,
+                "name": card.name,
+                "set_code": card.set_code,
+                "collector_number": card.collector_number,
+                "card_details": card.card_details
+            })
+        }).collect::<Vec<_>>()
+    });
+
+    let cache_key = format!("parsed_deck_with_details_{}", deck_id);
+    cache.insert(&cache_key, deck_json).await?;
+
+    Ok(())
 }
 
 async fn convert_arena_deck_to_named(
