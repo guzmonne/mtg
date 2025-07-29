@@ -1,6 +1,9 @@
-use crate::decks::DeckList;
-use color_eyre::Result;
-use std::collections::HashMap;
+use crate::cache::{CacheStore, DiskCacheBuilder};
+use crate::decks::{DeckCard, DeckList, ParsedDeck};
+use crate::scryfall::{Card, ScryfallClient};
+use color_eyre::{eyre::eyre, Result};
+use futures::future::join_all;
+use std::collections::{HashMap, HashSet};
 
 /// Statistics calculated from a deck list
 #[derive(Debug, Clone)]
@@ -335,5 +338,349 @@ mod tests {
             extract_primary_type("Legendary Creature — Dragon"),
             "Legendary Creature"
         );
+    }
+}
+
+/// Check if input is a deck ID (16 hex characters)
+pub fn is_deck_id(input: &str) -> bool {
+    let trimmed = input.trim();
+    trimmed.len() == 16 && trimmed.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Check if input is an Arena deck ID (UUID format)
+pub fn is_arena_deck_id(input: &str) -> bool {
+    let trimmed = input.trim();
+    // Arena deck IDs are UUIDs: 8-4-4-4-12 format with hyphens
+    if trimmed.len() == 36 {
+        let parts: Vec<&str> = trimmed.split('-').collect();
+        if parts.len() == 5 {
+            return parts[0].len() == 8
+                && parts[1].len() == 4
+                && parts[2].len() == 4
+                && parts[3].len() == 4
+                && parts[4].len() == 12
+                && trimmed.chars().all(|c| c.is_ascii_hexdigit() || c == '-');
+        }
+    }
+    false
+}
+
+/// Load deck from cache by ID
+pub async fn load_deck_from_cache(deck_id: &str) -> Result<DeckList> {
+    let cache = DiskCacheBuilder::new().prefix("ranked_list").build()?;
+
+    // First try to get deck with card details (faster)
+    let cache_key_with_details = format!("parsed_deck_with_details_{}", deck_id.trim());
+    let cached_result_with_details: Result<Option<serde_json::Value>, _> =
+        cache.get(&cache_key_with_details).await;
+    if let Ok(Some(cached_deck)) = cached_result_with_details {
+        return parse_cached_deck_data(&cached_deck);
+    }
+
+    // Fallback to deck without details
+    let cache_key = format!("parsed_deck_{}", deck_id.trim());
+    let cached_result: Result<Option<serde_json::Value>, _> = cache.get(&cache_key).await;
+    if let Ok(Some(cached_deck)) = cached_result {
+        return parse_cached_deck_data(&cached_deck);
+    }
+
+    Err(eyre!("Deck ID '{}' not found in cache", deck_id))
+}
+
+/// Load Arena deck from cache by ID
+pub async fn load_arena_deck_from_cache(deck_id: &str) -> Result<(DeckList, String)> {
+    let cache = DiskCacheBuilder::new().prefix("companion").build()?;
+
+    // Try to get the combined arena decks cache
+    let cached_result: Result<Option<serde_json::Value>, _> =
+        cache.get("arena_decks_combined").await;
+    if let Ok(Some(cached_data)) = cached_result {
+        // Look for decks array
+        if let Some(decks) = cached_data.get("decks").and_then(|v| v.as_array()) {
+            // Find the deck with matching ID
+            for deck in decks {
+                if let Some(id) = deck.get("id").and_then(|v| v.as_str()) {
+                    if id == deck_id {
+                        // Extract deck content
+                        let deck_content = deck
+                            .get("deck_content")
+                            .ok_or_else(|| eyre!("Deck content not found"))?;
+
+                        let main_deck = deck_content
+                            .get("MainDeck")
+                            .and_then(|v| v.as_array())
+                            .ok_or_else(|| eyre!("Invalid deck data: missing MainDeck"))?;
+
+                        let empty_vec = Vec::new();
+                        let sideboard = deck_content
+                            .get("Sideboard")
+                            .and_then(|v| v.as_array())
+                            .unwrap_or(&empty_vec);
+
+                        // Get deck name
+                        let deck_name = deck
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Unknown Deck")
+                            .to_string();
+
+                        // Convert Arena card IDs to DeckCards (temporarily with ID as name)
+                        let main_deck_cards: Vec<DeckCard> = main_deck
+                            .iter()
+                            .filter_map(|card| {
+                                let card_id = card.get("cardId")?.as_u64()? as u32;
+                                let quantity = card.get("quantity")?.as_u64()? as u32;
+
+                                Some(DeckCard {
+                                    quantity,
+                                    name: card_id.to_string(), // Temporarily use ID as name
+                                    set_code: None,
+                                    collector_number: None,
+                                    card_details: None,
+                                })
+                            })
+                            .collect();
+
+                        let sideboard_cards: Vec<DeckCard> = sideboard
+                            .iter()
+                            .filter_map(|card| {
+                                let card_id = card.get("cardId")?.as_u64()? as u32;
+                                let quantity = card.get("quantity")?.as_u64()? as u32;
+
+                                Some(DeckCard {
+                                    quantity,
+                                    name: card_id.to_string(), // Temporarily use ID as name
+                                    set_code: None,
+                                    collector_number: None,
+                                    card_details: None,
+                                })
+                            })
+                            .collect();
+
+                        return Ok((
+                            DeckList {
+                                main_deck: main_deck_cards,
+                                sideboard: sideboard_cards,
+                            },
+                            deck_name,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    Err(eyre!(
+        "Arena deck ID '{}' not found in cache. Please run 'mtg companion parse' first to cache Arena decks.",
+        deck_id
+    ))
+}
+
+/// Convert Arena deck with card IDs to named cards
+pub async fn convert_arena_deck_to_named(
+    deck_list: DeckList,
+    _deck_name: &str,
+    scryfall_client: &ScryfallClient,
+) -> Result<DeckList> {
+    // Collect all unique Arena IDs
+    let mut arena_ids = HashSet::new();
+    for card in &deck_list.main_deck {
+        if let Ok(id) = card.name.parse::<u32>() {
+            arena_ids.insert(id);
+        }
+    }
+    for card in &deck_list.sideboard {
+        if let Ok(id) = card.name.parse::<u32>() {
+            arena_ids.insert(id);
+        }
+    }
+
+    // Fetch all cards in parallel
+    let fetch_futures: Vec<_> = arena_ids
+        .iter()
+        .map(|&id| fetch_card_by_arena_id(id, scryfall_client))
+        .collect();
+
+    let results = join_all(fetch_futures).await;
+
+    // Build a map of Arena ID to card details
+    let mut card_map = HashMap::new();
+    let mut _fetch_errors = 0;
+
+    for (id, result) in arena_ids.iter().zip(results) {
+        match result {
+            Ok(card) => {
+                card_map.insert(*id, card);
+            }
+            Err(_) => {
+                _fetch_errors += 1;
+            }
+        }
+    }
+
+    // Convert the deck list
+    let main_deck: Vec<DeckCard> = deck_list
+        .main_deck
+        .into_iter()
+        .map(|mut card| {
+            if let Ok(id) = card.name.parse::<u32>() {
+                if let Some(scryfall_card) = card_map.get(&id) {
+                    card.name = scryfall_card.name.clone();
+                    card.set_code = Some(scryfall_card.set.clone());
+                    card.collector_number = Some(scryfall_card.collector_number.clone());
+                    card.card_details = Some(scryfall_card.clone());
+                }
+            }
+            card
+        })
+        .collect();
+
+    let sideboard: Vec<DeckCard> = deck_list
+        .sideboard
+        .into_iter()
+        .map(|mut card| {
+            if let Ok(id) = card.name.parse::<u32>() {
+                if let Some(scryfall_card) = card_map.get(&id) {
+                    card.name = scryfall_card.name.clone();
+                    card.set_code = Some(scryfall_card.set.clone());
+                    card.collector_number = Some(scryfall_card.collector_number.clone());
+                    card.card_details = Some(scryfall_card.clone());
+                }
+            }
+            card
+        })
+        .collect();
+
+    Ok(DeckList {
+        main_deck,
+        sideboard,
+    })
+}
+
+/// Fetch card by Arena ID from Scryfall
+async fn fetch_card_by_arena_id(arena_id: u32, scryfall_client: &ScryfallClient) -> Result<Card> {
+    let url = format!("https://api.scryfall.com/cards/arena/{arena_id}");
+
+    // Use the scryfall client's get method which handles caching
+    let card: Card = scryfall_client.get(&url).await?;
+    Ok(card)
+}
+
+/// Cache a deck with card details for faster future access
+pub async fn cache_deck_with_details(deck_id: &str, deck_list: &DeckList) -> Result<()> {
+    let cache = DiskCacheBuilder::new().prefix("ranked_list").build()?;
+
+    // Create a JSON representation of the deck with card details
+    let deck_json = serde_json::json!({
+        "id": deck_id,
+        "main_deck": deck_list.main_deck.iter().map(|card| {
+            serde_json::json!({
+                "quantity": card.quantity,
+                "name": card.name,
+                "set_code": card.set_code,
+                "collector_number": card.collector_number,
+                "card_details": card.card_details
+            })
+        }).collect::<Vec<_>>(),
+        "sideboard": deck_list.sideboard.iter().map(|card| {
+            serde_json::json!({
+                "quantity": card.quantity,
+                "name": card.name,
+                "set_code": card.set_code,
+                "collector_number": card.collector_number,
+                "card_details": card.card_details
+            })
+        }).collect::<Vec<_>>()
+    });
+
+    let cache_key = format!("parsed_deck_with_details_{deck_id}");
+    cache.insert(&cache_key, deck_json).await?;
+
+    Ok(())
+}
+
+/// Parse cached deck data from JSON
+fn parse_cached_deck_data(cached_deck: &serde_json::Value) -> Result<DeckList> {
+    // Extract deck data from cached JSON
+    let main_deck = cached_deck
+        .get("main_deck")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| eyre!("Invalid deck data: missing main_deck"))?;
+
+    let sideboard = cached_deck
+        .get("sideboard")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| eyre!("Invalid deck data: missing sideboard"))?;
+
+    // Convert JSON arrays to DeckCard vectors
+    let main_deck_cards: Vec<DeckCard> = main_deck
+        .iter()
+        .filter_map(|card| {
+            let quantity = card.get("quantity")?.as_u64()? as u32;
+            let name = card.get("name")?.as_str()?.to_string();
+            let set_code = card
+                .get("set_code")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let collector_number = card
+                .get("collector_number")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+
+            // Try to parse card details if present
+            let card_details = card
+                .get("card_details")
+                .and_then(|v| serde_json::from_value(v.clone()).ok());
+
+            Some(DeckCard {
+                quantity,
+                name,
+                set_code,
+                collector_number,
+                card_details,
+            })
+        })
+        .collect();
+
+    let sideboard_cards: Vec<DeckCard> = sideboard
+        .iter()
+        .filter_map(|card| {
+            let quantity = card.get("quantity")?.as_u64()? as u32;
+            let name = card.get("name")?.as_str()?.to_string();
+            let set_code = card
+                .get("set_code")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let collector_number = card
+                .get("collector_number")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+
+            // Try to parse card details if present
+            let card_details = card
+                .get("card_details")
+                .and_then(|v| serde_json::from_value(v.clone()).ok());
+
+            Some(DeckCard {
+                quantity,
+                name,
+                set_code,
+                collector_number,
+                card_details,
+            })
+        })
+        .collect();
+
+    Ok(DeckList {
+        main_deck: main_deck_cards,
+        sideboard: sideboard_cards,
+    })
+}
+
+/// Convert ParsedDeck to DeckList
+pub fn convert_parsed_deck_to_deck_list(parsed_deck: &ParsedDeck) -> DeckList {
+    DeckList {
+        main_deck: parsed_deck.main_deck.clone(),
+        sideboard: parsed_deck.sideboard.clone(),
     }
 }

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 #
 # Pre-commit checks script that runs cargo fmt, cargo check, and cargo test to ensure code quality
 # This script can be run standalone or called from the git pre-commit hook

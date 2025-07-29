@@ -31,7 +31,7 @@ pub async fn load_deck_from_id_or_url(
     cache: &DiskCache,
 ) -> Result<ParsedDeck> {
     // First, try to load as a deck ID from the new cache system
-    let cache_key = format!("parsed_deck_{}", identifier);
+    let cache_key = format!("parsed_deck_{identifier}");
     let cached_result: Result<Option<serde_json::Value>, _> = cache.get(&cache_key).await;
 
     if let Ok(Some(cached_deck)) = cached_result {
@@ -39,7 +39,7 @@ pub async fn load_deck_from_id_or_url(
     }
 
     // Try as article ID
-    let article_cache_key = format!("ranked_article_{}", identifier);
+    let article_cache_key = format!("ranked_article_{identifier}");
     let article_cached_result: Result<Option<serde_json::Value>, _> =
         cache.get(&article_cache_key).await;
 
