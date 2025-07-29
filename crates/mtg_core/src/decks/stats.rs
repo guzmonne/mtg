@@ -223,7 +223,6 @@ mod tests {
     use super::*;
     use crate::decks::DeckCard;
     use crate::scryfall::types::Card;
-    use std::collections::HashMap;
 
     fn create_test_card(name: &str, cmc: f64, type_line: &str, rarity: &str) -> DeckCard {
         use serde_json::json;

@@ -57,7 +57,6 @@ async fn fetch_single_card(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::decks::DeckCard;
 
     #[test]
     fn test_generate_short_hash() {
