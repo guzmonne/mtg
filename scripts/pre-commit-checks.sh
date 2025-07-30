@@ -2,7 +2,10 @@
 #
 # Pre-commit checks script that runs cargo fmt, cargo check, and cargo test to ensure code quality
 # This script can be run standalone or called from the git pre-commit hook
+# The script stops execution immediately if any check fails
 #
+
+set -e  # Exit immediately if any command fails
 
 # Check if cargo is available
 if ! command -v cargo >/dev/null 2>&1; then
@@ -30,10 +33,7 @@ echo ""
 
 # 1. Run cargo fmt
 echo "📝 Running cargo fmt..."
-cargo fmt --all -- --check >/dev/null 2>&1
-fmt_exit_code=$?
-
-if [ $fmt_exit_code -ne 0 ]; then
+if ! cargo fmt --all -- --check >/dev/null 2>&1; then
 	echo "Code formatting issues detected. Running cargo fmt to fix them..."
 	cargo fmt --all
 

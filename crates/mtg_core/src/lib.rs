@@ -1,4 +1,5 @@
 pub mod cache;
+pub mod companion;
 pub mod decks;
 pub mod gatherer;
 pub mod scryfall;
@@ -29,4 +30,14 @@ pub use decks::{
         RankedListParams, RankedListResponse,
     },
     DeckCard, DeckList, DeckStats, ParsedDeck,
+};
+
+// Re-export companion types for easy access
+pub use companion::{
+    event_parser::EventParser as CompanionEventParser,
+    player_parser::PlayerEventParser as CompanionPlayerEventParser,
+    types::{
+        format_mana_cost, to_camel_case, zone_to_string, DraftState, GameAction, MatchState,
+        ParsedEvent, PlayerEvent, PlayerInfo, RawLogEvent,
+    },
 };

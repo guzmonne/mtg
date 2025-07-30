@@ -8,16 +8,22 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
+mod display;
+pub mod events;
 mod find;
 mod print;
 mod utils;
 
-pub(crate) use utils::{find_newest_log_file, get_default_log_path};
+pub(crate) use utils::{find_newest_log_file, get_default_log_path, get_player_log_path};
 
 pub struct Params {
     pub file: String,
     pub analyze: Option<String>,
     pub pretty: bool,
+    pub filter: Option<Vec<String>>,
+    pub include_player_log: bool,
+    pub limit: usize,
+    pub verbose: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -404,6 +410,18 @@ fn get_format_abbreviation(format: &str) -> &'static str {
 }
 
 pub async fn run(params: Params) -> Result<()> {
+    // Special handling for events analysis
+    if params.analyze == Some("events".to_string()) {
+        return run_events_analysis(params).await;
+    }
+
+    // If --include-player-log is specified without --analyze events, default to events analysis
+    if params.include_player_log && params.analyze.is_none() {
+        let mut events_params = params;
+        events_params.analyze = Some("events".to_string());
+        return run_events_analysis(events_params).await;
+    }
+
     // Special handling for deck analysis
     if params.analyze == Some("decks".to_string())
         && (params.file.is_empty() || params.file == "latest")
@@ -628,6 +646,85 @@ pub async fn run(params: Params) -> Result<()> {
         }
     } else {
         aprintln!("No Arena data found in the log file");
+    }
+
+    Ok(())
+}
+
+async fn run_events_analysis(params: Params) -> Result<()> {
+    let file_path = if params.file.is_empty() || params.file == "latest" {
+        // Find the newest log file
+        let log_dir = get_default_log_path()?;
+        let newest = find_newest_log_file(&log_dir)?;
+        aeprintln!("Using newest log file: {:?}", newest.file_name().unwrap());
+        newest
+    } else {
+        PathBuf::from(&params.file)
+    };
+
+    if !file_path.exists() {
+        return Err(eyre!("File not found: {:?}", file_path));
+    }
+
+    println!("🔍 Parsing MTG Arena Events");
+    println!("Source: {}", file_path.display());
+    if params.include_player_log {
+        if let Ok(player_log_path) = get_player_log_path() {
+            println!("Player Log: {}", player_log_path.display());
+        }
+    }
+    println!("Limit: {} events", params.limit);
+    if let Some(ref filters) = params.filter {
+        println!("Filters: {}", filters.join(", "));
+    }
+    println!();
+
+    // Parse events from the log files
+    let result = events::parse_events_from_file(
+        &file_path,
+        params.include_player_log,
+        &params.filter,
+        params.limit,
+        params.verbose,
+    )
+    .await?;
+
+    // Display the events
+    let display = display::EventDisplay::new(params.pretty);
+
+    if !result.main_events.is_empty() {
+        println!("📋 Main Log Events:");
+        println!();
+        for event in &result.main_events {
+            display.display_parsed_event(event)?;
+        }
+        println!();
+    }
+
+    if !result.player_events.is_empty() {
+        println!("🎮 Player Log Events:");
+        println!();
+        for event in &result.player_events {
+            display.display_player_event(event)?;
+        }
+        println!();
+    }
+
+    if result.main_events.is_empty() && result.player_events.is_empty() {
+        println!("❌ No events found matching the specified criteria");
+        println!();
+        println!("💡 Try:");
+        println!("   - Removing filters to see all events");
+        println!("   - Increasing the limit with --limit");
+        println!("   - Adding --include-player-log for more detailed events");
+        println!("   - Using --verbose to see parsing progress");
+    } else {
+        // Display summary
+        display.display_summary(
+            &result.main_events,
+            &result.player_events,
+            result.total_lines_processed,
+        )?;
     }
 
     Ok(())

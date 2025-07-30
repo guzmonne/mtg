@@ -1,0 +1,1765 @@
+use crate::prelude::*;
+use mtg_core::{CompanionEventParser, ParsedEvent, RawLogEvent};
+use serde_json::Value;
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::path::Path;
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub enum EnhancedPlayerEvent {
+    MatchStarted {
+        match_id: String,
+        players: Vec<(u64, String, String)>,
+    },
+    GameState {
+        turn: Option<u64>,
+        active_player: Option<u64>,
+    },
+    Mulligan {
+        decision: String,
+    },
+    CardPlayed {
+        action: String,
+        #[allow(dead_code)]
+        zones: (u64, u64),
+    },
+    SpellCast {
+        mana_cost: String,
+    },
+    TargetSelection {
+        target_id: u64,
+    },
+    CounterChange {
+        counter_type: String,
+        amount: u64,
+    },
+    ManaPaid,
+    CardRevealed {
+        count: usize,
+    },
+    CardDrawn,
+    AbilityActivated,
+    PermanentTapped {
+        tapped: bool,
+    },
+    ActionTaken {
+        action_type: String,
+    },
+    PhaseChange {
+        phase: String,
+        step: Option<String>,
+    },
+    LifeChange {
+        player: u64,
+        life_total: u64,
+    },
+    Attackers {
+        count: usize,
+    },
+    Blockers {
+        count: usize,
+    },
+    SpellResolution {
+        grp_id: u64,
+    },
+    DeckInfo {
+        name: String,
+        format: String,
+        card_count: usize,
+    },
+    PriorityPass,
+    UIMessage,
+    GameEvent,
+    // New comprehensive event for complex game state changes
+    CombatSequence {
+        phase: String,
+        step: String,
+        attacking_creatures: Vec<String>,
+        damage_dealt: Option<u64>,
+        life_changes: Vec<(u64, u64)>, // (player, new_life)
+    },
+}
+
+pub struct EventParseResult {
+    pub main_events: Vec<ParsedEvent>,
+    pub player_events: Vec<EnhancedPlayerEvent>,
+    pub total_lines_processed: usize,
+}
+
+#[allow(dead_code)]
+pub struct EnhancedPlayerEventParser {
+    player_names: HashMap<u64, String>,
+    current_match_id: Option<String>,
+    current_turn: Option<u64>,
+    active_player: Option<u64>,
+}
+
+#[allow(dead_code)]
+impl EnhancedPlayerEventParser {
+    pub fn new() -> Self {
+        Self {
+            player_names: HashMap::new(),
+            current_match_id: None,
+            current_turn: None,
+            active_player: None,
+        }
+    }
+
+    pub fn parse_player_event(
+        &mut self,
+        event: RawLogEvent,
+    ) -> Result<Option<EnhancedPlayerEvent>> {
+        match event.event_name.as_str() {
+            "PlayerMatchStarted" => self.handle_match_started(&event.raw_data),
+            "PlayerGameState" => self.handle_game_state(&event.raw_data),
+            "PlayerMulligan" => self.handle_mulligan(&event.raw_data),
+            "PlayerCardPlayed" => self.handle_card_played(&event.raw_data),
+            "PlayerSpellCast" => self.handle_spell_cast(&event.raw_data),
+            "PlayerTargetSelection" => self.handle_target_selection(&event.raw_data),
+            "PlayerCounterChange" => self.handle_counter_change(&event.raw_data),
+            "PlayerManaPaid" => Ok(Some(EnhancedPlayerEvent::ManaPaid)),
+            "PlayerCardRevealed" => self.handle_card_revealed(&event.raw_data),
+            "PlayerCardDrawn" => Ok(Some(EnhancedPlayerEvent::CardDrawn)),
+            "PlayerAbilityActivated" => Ok(Some(EnhancedPlayerEvent::AbilityActivated)),
+            "PlayerPermanentTapped" => self.handle_permanent_tapped(&event.raw_data),
+            "PlayerActionTaken" => self.handle_action_taken(&event.raw_data),
+            "PlayerPhaseChange" => self.handle_phase_change(&event.raw_data),
+            "PlayerLifeChange" => self.handle_life_change(&event.raw_data),
+            "PlayerAttackers" => self.handle_attackers(&event.raw_data),
+            "PlayerBlockers" => self.handle_blockers(&event.raw_data),
+            "PlayerSpellResolution" => self.handle_spell_resolution(&event.raw_data),
+            "PlayerDeckInfo" => self.handle_deck_info(&event.raw_data),
+            "PlayerPriorityPass" => Ok(Some(EnhancedPlayerEvent::PriorityPass)),
+            "PlayerUIMessage" => Ok(Some(EnhancedPlayerEvent::UIMessage)),
+            "PlayerGameEvent" => Ok(Some(EnhancedPlayerEvent::GameEvent)),
+            _ => Ok(None),
+        }
+    }
+
+    fn handle_match_started(&mut self, raw_data: &str) -> Result<Option<EnhancedPlayerEvent>> {
+        if let Ok(json) = serde_json::from_str::<Value>(raw_data) {
+            if let Some(match_event) = json.get("matchGameRoomStateChangedEvent") {
+                if let Some(game_room_info) = match_event.get("gameRoomInfo") {
+                    if let Some(config) = game_room_info.get("gameRoomConfig") {
+                        let match_id = config
+                            .get("matchId")
+                            .and_then(|id| id.as_str())
+                            .unwrap_or("unknown")
+                            .to_string();
+
+                        self.current_match_id = Some(match_id.clone());
+
+                        let mut players = Vec::new();
+                        if let Some(reserved_players) =
+                            config.get("reservedPlayers").and_then(|p| p.as_array())
+                        {
+                            for player in reserved_players {
+                                if let (Some(seat_id), Some(name), Some(platform)) = (
+                                    player.get("systemSeatId").and_then(|s| s.as_u64()),
+                                    player.get("playerName").and_then(|n| n.as_str()),
+                                    player.get("platformId").and_then(|p| p.as_str()),
+                                ) {
+                                    self.player_names.insert(seat_id, name.to_string());
+                                    players.push((seat_id, name.to_string(), platform.to_string()));
+                                }
+                            }
+                        }
+
+                        return Ok(Some(EnhancedPlayerEvent::MatchStarted {
+                            match_id,
+                            players,
+                        }));
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn handle_game_state(&mut self, raw_data: &str) -> Result<Option<EnhancedPlayerEvent>> {
+        if let Ok(json) = serde_json::from_str::<Value>(raw_data) {
+            if let Some(gre_event) = json.get("greToClientEvent") {
+                if let Some(messages) = gre_event
+                    .get("greToClientMessages")
+                    .and_then(|m| m.as_array())
+                {
+                    for message in messages {
+                        if let Some(msg_type) = message.get("type").and_then(|t| t.as_str()) {
+                            if msg_type == "GREMessageType_GameStateMessage" {
+                                if let Some(game_state) = message.get("gameStateMessage") {
+                                    if let Some(turn_info) = game_state.get("turnInfo") {
+                                        let turn_num =
+                                            turn_info.get("turnNumber").and_then(|t| t.as_u64());
+                                        let active =
+                                            turn_info.get("activePlayer").and_then(|a| a.as_u64());
+
+                                        if turn_num != self.current_turn
+                                            || active != self.active_player
+                                        {
+                                            self.current_turn = turn_num;
+                                            self.active_player = active;
+                                            return Ok(Some(EnhancedPlayerEvent::GameState {
+                                                turn: turn_num,
+                                                active_player: active,
+                                            }));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn handle_mulligan(&mut self, raw_data: &str) -> Result<Option<EnhancedPlayerEvent>> {
+        if let Ok(json) = serde_json::from_str::<Value>(raw_data) {
+            if let Some(mulligan_resp) = json.get("mulliganResp") {
+                if let Some(decision) = mulligan_resp.get("decision").and_then(|d| d.as_str()) {
+                    return Ok(Some(EnhancedPlayerEvent::Mulligan {
+                        decision: decision.to_string(),
+                    }));
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn handle_card_played(&mut self, raw_data: &str) -> Result<Option<EnhancedPlayerEvent>> {
+        if let Ok(json) = serde_json::from_str::<Value>(raw_data) {
+            if let Some(annotations) = json.get("annotations").and_then(|a| a.as_array()) {
+                for annotation in annotations {
+                    if let Some(types) = annotation.get("type").and_then(|t| t.as_array()) {
+                        if types
+                            .iter()
+                            .any(|t| t.as_str() == Some("AnnotationType_ZoneTransfer"))
+                        {
+                            if let Some(details) =
+                                annotation.get("details").and_then(|d| d.as_array())
+                            {
+                                let mut zone_src = None;
+                                let mut zone_dest = None;
+                                let mut category = None;
+
+                                for detail in details {
+                                    if let Some(key) = detail.get("key").and_then(|k| k.as_str()) {
+                                        match key {
+                                            "zone_src" => {
+                                                zone_src = detail
+                                                    .get("valueInt32")
+                                                    .and_then(|v| v.as_array())
+                                                    .and_then(|arr| arr.first())
+                                                    .and_then(|v| v.as_u64())
+                                            }
+                                            "zone_dest" => {
+                                                zone_dest = detail
+                                                    .get("valueInt32")
+                                                    .and_then(|v| v.as_array())
+                                                    .and_then(|arr| arr.first())
+                                                    .and_then(|v| v.as_u64())
+                                            }
+                                            "category" => {
+                                                category = detail
+                                                    .get("valueString")
+                                                    .and_then(|v| v.as_array())
+                                                    .and_then(|arr| arr.first())
+                                                    .and_then(|v| v.as_str())
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+                                }
+
+                                if let (Some(src), Some(dest)) = (zone_src, zone_dest) {
+                                    let action = category.unwrap_or("card moved").to_string();
+                                    return Ok(Some(EnhancedPlayerEvent::CardPlayed {
+                                        action,
+                                        zones: (src, dest),
+                                    }));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn handle_spell_cast(&mut self, raw_data: &str) -> Result<Option<EnhancedPlayerEvent>> {
+        if let Ok(json) = serde_json::from_str::<Value>(raw_data) {
+            if let Some(perform_action) = json.get("performActionResp") {
+                if let Some(actions) = perform_action.get("actions").and_then(|a| a.as_array()) {
+                    for action in actions {
+                        if let Some(action_type) = action.get("actionType").and_then(|t| t.as_str())
+                        {
+                            if action_type == "ActionType_Cast" {
+                                if let Some(mana_cost) =
+                                    action.get("manaCost").and_then(|m| m.as_array())
+                                {
+                                    let mut cost_description = Vec::new();
+                                    for cost in mana_cost {
+                                        if let (Some(colors), Some(count)) = (
+                                            cost.get("color").and_then(|c| c.as_array()),
+                                            cost.get("count").and_then(|c| c.as_u64()),
+                                        ) {
+                                            for color in colors {
+                                                if let Some(color_str) = color.as_str() {
+                                                    let color_symbol = match color_str {
+                                                        "ManaColor_White" => "W",
+                                                        "ManaColor_Blue" => "U",
+                                                        "ManaColor_Black" => "B",
+                                                        "ManaColor_Red" => "R",
+                                                        "ManaColor_Green" => "G",
+                                                        "ManaColor_Generic" => &count.to_string(),
+                                                        _ => "?",
+                                                    };
+                                                    cost_description
+                                                        .push(format!("{}{}", count, color_symbol));
+                                                }
+                                            }
+                                        }
+                                    }
+                                    return Ok(Some(EnhancedPlayerEvent::SpellCast {
+                                        mana_cost: cost_description.join(""),
+                                    }));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    // Add simplified implementations for the remaining handlers
+    fn handle_target_selection(&mut self, raw_data: &str) -> Result<Option<EnhancedPlayerEvent>> {
+        if let Ok(json) = serde_json::from_str::<Value>(raw_data) {
+            if let Some(select_targets) = json.get("selectTargetsResp") {
+                if let Some(target) = select_targets.get("target") {
+                    if let Some(targets) = target.get("targets").and_then(|t| t.as_array()) {
+                        for target_obj in targets {
+                            if let Some(target_id) = target_obj
+                                .get("targetInstanceId")
+                                .and_then(|id| id.as_u64())
+                            {
+                                return Ok(Some(EnhancedPlayerEvent::TargetSelection {
+                                    target_id,
+                                }));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn handle_counter_change(&mut self, raw_data: &str) -> Result<Option<EnhancedPlayerEvent>> {
+        if let Ok(json) = serde_json::from_str::<Value>(raw_data) {
+            if let Some(annotations) = json.get("annotations").and_then(|a| a.as_array()) {
+                for annotation in annotations {
+                    if let Some(types) = annotation.get("type").and_then(|t| t.as_array()) {
+                        if types
+                            .iter()
+                            .any(|t| t.as_str() == Some("AnnotationType_CounterAdded"))
+                        {
+                            if let Some(details) =
+                                annotation.get("details").and_then(|d| d.as_array())
+                            {
+                                let mut counter_type = None;
+                                let mut amount = None;
+
+                                for detail in details {
+                                    if let Some(key) = detail.get("key").and_then(|k| k.as_str()) {
+                                        match key {
+                                            "counter_type" => {
+                                                counter_type = detail
+                                                    .get("valueInt32")
+                                                    .and_then(|v| v.as_array())
+                                                    .and_then(|arr| arr.first())
+                                                    .and_then(|v| v.as_u64())
+                                            }
+                                            "transaction_amount" => {
+                                                amount = detail
+                                                    .get("valueInt32")
+                                                    .and_then(|v| v.as_array())
+                                                    .and_then(|arr| arr.first())
+                                                    .and_then(|v| v.as_u64())
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+                                }
+
+                                if let (Some(counter_type), Some(amount)) = (counter_type, amount) {
+                                    let counter_name = match counter_type {
+                                        7 => "loyalty",
+                                        1 => "+1/+1",
+                                        2 => "-1/-1",
+                                        _ => "unknown",
+                                    };
+                                    return Ok(Some(EnhancedPlayerEvent::CounterChange {
+                                        counter_type: counter_name.to_string(),
+                                        amount,
+                                    }));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn handle_card_revealed(&mut self, raw_data: &str) -> Result<Option<EnhancedPlayerEvent>> {
+        if let Ok(json) = serde_json::from_str::<Value>(raw_data) {
+            if let Some(zones) = json.get("zones").and_then(|z| z.as_array()) {
+                for zone in zones {
+                    if let Some(zone_type) = zone.get("type").and_then(|t| t.as_str()) {
+                        if zone_type == "ZoneType_Revealed" {
+                            if let Some(object_ids) =
+                                zone.get("objectInstanceIds").and_then(|ids| ids.as_array())
+                            {
+                                return Ok(Some(EnhancedPlayerEvent::CardRevealed {
+                                    count: object_ids.len(),
+                                }));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn handle_permanent_tapped(&mut self, raw_data: &str) -> Result<Option<EnhancedPlayerEvent>> {
+        if let Ok(json) = serde_json::from_str::<Value>(raw_data) {
+            if let Some(annotations) = json.get("annotations").and_then(|a| a.as_array()) {
+                for annotation in annotations {
+                    if let Some(types) = annotation.get("type").and_then(|t| t.as_array()) {
+                        if types
+                            .iter()
+                            .any(|t| t.as_str() == Some("AnnotationType_TappedUntappedPermanent"))
+                        {
+                            if let Some(details) =
+                                annotation.get("details").and_then(|d| d.as_array())
+                            {
+                                for detail in details {
+                                    if let Some(key) = detail.get("key").and_then(|k| k.as_str()) {
+                                        if key == "tapped" {
+                                            if let Some(tapped) = detail
+                                                .get("valueInt32")
+                                                .and_then(|v| v.as_array())
+                                                .and_then(|arr| arr.first())
+                                                .and_then(|v| v.as_u64())
+                                            {
+                                                return Ok(Some(
+                                                    EnhancedPlayerEvent::PermanentTapped {
+                                                        tapped: tapped == 1,
+                                                    },
+                                                ));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn handle_action_taken(&mut self, raw_data: &str) -> Result<Option<EnhancedPlayerEvent>> {
+        if let Ok(json) = serde_json::from_str::<Value>(raw_data) {
+            if let Some(annotations) = json.get("annotations").and_then(|a| a.as_array()) {
+                for annotation in annotations {
+                    if let Some(types) = annotation.get("type").and_then(|t| t.as_array()) {
+                        if types
+                            .iter()
+                            .any(|t| t.as_str() == Some("AnnotationType_UserActionTaken"))
+                        {
+                            if let Some(details) =
+                                annotation.get("details").and_then(|d| d.as_array())
+                            {
+                                for detail in details {
+                                    if let Some(key) = detail.get("key").and_then(|k| k.as_str()) {
+                                        if key == "actionType" {
+                                            if let Some(action_type) = detail
+                                                .get("valueInt32")
+                                                .and_then(|v| v.as_array())
+                                                .and_then(|arr| arr.first())
+                                                .and_then(|v| v.as_u64())
+                                            {
+                                                let action_name = match action_type {
+                                                    2 => "ability activation",
+                                                    4 => "mana ability",
+                                                    _ => "action",
+                                                };
+                                                return Ok(Some(
+                                                    EnhancedPlayerEvent::ActionTaken {
+                                                        action_type: action_name.to_string(),
+                                                    },
+                                                ));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn handle_phase_change(&mut self, raw_data: &str) -> Result<Option<EnhancedPlayerEvent>> {
+        if let Ok(json) = serde_json::from_str::<Value>(raw_data) {
+            if let Some(annotations) = json.get("annotations").and_then(|a| a.as_array()) {
+                for annotation in annotations {
+                    if let Some(types) = annotation.get("type").and_then(|t| t.as_array()) {
+                        if types
+                            .iter()
+                            .any(|t| t.as_str() == Some("AnnotationType_PhaseOrStepModified"))
+                        {
+                            if let Some(details) =
+                                annotation.get("details").and_then(|d| d.as_array())
+                            {
+                                let mut phase = None;
+                                let mut step = None;
+
+                                for detail in details {
+                                    if let Some(key) = detail.get("key").and_then(|k| k.as_str()) {
+                                        match key {
+                                            "phase" => {
+                                                phase = detail
+                                                    .get("valueInt32")
+                                                    .and_then(|v| v.as_array())
+                                                    .and_then(|arr| arr.first())
+                                                    .and_then(|v| v.as_u64())
+                                            }
+                                            "step" => {
+                                                step = detail
+                                                    .get("valueInt32")
+                                                    .and_then(|v| v.as_array())
+                                                    .and_then(|arr| arr.first())
+                                                    .and_then(|v| v.as_u64())
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+                                }
+
+                                if let Some(phase) = phase {
+                                    let phase_name = match phase {
+                                        1 => "Beginning",
+                                        2 => "Main",
+                                        3 => "Combat",
+                                        4 => "Main 2",
+                                        5 => "End",
+                                        _ => "Unknown",
+                                    };
+                                    let step_name = step.and_then(|s| match s {
+                                        1 => Some("Upkeep".to_string()),
+                                        2 => Some("Draw".to_string()),
+                                        3 => Some("Begin Combat".to_string()),
+                                        4 => Some("Declare Attackers".to_string()),
+                                        5 => Some("Declare Blockers".to_string()),
+                                        6 => Some("Combat Damage".to_string()),
+                                        7 => Some("End Combat".to_string()),
+                                        8 => Some("End Step".to_string()),
+                                        9 => Some("Cleanup".to_string()),
+                                        _ => None,
+                                    });
+                                    return Ok(Some(EnhancedPlayerEvent::PhaseChange {
+                                        phase: phase_name.to_string(),
+                                        step: step_name,
+                                    }));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn handle_life_change(&mut self, raw_data: &str) -> Result<Option<EnhancedPlayerEvent>> {
+        if let Ok(json) = serde_json::from_str::<Value>(raw_data) {
+            if let Some(players) = json.get("players").and_then(|p| p.as_array()) {
+                for player in players {
+                    if let (Some(life_total), Some(seat_number)) = (
+                        player.get("lifeTotal").and_then(|l| l.as_u64()),
+                        player.get("systemSeatNumber").and_then(|s| s.as_u64()),
+                    ) {
+                        return Ok(Some(EnhancedPlayerEvent::LifeChange {
+                            player: seat_number,
+                            life_total,
+                        }));
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn handle_attackers(&mut self, raw_data: &str) -> Result<Option<EnhancedPlayerEvent>> {
+        if let Ok(json) = serde_json::from_str::<Value>(raw_data) {
+            if let Some(game_objects) = json.get("gameObjects").and_then(|g| g.as_array()) {
+                let mut attacking_creatures = 0;
+                for obj in game_objects {
+                    if let Some(attack_state) = obj.get("attackState").and_then(|a| a.as_str()) {
+                        if attack_state == "AttackState_Attacking" {
+                            attacking_creatures += 1;
+                        }
+                    }
+                }
+                if attacking_creatures > 0 {
+                    return Ok(Some(EnhancedPlayerEvent::Attackers {
+                        count: attacking_creatures,
+                    }));
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn handle_blockers(&mut self, raw_data: &str) -> Result<Option<EnhancedPlayerEvent>> {
+        if let Ok(json) = serde_json::from_str::<Value>(raw_data) {
+            if let Some(game_objects) = json.get("gameObjects").and_then(|g| g.as_array()) {
+                let mut blocking_creatures = 0;
+                for obj in game_objects {
+                    if let Some(block_state) = obj.get("blockState").and_then(|b| b.as_str()) {
+                        if block_state == "BlockState_Blocking" {
+                            blocking_creatures += 1;
+                        }
+                    }
+                }
+                if blocking_creatures > 0 {
+                    return Ok(Some(EnhancedPlayerEvent::Blockers {
+                        count: blocking_creatures,
+                    }));
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn handle_spell_resolution(&mut self, raw_data: &str) -> Result<Option<EnhancedPlayerEvent>> {
+        if let Ok(json) = serde_json::from_str::<Value>(raw_data) {
+            if let Some(annotations) = json.get("annotations").and_then(|a| a.as_array()) {
+                for annotation in annotations {
+                    if let Some(types) = annotation.get("type").and_then(|t| t.as_array()) {
+                        if types
+                            .iter()
+                            .any(|t| t.as_str() == Some("AnnotationType_ResolutionStart"))
+                        {
+                            if let Some(details) =
+                                annotation.get("details").and_then(|d| d.as_array())
+                            {
+                                for detail in details {
+                                    if let Some(key) = detail.get("key").and_then(|k| k.as_str()) {
+                                        if key == "grpid" {
+                                            if let Some(grp_id) = detail
+                                                .get("valueInt32")
+                                                .and_then(|v| v.as_array())
+                                                .and_then(|arr| arr.first())
+                                                .and_then(|v| v.as_u64())
+                                            {
+                                                return Ok(Some(
+                                                    EnhancedPlayerEvent::SpellResolution { grp_id },
+                                                ));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn handle_deck_info(&mut self, raw_data: &str) -> Result<Option<EnhancedPlayerEvent>> {
+        if let Ok(json) = serde_json::from_str::<Value>(raw_data) {
+            if let Some(courses) = json.get("Courses").and_then(|c| c.as_array()) {
+                for course in courses {
+                    if let Some(deck_summary) = course.get("CourseDeckSummary") {
+                        if let (Some(deck_name), Some(format)) = (
+                            deck_summary.get("Name").and_then(|n| n.as_str()),
+                            deck_summary
+                                .get("Attributes")
+                                .and_then(|a| a.as_array())
+                                .and_then(|attrs| {
+                                    attrs.iter().find(|attr| {
+                                        attr.get("name").and_then(|n| n.as_str()) == Some("Format")
+                                    })
+                                })
+                                .and_then(|attr| attr.get("value").and_then(|v| v.as_str())),
+                        ) {
+                            let card_count = course
+                                .get("CourseDeck")
+                                .and_then(|deck| deck.get("MainDeck"))
+                                .and_then(|main_deck| main_deck.as_array())
+                                .map(|cards| {
+                                    cards
+                                        .iter()
+                                        .filter_map(|card| {
+                                            card.get("quantity").and_then(|q| q.as_u64())
+                                        })
+                                        .sum::<u64>() as usize
+                                })
+                                .unwrap_or(0);
+
+                            return Ok(Some(EnhancedPlayerEvent::DeckInfo {
+                                name: deck_name.to_string(),
+                                format: format.to_string(),
+                                card_count,
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+}
+
+pub async fn parse_events_from_file(
+    file_path: &Path,
+    include_player_log: bool,
+    filter: &Option<Vec<String>>,
+    limit: usize,
+    verbose: bool,
+) -> Result<EventParseResult> {
+    let mut player_events = Vec::new();
+    let mut total_lines_processed = 0;
+
+    // Parse main log file
+    if verbose {
+        aeprintln!("Parsing main log file: {}", file_path.display());
+    }
+
+    let main_result = parse_main_log_file(file_path, filter, limit, verbose).await?;
+    let main_events = main_result.0;
+    total_lines_processed += main_result.1;
+
+    // Parse Player.log if requested
+    if include_player_log {
+        if let Ok(player_log_path) = super::get_player_log_path() {
+            if verbose {
+                aeprintln!("Parsing Player.log file: {}", player_log_path.display());
+            }
+
+            let player_result =
+                parse_player_log_file(&player_log_path, filter, limit, verbose).await?;
+            player_events = player_result.0;
+            total_lines_processed += player_result.1;
+        } else if verbose {
+            aeprintln!("Player.log not found, skipping");
+        }
+    }
+
+    Ok(EventParseResult {
+        main_events,
+        player_events,
+        total_lines_processed,
+    })
+}
+
+async fn parse_main_log_file(
+    file_path: &Path,
+    filter: &Option<Vec<String>>,
+    limit: usize,
+    verbose: bool,
+) -> Result<(Vec<ParsedEvent>, usize)> {
+    let mut parser = CompanionEventParser::new();
+    let mut lines_processed = 0;
+
+    let file = File::open(file_path)?;
+    let reader = BufReader::new(file);
+
+    if verbose {
+        aeprintln!("Opened file successfully, starting to read lines...");
+    }
+
+    // For efficiency, we'll read from the end of the file backwards to get recent events
+    // But for simplicity in this implementation, we'll read forward and keep only the last N events
+    let mut all_events = Vec::new();
+
+    for line in reader.lines() {
+        lines_processed += 1;
+        let line = line?;
+
+        if lines_processed % 10000 == 0 && verbose {
+            aeprintln!("Processed {} lines...", lines_processed);
+        }
+
+        if verbose && lines_processed <= 5 && line.contains("UnityCrossThreadLogger") {
+            aeprintln!(
+                "Line {}: {}",
+                lines_processed,
+                &line[..std::cmp::min(100, line.len())]
+            );
+        }
+
+        // Try to parse this line as a log event
+        if let Some(raw_event) = parse_log_line(&line)? {
+            if verbose && all_events.len() < 3 {
+                aeprintln!(
+                    "Raw event found: {} with data: {}",
+                    raw_event.event_name,
+                    &raw_event.raw_data[..std::cmp::min(50, raw_event.raw_data.len())]
+                );
+            }
+            if let Some(parsed_event) = parser.parse_event(raw_event)? {
+                if should_include_event(&parsed_event, filter) {
+                    if verbose {
+                        aeprintln!(
+                            "Event added to results: {:?}",
+                            std::mem::discriminant(&parsed_event)
+                        );
+                    }
+                    all_events.push(parsed_event);
+                }
+            }
+        }
+    }
+
+    // Keep only the most recent events
+    let events = if all_events.len() > limit {
+        all_events.into_iter().rev().take(limit).rev().collect()
+    } else {
+        all_events
+    };
+
+    if verbose {
+        aeprintln!(
+            "Found {} relevant events from {} lines",
+            events.len(),
+            lines_processed
+        );
+    }
+
+    Ok((events, lines_processed))
+}
+
+async fn parse_player_log_file(
+    file_path: &Path,
+    filter: &Option<Vec<String>>,
+    limit: usize,
+    verbose: bool,
+) -> Result<(Vec<EnhancedPlayerEvent>, usize)> {
+    let mut lines_processed = 0;
+
+    let file = File::open(file_path)?;
+    let reader = BufReader::new(file);
+
+    let mut all_events = Vec::new();
+    let mut json_buffer = String::new();
+    let mut in_json = false;
+    let mut brace_count = 0;
+
+    for line in reader.lines() {
+        lines_processed += 1;
+        let line = line?;
+
+        if lines_processed % 50000 == 0 && verbose {
+            aeprintln!("Processed {} Player.log lines...", lines_processed);
+        }
+
+        // Check if this line starts a JSON block
+        if line.trim().starts_with('{') && !in_json {
+            in_json = true;
+            json_buffer.clear();
+            brace_count = 0;
+        }
+
+        if in_json {
+            json_buffer.push_str(&line);
+            json_buffer.push('\n');
+
+            // Count braces to know when JSON is complete
+            for ch in line.chars() {
+                match ch {
+                    '{' => brace_count += 1,
+                    '}' => brace_count -= 1,
+                    _ => {}
+                }
+            }
+
+            // If brace count is 0, we have a complete JSON object
+            if brace_count == 0 {
+                in_json = false;
+
+                // Try to parse the complete JSON
+                if let Some(parsed_event) = parse_player_json_line(&json_buffer)? {
+                    if should_include_enhanced_player_event(&parsed_event, filter) {
+                        if verbose && all_events.len() < 5 {
+                            aeprintln!(
+                                "Player event found: {:?}",
+                                std::mem::discriminant(&parsed_event)
+                            );
+                        }
+                        all_events.push(parsed_event);
+                    }
+                }
+                json_buffer.clear();
+            }
+        } else {
+            // Also try single-line JSON parsing for backwards compatibility
+            if let Some(parsed_event) = parse_player_json_line(&line)? {
+                if should_include_enhanced_player_event(&parsed_event, filter) {
+                    if verbose && all_events.len() < 5 {
+                        aeprintln!(
+                            "Player event found: {:?}",
+                            std::mem::discriminant(&parsed_event)
+                        );
+                    }
+                    all_events.push(parsed_event);
+                }
+            }
+        }
+    }
+
+    // Keep only the most recent events
+    let events = if all_events.len() > limit {
+        all_events.into_iter().rev().take(limit).rev().collect()
+    } else {
+        all_events
+    };
+
+    if verbose {
+        aeprintln!(
+            "Found {} relevant player events from {} lines",
+            events.len(),
+            lines_processed
+        );
+    }
+
+    Ok((events, lines_processed))
+}
+
+fn parse_log_line(line: &str) -> Result<Option<RawLogEvent>> {
+    const EVENT_PREFIX: &str = "[UnityCrossThreadLogger]";
+
+    if !line.contains(EVENT_PREFIX) {
+        return Ok(None);
+    }
+
+    // Look for arrow patterns
+    if let Some(arrow_pos) = line.find("==> ") {
+        let after_arrow = &line[arrow_pos + 4..];
+        let (event_name, raw_data) = if let Some(space_pos) = after_arrow.find(' ') {
+            let event_name = after_arrow[..space_pos].to_string();
+            let raw_data = after_arrow[space_pos..].trim().to_string();
+            (event_name, raw_data)
+        } else if let Some(brace_pos) = after_arrow.find('{') {
+            let event_name = after_arrow[..brace_pos].trim().to_string();
+            let raw_data = after_arrow[brace_pos..].to_string();
+            (event_name, raw_data)
+        } else {
+            (after_arrow.to_string(), String::new())
+        };
+
+        return Ok(Some(RawLogEvent {
+            timestamp: Some(chrono::Utc::now()),
+            event_name,
+            raw_data,
+        }));
+    } else if let Some(arrow_pos) = line.find("==>") {
+        // Handle format without space after arrow
+        let after_arrow = &line[arrow_pos + 3..];
+        let (event_name, raw_data) = if let Some(space_pos) = after_arrow.find(' ') {
+            let event_name = after_arrow[..space_pos].to_string();
+            let raw_data = after_arrow[space_pos..].trim().to_string();
+            (event_name, raw_data)
+        } else if let Some(brace_pos) = after_arrow.find('{') {
+            let event_name = after_arrow[..brace_pos].trim().to_string();
+            let raw_data = after_arrow[brace_pos..].to_string();
+            (event_name, raw_data)
+        } else {
+            (after_arrow.to_string(), String::new())
+        };
+
+        return Ok(Some(RawLogEvent {
+            timestamp: Some(chrono::Utc::now()),
+            event_name,
+            raw_data,
+        }));
+    } else if let Some(arrow_pos) = line.find("<== ") {
+        let after_arrow = &line[arrow_pos + 4..];
+        let event_name = if let Some(paren_pos) = after_arrow.find('(') {
+            after_arrow[..paren_pos].trim().to_string()
+        } else {
+            after_arrow.trim().to_string()
+        };
+
+        // For incoming events, JSON data might be on the same line or we need to look ahead
+        let raw_data = if let Some(json_start) = after_arrow.find('{') {
+            after_arrow[json_start..].to_string()
+        } else if let Some(json_start) = after_arrow.find('[') {
+            after_arrow[json_start..].to_string()
+        } else {
+            String::new()
+        };
+
+        return Ok(Some(RawLogEvent {
+            timestamp: Some(chrono::Utc::now()),
+            event_name,
+            raw_data,
+        }));
+    }
+
+    // Check for STATE CHANGED pattern
+    if line.contains("STATE CHANGED") {
+        if let Some(json_start) = line.find('{') {
+            let json_data = line[json_start..].to_string();
+            return Ok(Some(RawLogEvent {
+                timestamp: Some(chrono::Utc::now()),
+                event_name: "StateChanged".to_string(),
+                raw_data: json_data,
+            }));
+        }
+    }
+
+    Ok(None)
+}
+
+#[allow(dead_code)]
+fn parse_player_log_line(line: &str) -> Result<Option<RawLogEvent>> {
+    const PLAYER_LOG_PREFIX: &str = "[UnityCrossThreadLogger]";
+
+    if !line.contains(PLAYER_LOG_PREFIX) {
+        return Ok(None);
+    }
+
+    // Check if this is a valuable event type
+    if !is_valuable_player_event(line) {
+        return Ok(None);
+    }
+
+    // Look for JSON data in the line
+    if let Some(json_start) = line.find('{') {
+        let json_data = &line[json_start..];
+
+        // Try to determine event type from JSON content - prioritize more specific patterns
+        let event_name = if json_data.contains("matchGameRoomStateChangedEvent") {
+            "PlayerMatchStarted"
+        } else if json_data.contains("ClientMessageType_MulliganResp") {
+            "PlayerMulligan"
+        } else if json_data.contains("ClientMessageType_DeclareAttackersResp")
+            || json_data.contains("AttackState_Attacking")
+        {
+            "PlayerAttackers"
+        } else if json_data.contains("BlockState_Blocking") {
+            "PlayerBlockers"
+        } else if json_data.contains("AnnotationType_ZoneTransfer") {
+            "PlayerCardPlayed"
+        } else if json_data.contains("ActionType_Cast") && json_data.contains("manaCost") {
+            "PlayerSpellCast"
+        } else if json_data.contains("ActionType_Pass") {
+            "PlayerPriorityPass"
+        } else if json_data.contains("AnnotationType_ResolutionStart") {
+            "PlayerSpellResolution"
+        } else if json_data.contains("EventGetCoursesV2") || json_data.contains("EventSetDeckV2") {
+            "PlayerDeckInfo"
+        } else if json_data.contains("ClientMessageType_SelectTargetsResp") {
+            "PlayerTargetSelection"
+        } else if json_data.contains("AnnotationType_CounterAdded") {
+            "PlayerCounterChange"
+        } else if json_data.contains("AnnotationType_ManaPaid") {
+            "PlayerManaPaid"
+        } else if json_data.contains("ZoneType_Revealed") {
+            "PlayerCardRevealed"
+        } else if json_data.contains("AnnotationType_CardDrawn") {
+            "PlayerCardDrawn"
+        } else if json_data.contains("AnnotationType_AbilityInstanceCreated") {
+            "PlayerAbilityActivated"
+        } else if json_data.contains("AnnotationType_TappedUntappedPermanent") {
+            "PlayerPermanentTapped"
+        } else if json_data.contains("AnnotationType_UserActionTaken") {
+            "PlayerActionTaken"
+        } else if json_data.contains("AnnotationType_PhaseOrStepModified") {
+            "PlayerPhaseChange"
+        } else if json_data.contains("GREMessageType_GameStateMessage") {
+            "PlayerGameState"
+        } else if json_data.contains("lifeTotal") {
+            "PlayerLifeChange"
+        } else if json_data.contains("ClientToGREUIMessage") {
+            "PlayerUIMessage"
+        } else if json_data.contains("GreToClientEvent") {
+            "PlayerGameEvent"
+        } else {
+            return Ok(None); // Skip unknown events
+        };
+
+        return Ok(Some(RawLogEvent {
+            timestamp: Some(chrono::Utc::now()),
+            event_name: event_name.to_string(),
+            raw_data: json_data.to_string(),
+        }));
+    }
+
+    Ok(None)
+}
+
+#[allow(dead_code)]
+fn is_valuable_player_event(line: &str) -> bool {
+    line.contains("matchGameRoomStateChangedEvent")
+        || line.contains("ClientMessageType_MulliganResp")
+        || line.contains("ClientMessageType_SelectTargetsResp")
+        || line.contains("ClientMessageType_PerformActionResp")
+        || line.contains("ClientMessageType_DeclareAttackersResp")
+        || line.contains("GREMessageType_GameStateMessage")
+        || line.contains("GREMessageType_SubmitAttackersResp")
+        || line.contains("AnnotationType_ZoneTransfer")
+        || line.contains("AnnotationType_CounterAdded")
+        || line.contains("AnnotationType_ManaPaid")
+        || line.contains("AnnotationType_CardDrawn")
+        || line.contains("AnnotationType_AbilityInstanceCreated")
+        || line.contains("AnnotationType_TappedUntappedPermanent")
+        || line.contains("AnnotationType_UserActionTaken")
+        || line.contains("AnnotationType_PhaseOrStepModified")
+        || line.contains("AnnotationType_ResolutionStart")
+        || line.contains("ZoneType_Revealed")
+        || line.contains("EventGetCoursesV2")
+        || line.contains("EventSetDeckV2")
+        || line.contains("ActionType_Cast")
+        || line.contains("ActionType_Pass")
+        || line.contains("AttackState_Attacking")
+        || line.contains("BlockState_Blocking")
+        || (line.contains("players") && line.contains("lifeTotal"))
+        || line.contains("ClientToGREUIMessage")
+        || line.contains("GreToClientEvent")
+}
+
+pub fn parse_player_json_line(line: &str) -> Result<Option<EnhancedPlayerEvent>> {
+    // Skip non-JSON lines
+    let trimmed = line.trim();
+    if !trimmed.starts_with('{') || !trimmed.ends_with('}') {
+        return Ok(None);
+    }
+
+    // Try to parse as JSON
+    if let Ok(json) = serde_json::from_str::<Value>(trimmed) {
+        // Check for different event types in the JSON structure
+
+        // Match events - look for greToClientEvent structure
+        if let Some(gre_event) = json.get("greToClientEvent") {
+            if let Some(messages) = gre_event
+                .get("greToClientMessages")
+                .and_then(|m| m.as_array())
+            {
+                // Process all messages to extract the complete narrative
+                let mut events = Vec::new();
+
+                for message in messages {
+                    if let Some(msg_type) = message.get("type").and_then(|t| t.as_str()) {
+                        match msg_type {
+                            "GREMessageType_SubmitAttackersResp" => {
+                                // Combat phase: attackers declared
+                                if let Some(result) = message
+                                    .get("submitAttackersResp")
+                                    .and_then(|r| r.get("result"))
+                                    .and_then(|r| r.as_str())
+                                {
+                                    if result == "ResultCode_Success" {
+                                        events.push(EnhancedPlayerEvent::ActionTaken {
+                                            action_type: "Attackers declared".to_string(),
+                                        });
+                                    }
+                                }
+                            }
+                            "GREMessageType_GameStateMessage" => {
+                                if let Some(game_state) = message.get("gameStateMessage") {
+                                    // Extract multiple events from a single game state message
+
+                                    // 1. Check for turn/phase changes
+                                    if let Some(turn_info) = game_state.get("turnInfo") {
+                                        if let (Some(phase), Some(step)) = (
+                                            turn_info.get("phase").and_then(|p| p.as_str()),
+                                            turn_info.get("step").and_then(|s| s.as_str()),
+                                        ) {
+                                            let phase_name = match phase {
+                                                "Phase_Beginning" => "Beginning",
+                                                "Phase_Main1" => "Main 1",
+                                                "Phase_Combat" => "Combat",
+                                                "Phase_Main2" => "Main 2",
+                                                "Phase_Ending" => "End",
+                                                _ => phase,
+                                            };
+
+                                            let step_name = match step {
+                                                "Step_Upkeep" => Some("Upkeep"),
+                                                "Step_Draw" => Some("Draw"),
+                                                "Step_DeclareAttack" => Some("Declare Attackers"),
+                                                "Step_DeclareBlock" => Some("Declare Blockers"),
+                                                "Step_CombatDamage" => Some("Combat Damage"),
+                                                "Step_EndCombat" => Some("End Combat"),
+                                                "Step_End" => Some("End Step"),
+                                                "Step_Cleanup" => Some("Cleanup"),
+                                                _ => None,
+                                            };
+
+                                            events.push(EnhancedPlayerEvent::PhaseChange {
+                                                phase: phase_name.to_string(),
+                                                step: step_name.map(|s| s.to_string()),
+                                            });
+                                        }
+
+                                        // Check for turn changes
+                                        if let (Some(turn_num), Some(active_player)) = (
+                                            turn_info.get("turnNumber").and_then(|t| t.as_u64()),
+                                            turn_info.get("activePlayer").and_then(|p| p.as_u64()),
+                                        ) {
+                                            events.push(EnhancedPlayerEvent::GameState {
+                                                turn: Some(turn_num),
+                                                active_player: Some(active_player),
+                                            });
+                                        }
+                                    }
+
+                                    // 2. Check for life changes
+                                    if let Some(players) =
+                                        game_state.get("players").and_then(|p| p.as_array())
+                                    {
+                                        for player in players {
+                                            if let (Some(life_total), Some(seat_number)) = (
+                                                player.get("lifeTotal").and_then(|l| l.as_u64()),
+                                                player
+                                                    .get("systemSeatNumber")
+                                                    .and_then(|s| s.as_u64()),
+                                            ) {
+                                                events.push(EnhancedPlayerEvent::LifeChange {
+                                                    player: seat_number,
+                                                    life_total,
+                                                });
+                                            }
+                                        }
+                                    }
+
+                                    // 3. Check for combat creatures and their states
+                                    if let Some(game_objects) =
+                                        game_state.get("gameObjects").and_then(|g| g.as_array())
+                                    {
+                                        let mut attacking_creatures = 0;
+                                        let mut blocking_creatures = 0;
+                                        #[allow(unused_mut)]
+                                        let mut damage_amount = 0;
+
+                                        for obj in game_objects {
+                                            // Check for attacking creatures
+                                            if let Some(attack_state) =
+                                                obj.get("attackState").and_then(|a| a.as_str())
+                                            {
+                                                if attack_state == "AttackState_Attacking" {
+                                                    attacking_creatures += 1;
+
+                                                    // Extract creature details
+                                                    let creature_name = extract_creature_name(obj);
+                                                    let power = obj
+                                                        .get("power")
+                                                        .and_then(|p| p.get("value"))
+                                                        .and_then(|v| v.as_u64())
+                                                        .unwrap_or(0);
+                                                    let toughness = obj
+                                                        .get("toughness")
+                                                        .and_then(|t| t.get("value"))
+                                                        .and_then(|v| v.as_u64())
+                                                        .unwrap_or(0);
+
+                                                    events.push(EnhancedPlayerEvent::ActionTaken {
+                                                        action_type: format!(
+                                                            "🗡️ {} ({}/{}) attacks",
+                                                            creature_name, power, toughness
+                                                        ),
+                                                    });
+                                                }
+                                            }
+
+                                            // Check for blocking creatures
+                                            if let Some(block_state) =
+                                                obj.get("blockState").and_then(|b| b.as_str())
+                                            {
+                                                if block_state == "BlockState_Blocking" {
+                                                    blocking_creatures += 1;
+                                                } else if block_state == "BlockState_Unblocked" {
+                                                    // Creature went unblocked
+                                                    let creature_name = extract_creature_name(obj);
+                                                    events.push(EnhancedPlayerEvent::ActionTaken {
+                                                        action_type: format!(
+                                                            "⚔️ {} goes unblocked",
+                                                            creature_name
+                                                        ),
+                                                    });
+                                                }
+                                            }
+                                        }
+                                        if damage_amount > 0 {
+                                            events.push(EnhancedPlayerEvent::ActionTaken {
+                                                action_type: format!(
+                                                    "💥 {} damage dealt",
+                                                    damage_amount
+                                                ),
+                                            });
+                                        }
+                                        if blocking_creatures > 0 {
+                                            events.push(EnhancedPlayerEvent::Blockers {
+                                                count: blocking_creatures,
+                                            });
+                                        }
+                                    }
+
+                                    // 4. Check for damage annotations
+                                    if let Some(annotations) =
+                                        game_state.get("annotations").and_then(|a| a.as_array())
+                                    {
+                                        for annotation in annotations {
+                                            if let Some(types) =
+                                                annotation.get("type").and_then(|t| t.as_array())
+                                            {
+                                                for annotation_type in types {
+                                                    match annotation_type.as_str() {
+                                                        Some("AnnotationType_DamageDealt") => {
+                                                            // Extract damage information
+                                                            if let Some(details) = annotation.get("details").and_then(|d| d.as_array()) {
+                                        #[allow(unused_mut)]
+                                        let mut damage_amount = 0;                                                                for detail in details {
+                                                                    if let Some(key) = detail.get("key").and_then(|k| k.as_str()) {
+                                                                        if key == "damage" {
+                                                                            damage_amount = detail.get("valueInt32")
+                                                                                .and_then(|v| v.as_array())
+                                                                                .and_then(|arr| arr.first())
+                                                                                .and_then(|v| v.as_u64())
+                                                                                .unwrap_or(0);
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                if damage_amount > 0 {
+                                                                    events.push(EnhancedPlayerEvent::ActionTaken {
+                                                                        action_type: format!("💥 {} damage dealt", damage_amount)
+                                                                    });
+                                                                }
+                                                            }
+                                                        },
+                                                        Some("AnnotationType_ModifiedLife") => {
+                                                            // Life change annotation
+                                                            if let Some(details) = annotation.get("details").and_then(|d| d.as_array()) {
+                                                                for detail in details {
+                                                                    if let Some(key) = detail.get("key").and_then(|k| k.as_str()) {
+                                                                        if key == "life" {
+                                                                            if let Some(life_change) = detail.get("valueInt32")
+                                                                                .and_then(|v| v.as_array())
+                                                                                .and_then(|arr| arr.first())
+                                                                                .and_then(|v| v.as_i64()) {
+                                                                                events.push(EnhancedPlayerEvent::ActionTaken {
+                                                                                    action_type: format!("❤️ Life changed by {}", life_change)
+                                                                                });
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        Some("AnnotationType_ZoneTransfer") => {
+                                                            // Card movement (draws, plays, etc.)
+                                                            let mut zone_src = None;
+                                                            let mut zone_dest = None;
+                                                            let mut category = None;
+
+                                                            if let Some(details) = annotation.get("details").and_then(|d| d.as_array()) {
+                                                                for detail in details {
+                                                                    if let Some(key) = detail.get("key").and_then(|k| k.as_str()) {
+                                                                        match key {
+                                                                            "zone_src" => {
+                                                                                zone_src = detail.get("valueInt32")
+                                                                                    .and_then(|v| v.as_array())
+                                                                                    .and_then(|arr| arr.first())
+                                                                                    .and_then(|v| v.as_u64());
+                                                                            },
+                                                                            "zone_dest" => {
+                                                                                zone_dest = detail.get("valueInt32")
+                                                                                    .and_then(|v| v.as_array())
+                                                                                    .and_then(|arr| arr.first())
+                                                                                    .and_then(|v| v.as_u64());
+                                                                            },
+                                                                            "category" => {
+                                                                                category = detail.get("valueString")
+                                                                                    .and_then(|v| v.as_array())
+                                                                                    .and_then(|arr| arr.first())
+                                                                                    .and_then(|v| v.as_str());
+                                                                            },
+                                                                            _ => {}
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            if let (Some(src), Some(dest)) = (zone_src, zone_dest) {
+                                                                let action_desc = match category {
+                                                                    Some("Draw") => "📥 Drew a card",
+                                                                    Some("PlayLand") => "🏔️ Played a land",
+                                                                    Some("Cast") => "🎯 Cast a spell",
+                                                                    _ => "🔄 Card moved",
+                                                                };
+
+                                                                events.push(EnhancedPlayerEvent::CardPlayed {
+                                                                    action: action_desc.to_string(),
+                                                                    zones: (src, dest)
+                                                                });
+                                                            }
+                                                        },
+                                                        Some("AnnotationType_NewTurnStarted") => {
+                                                            events.push(EnhancedPlayerEvent::ActionTaken {
+                                                                action_type: "🔄 New turn started".to_string()
+                                                            });
+                                                        },
+                                                        Some("AnnotationType_PhaseOrStepModified") => {
+                                                            // Phase/step change already handled above
+                                                        },
+                                                        Some("AnnotationType_TappedUntappedPermanent") => {
+                                                            // Permanent tapped/untapped
+                                                            if let Some(details) = annotation.get("details").and_then(|d| d.as_array()) {
+                                                                for detail in details {
+                                                                    if let Some(key) = detail.get("key").and_then(|k| k.as_str()) {
+                                                                        if key == "tapped" {
+                                                                            if let Some(tapped) = detail.get("valueInt32")
+                                                                                .and_then(|v| v.as_array())
+                                                                                .and_then(|arr| arr.first())
+                                                                                .and_then(|v| v.as_u64()) {
+                                                                                let action = if tapped == 1 { "⤵️ Permanent tapped" } else { "⤴️ Permanent untapped" };
+                                                                                events.push(EnhancedPlayerEvent::PermanentTapped { tapped: tapped == 1 });
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        _ => {}
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            "GREMessageType_MulliganReq" => {
+                                if let Some(mulligan_req) = message.get("mulliganReq") {
+                                    let mulligan_type = mulligan_req
+                                        .get("mulliganType")
+                                        .and_then(|t| t.as_str())
+                                        .unwrap_or("Unknown");
+                                    events.push(EnhancedPlayerEvent::Mulligan {
+                                        decision: format!("Mulligan requested: {}", mulligan_type),
+                                    });
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                // Return the first meaningful event (prioritize combat and life changes)
+                for event in &events {
+                    match event {
+                        EnhancedPlayerEvent::LifeChange { .. }
+                        | EnhancedPlayerEvent::ActionTaken { .. }
+                        | EnhancedPlayerEvent::CardPlayed { .. }
+                        | EnhancedPlayerEvent::Attackers { .. }
+                        | EnhancedPlayerEvent::PhaseChange { .. } => {
+                            return Ok(Some(event.clone()));
+                        }
+                        _ => continue,
+                    }
+                }
+
+                // If no priority events, return the first one
+                if let Some(event) = events.into_iter().next() {
+                    return Ok(Some(event));
+                }
+            }
+        }
+
+        // Check for client messages (responses) - these are in payload
+        if let Some(payload) = json.get("payload") {
+            if let Some(client_type) = payload.get("type").and_then(|t| t.as_str()) {
+                match client_type {
+                    "ClientMessageType_MulliganResp" => {
+                        let decision = if let Some(mulligan_resp) = payload.get("mulliganResp") {
+                            if let Some(decision_val) =
+                                mulligan_resp.get("decision").and_then(|d| d.as_str())
+                            {
+                                match decision_val {
+                                    "MulliganOption_AcceptHand" => "🤲 Kept hand",
+                                    "MulliganOption_Mulligan" => "🔄 Mulliganed",
+                                    _ => decision_val,
+                                }
+                            } else {
+                                "Mulligan response"
+                            }
+                        } else {
+                            "Mulligan response"
+                        };
+                        return Ok(Some(EnhancedPlayerEvent::Mulligan {
+                            decision: decision.to_string(),
+                        }));
+                    }
+                    "ClientMessageType_PerformActionResp" => {
+                        if let Some(perform_action) = payload.get("performActionResp") {
+                            if let Some(actions) =
+                                perform_action.get("actions").and_then(|a| a.as_array())
+                            {
+                                for action in actions {
+                                    if let Some(action_type) =
+                                        action.get("actionType").and_then(|t| t.as_str())
+                                    {
+                                        match action_type {
+                                            "ActionType_Cast" => {
+                                                return Ok(Some(EnhancedPlayerEvent::SpellCast {
+                                                    mana_cost: "🎯 Cast spell".to_string(),
+                                                }));
+                                            }
+                                            "ActionType_Play" => {
+                                                return Ok(Some(EnhancedPlayerEvent::CardPlayed {
+                                                    action: "🏔️ Played land".to_string(),
+                                                    zones: (0, 0),
+                                                }));
+                                            }
+                                            _ => {
+                                                return Ok(Some(
+                                                    EnhancedPlayerEvent::ActionTaken {
+                                                        action_type: action_type.to_string(),
+                                                    },
+                                                ));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // Check for direct client messages (responses) - some are at root level
+        if let Some(client_type) = json.get("type").and_then(|t| t.as_str()) {
+            match client_type {
+                "ClientMessageType_MulliganResp" => {
+                    let decision = if let Some(mulligan_resp) = json.get("mulliganResp") {
+                        if let Some(decision_val) =
+                            mulligan_resp.get("decision").and_then(|d| d.as_str())
+                        {
+                            match decision_val {
+                                "MulliganOption_AcceptHand" => "🤲 Kept hand",
+                                "MulliganOption_Mulligan" => "🔄 Mulliganed",
+                                _ => decision_val,
+                            }
+                        } else {
+                            "Mulligan response"
+                        }
+                    } else {
+                        "Mulligan response"
+                    };
+                    return Ok(Some(EnhancedPlayerEvent::Mulligan {
+                        decision: decision.to_string(),
+                    }));
+                }
+                "ClientMessageType_PerformActionResp" => {
+                    if let Some(perform_action) = json.get("performActionResp") {
+                        if let Some(actions) =
+                            perform_action.get("actions").and_then(|a| a.as_array())
+                        {
+                            for action in actions {
+                                if let Some(action_type) =
+                                    action.get("actionType").and_then(|t| t.as_str())
+                                {
+                                    match action_type {
+                                        "ActionType_Cast" => {
+                                            return Ok(Some(EnhancedPlayerEvent::SpellCast {
+                                                mana_cost: "🎯 Cast spell".to_string(),
+                                            }));
+                                        }
+                                        "ActionType_Play" => {
+                                            return Ok(Some(EnhancedPlayerEvent::CardPlayed {
+                                                action: "🏔️ Played land".to_string(),
+                                                zones: (0, 0),
+                                            }));
+                                        }
+                                        _ => {
+                                            return Ok(Some(EnhancedPlayerEvent::ActionTaken {
+                                                action_type: action_type.to_string(),
+                                            }));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Check for match events
+        if json.get("matchGameRoomStateChangedEvent").is_some() {
+            return Ok(Some(EnhancedPlayerEvent::MatchStarted {
+                match_id: "Match started".to_string(),
+                players: vec![],
+            }));
+        }
+    }
+
+    Ok(None)
+}
+
+// Helper function to extract creature name from game object
+fn extract_creature_name(obj: &Value) -> String {
+    // Try to get creature name from subtypes
+    if let Some(subtypes) = obj.get("subtypes").and_then(|st| st.as_array()) {
+        let creature_types: Vec<String> = subtypes
+            .iter()
+            .filter_map(|st| st.as_str())
+            .filter(|st| st.starts_with("SubType_"))
+            .map(|st| st.strip_prefix("SubType_").unwrap_or(st).to_string())
+            .collect();
+
+        if !creature_types.is_empty() {
+            return creature_types.join(" ");
+        }
+    }
+
+    // Fallback to generic creature
+    "Creature".to_string()
+}
+
+fn should_include_event(event: &ParsedEvent, filter: &Option<Vec<String>>) -> bool {
+    if let Some(filters) = filter {
+        if filters.is_empty() {
+            return true;
+        }
+
+        for filter_str in filters {
+            let matches = match filter_str.as_str() {
+                "auth" | "authentication" => {
+                    matches!(event, ParsedEvent::UserAuthenticated { .. })
+                }
+                "match" => {
+                    matches!(
+                        event,
+                        ParsedEvent::MatchStarted(_) | ParsedEvent::MatchEnded(_)
+                    )
+                }
+                "turns" => {
+                    matches!(event, ParsedEvent::TurnChange { .. })
+                }
+                "life" => {
+                    matches!(event, ParsedEvent::LifeChange { .. })
+                }
+                "actions" => {
+                    matches!(
+                        event,
+                        ParsedEvent::GameAction(_) | ParsedEvent::CardPlayed { .. }
+                    )
+                }
+                "cards" => {
+                    matches!(event, ParsedEvent::CardPlayed { .. })
+                }
+                "mulligans" => {
+                    matches!(event, ParsedEvent::Mulligan { .. })
+                }
+                "draft" => {
+                    matches!(
+                        event,
+                        ParsedEvent::DraftPack { .. }
+                            | ParsedEvent::DraftPick { .. }
+                            | ParsedEvent::DraftCompleted
+                    )
+                }
+                "deck" => {
+                    matches!(event, ParsedEvent::DeckSubmitted { .. })
+                }
+                _ => true, // Unknown filter, show everything
+            };
+
+            if matches {
+                return true;
+            }
+        }
+        false
+    } else {
+        true
+    }
+}
+
+fn should_include_enhanced_player_event(
+    event: &EnhancedPlayerEvent,
+    filter: &Option<Vec<String>>,
+) -> bool {
+    if let Some(filters) = filter {
+        if filters.is_empty() {
+            return true;
+        }
+
+        for filter_str in filters {
+            let matches = match filter_str.as_str() {
+                "match" => matches!(event, EnhancedPlayerEvent::MatchStarted { .. }),
+                "life" => matches!(event, EnhancedPlayerEvent::LifeChange { .. }),
+                "cards" => matches!(
+                    event,
+                    EnhancedPlayerEvent::CardDrawn
+                        | EnhancedPlayerEvent::CardRevealed { .. }
+                        | EnhancedPlayerEvent::CardPlayed { .. }
+                ),
+                "actions" => matches!(
+                    event,
+                    EnhancedPlayerEvent::ActionTaken { .. }
+                        | EnhancedPlayerEvent::AbilityActivated
+                        | EnhancedPlayerEvent::TargetSelection { .. }
+                        | EnhancedPlayerEvent::ManaPaid
+                        | EnhancedPlayerEvent::PermanentTapped { .. }
+                        | EnhancedPlayerEvent::SpellCast { .. }
+                ),
+                "turns" => matches!(event, EnhancedPlayerEvent::PhaseChange { .. }),
+                "mulligans" => matches!(event, EnhancedPlayerEvent::Mulligan { .. }),
+                "combat" => matches!(
+                    event,
+                    EnhancedPlayerEvent::Attackers { .. }
+                        | EnhancedPlayerEvent::Blockers { .. }
+                        | EnhancedPlayerEvent::CombatSequence { .. }
+                ),
+                "deck" => matches!(event, EnhancedPlayerEvent::DeckInfo { .. }),
+                "game" => matches!(
+                    event,
+                    EnhancedPlayerEvent::GameState { .. }
+                        | EnhancedPlayerEvent::SpellResolution { .. }
+                        | EnhancedPlayerEvent::CounterChange { .. }
+                        | EnhancedPlayerEvent::PriorityPass
+                ),
+                _ => true, // Unknown filter or show all
+            };
+
+            if matches {
+                return true;
+            }
+        }
+        false
+    } else {
+        true
+    }
+}

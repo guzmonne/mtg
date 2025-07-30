@@ -44,6 +44,41 @@ pub fn get_default_log_path() -> Result<PathBuf> {
     Ok(log_path)
 }
 
+#[cfg(target_os = "windows")]
+pub fn get_player_log_path() -> Result<PathBuf> {
+    let userprofile = std::env::var("USERPROFILE")
+        .map_err(|_| eyre!("Could not find USERPROFILE environment variable"))?;
+    let log_path = PathBuf::from(userprofile)
+        .join("AppData")
+        .join("LocalLow")
+        .join("Wizards Of The Coast")
+        .join("MTGA")
+        .join("Player.log");
+
+    if !log_path.exists() {
+        return Err(eyre!("MTG Arena Player.log not found at: {:?}", log_path));
+    }
+
+    Ok(log_path)
+}
+
+#[cfg(target_os = "macos")]
+pub fn get_player_log_path() -> Result<PathBuf> {
+    let home = dirs::home_dir().ok_or_else(|| eyre!("Could not find home directory"))?;
+    let log_path = home
+        .join("Library")
+        .join("Logs")
+        .join("Wizards Of The Coast")
+        .join("MTGA")
+        .join("Player.log");
+
+    if !log_path.exists() {
+        return Err(eyre!("MTG Arena Player.log not found at: {:?}", log_path));
+    }
+
+    Ok(log_path)
+}
+
 pub fn find_newest_log_file(dir: &Path) -> Result<PathBuf> {
     let mut newest_file = None;
     let mut newest_time = std::time::SystemTime::UNIX_EPOCH;

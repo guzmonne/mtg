@@ -1,5 +1,7 @@
 use super::types::*;
+use crate::companion::parse::events::EnhancedPlayerEvent;
 use crate::prelude::*;
+use chrono::Local;
 use comfy_table::{Cell, Color, ContentArrangement, Table};
 use std::io::{self, Write};
 
@@ -24,6 +26,229 @@ impl MatchDisplay {
     pub fn with_detailed_actions(mut self, show_detailed: bool) -> Self {
         self.show_detailed_actions = show_detailed;
         self
+    }
+
+    // Enhanced display for real-time events with timestamps
+    pub fn display_enhanced_event(
+        &self,
+        event: &EnhancedPlayerEvent,
+        player_names: &std::collections::HashMap<u64, String>,
+    ) -> Result<()> {
+        let timestamp = Local::now().format("%H:%M:%S");
+
+        match event {
+            EnhancedPlayerEvent::MatchStarted { match_id, players } => {
+                println!("\n🎮 ═══════════════════════════════════════════");
+                println!("🎮 [{}] MATCH STARTED: {}", timestamp, match_id);
+                println!("🎮 ═══════════════════════════════════════════");
+                for (seat_id, name, platform) in players {
+                    println!(
+                        "👤 [{}] Player {}: {} ({})",
+                        timestamp, seat_id, name, platform
+                    );
+                }
+                println!();
+            }
+
+            EnhancedPlayerEvent::GameState {
+                turn,
+                active_player,
+            } => {
+                if let (Some(turn_num), Some(active)) = (turn, active_player) {
+                    let player_name = player_names
+                        .get(active)
+                        .map(|s| s.as_str())
+                        .unwrap_or("Unknown");
+                    println!(
+                        "🔄 [{}] Turn {}: {} is active",
+                        timestamp, turn_num, player_name
+                    );
+                }
+            }
+
+            EnhancedPlayerEvent::Mulligan { decision } => {
+                println!("🤲 [{}] {}", timestamp, decision);
+            }
+
+            EnhancedPlayerEvent::CardPlayed { action, zones: _ } => {
+                println!("🎴 [{}] {}", timestamp, action);
+            }
+
+            EnhancedPlayerEvent::SpellCast { mana_cost } => {
+                println!("✨ [{}] {}", timestamp, mana_cost);
+            }
+
+            EnhancedPlayerEvent::ActionTaken { action_type } => {
+                // Enhanced formatting for combat actions
+                if action_type.contains("🗡️")
+                    || action_type.contains("⚔️")
+                    || action_type.contains("💥")
+                    || action_type.contains("❤️")
+                {
+                    println!("⚔️ [{}] {}", timestamp, action_type);
+                } else if action_type == "Attackers declared" {
+                    println!("⚔️ [{}] Attackers declared", timestamp);
+                } else if action_type.contains("New turn started") {
+                    println!("🔄 [{}] New turn started", timestamp);
+                } else {
+                    println!("🎮 [{}] {}", timestamp, action_type);
+                }
+            }
+
+            EnhancedPlayerEvent::PhaseChange { phase, step } => {
+                if let Some(step_name) = step {
+                    println!("🕐 [{}] {} Phase - {}", timestamp, phase, step_name);
+                } else {
+                    println!("🕐 [{}] {} Phase", timestamp, phase);
+                }
+            }
+
+            EnhancedPlayerEvent::LifeChange { player, life_total } => {
+                let default_name = format!("Player {}", player);
+                let player_name = player_names
+                    .get(player)
+                    .map(|s| s.as_str())
+                    .unwrap_or(&default_name);
+                println!("❤️  [{}] {} life: {}", timestamp, player_name, life_total);
+            }
+
+            EnhancedPlayerEvent::Attackers { count } => {
+                println!("⚔️  [{}] {} creature(s) attacking", timestamp, count);
+            }
+
+            EnhancedPlayerEvent::Blockers { count } => {
+                println!("🛡️  [{}] {} creature(s) blocking", timestamp, count);
+            }
+
+            EnhancedPlayerEvent::CombatSequence {
+                phase,
+                step,
+                attacking_creatures,
+                damage_dealt,
+                life_changes,
+            } => {
+                println!("⚔️ [{}] Combat: {} - {}", timestamp, phase, step);
+                for creature in attacking_creatures {
+                    println!("   🗡️ {} attacks", creature);
+                }
+                if let Some(damage) = damage_dealt {
+                    println!("   💥 {} damage dealt", damage);
+                }
+                for (player, life) in life_changes {
+                    let default_name = format!("Player {}", player);
+                    let player_name = player_names
+                        .get(player)
+                        .map(|s| s.as_str())
+                        .unwrap_or(&default_name);
+                    println!("   ❤️ {} life: {}", player_name, life);
+                }
+            }
+
+            EnhancedPlayerEvent::DeckInfo {
+                name,
+                format,
+                card_count,
+            } => {
+                println!(
+                    "🃏 [{}] Deck loaded: {} ({}) - {} cards",
+                    timestamp, name, format, card_count
+                );
+            }
+
+            EnhancedPlayerEvent::PriorityPass => {
+                println!("⏭️  [{}] Priority passed", timestamp);
+            }
+
+            EnhancedPlayerEvent::TargetSelection { target_id } => {
+                println!(
+                    "🎯 [{}] Target selected: Instance ID {}",
+                    timestamp, target_id
+                );
+            }
+
+            EnhancedPlayerEvent::CounterChange {
+                counter_type,
+                amount,
+            } => {
+                println!(
+                    "🔢 [{}] Counter added: {} {} counter(s)",
+                    timestamp, amount, counter_type
+                );
+            }
+
+            EnhancedPlayerEvent::ManaPaid => {
+                println!("💎 [{}] Mana paid for spell/ability", timestamp);
+            }
+
+            EnhancedPlayerEvent::CardRevealed { count } => {
+                println!("👁️  [{}] {} card(s) revealed", timestamp, count);
+            }
+
+            EnhancedPlayerEvent::CardDrawn => {
+                println!("📤 [{}] Card drawn", timestamp);
+            }
+
+            EnhancedPlayerEvent::AbilityActivated => {
+                println!("⚡ [{}] Ability activated", timestamp);
+            }
+
+            EnhancedPlayerEvent::PermanentTapped { tapped } => {
+                if *tapped {
+                    println!("⤵️ [{}] Permanent tapped", timestamp);
+                } else {
+                    println!("⤴️ [{}] Permanent untapped", timestamp);
+                }
+            }
+
+            EnhancedPlayerEvent::SpellResolution { grp_id } => {
+                println!(
+                    "🔮 [{}] Spell/ability resolving (GRP ID: {})",
+                    timestamp, grp_id
+                );
+            }
+
+            EnhancedPlayerEvent::UIMessage | EnhancedPlayerEvent::GameEvent => {
+                // Skip these for cleaner output
+            }
+        }
+        Ok(())
+    }
+
+    // Display a compact match status summary
+    #[allow(dead_code)]
+    pub fn display_match_status(
+        &self,
+        player_names: &std::collections::HashMap<u64, String>,
+        current_turn: Option<u64>,
+        active_player: Option<u64>,
+    ) -> Result<()> {
+        let timestamp = Local::now().format("%H:%M:%S");
+
+        if let (Some(turn), Some(active)) = (current_turn, active_player) {
+            let default_name = format!("Player {}", active);
+            let player_name = player_names
+                .get(&active)
+                .map(|s| s.as_str())
+                .unwrap_or(&default_name);
+
+            println!("\n📊 [{}] ═══ MATCH STATUS ═══", timestamp);
+            println!("🔄 Turn: {} | Active: {}", turn, player_name);
+
+            // Show all known players
+            if !player_names.is_empty() {
+                println!("👥 Players:");
+                for (seat_id, name) in player_names {
+                    let status = if *seat_id == active {
+                        "🟢 Active"
+                    } else {
+                        "⚪ Waiting"
+                    };
+                    println!("   {} Player {}: {}", status, seat_id, name);
+                }
+            }
+            println!("═══════════════════════════════════\n");
+        }
+        Ok(())
     }
 
     pub fn display_match_start(&self, match_state: &MatchState) -> Result<()> {

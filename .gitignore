@@ -17,3 +17,6 @@ Cargo.lock
 .bacon-locations
 bak
 log.txt
+
+*/*.csv
+opencode.json
